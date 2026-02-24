@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="MinVer" Version="7.0.0" />
+    <PackageVersion Include="MSTest" Version="4.1.0" />
+    <PackageVersion Include="NJsonSchema" Version="11.5.2" />
+    <PackageVersion Include="NJsonSchema.CodeGeneration.CSharp" Version="11.5.2" />
+  </ItemGroup>
+</Project>

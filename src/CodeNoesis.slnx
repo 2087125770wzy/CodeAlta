@@ -1,0 +1,23 @@
+<Solution>
+  <Folder Name="/doc/">
+    <File Path="../doc/readme.md" />
+  </Folder>
+  <Folder Name="/general/">
+    <File Path="../.editorconfig" />
+    <File Path="../.gitattributes" />
+    <File Path="../.github/workflows/ci.yml" />
+    <File Path="../.gitignore" />
+    <File Path="../AGENTS.md" />
+    <File Path="../license.txt" />
+    <File Path="../readme.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="dotnet-releaser.toml" />
+    <File Path="global.json" />
+  </Folder>
+  <Project Path="../../../JKToolKit.CodexSDK/src/JKToolKit.CodexSDK/JKToolKit.CodexSDK.csproj" />
+  <Project Path="CodeNoesis.CodexSdk.Generator/CodeNoesis.CodexSdk.Generator.csproj" Id="5e0c386b-10bd-4af7-a98e-5b18779aa19e" />
+  <Project Path="CodeNoesis.CodexSdk/CodeNoesis.CodexSdk.csproj" Id="4507c156-d675-4280-bd1c-2a5d8285c07f" />
+  <Project Path="CodeNoesis.Tests/CodeNoesis.Tests.csproj" />
+  <Project Path="CodeNoesis/CodeNoesis.csproj" />
+</Solution>
