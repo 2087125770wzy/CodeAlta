@@ -1,0 +1,52 @@
+namespace CodeNoesis.Agent;
+
+/// <summary>
+/// Options for creating an agent session.
+/// </summary>
+public class AgentSessionCreateOptions
+{
+    /// <summary>
+    /// Gets or initializes the model identifier.
+    /// </summary>
+    public string? Model { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the working directory for the session.
+    /// </summary>
+    public string? WorkingDirectory { get; init; }
+
+    /// <summary>
+    /// Gets or initializes whether streaming is enabled.
+    /// </summary>
+    public bool Streaming { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the reasoning effort.
+    /// </summary>
+    public AgentReasoningEffort? ReasoningEffort { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the system message (system prompt).
+    /// </summary>
+    public string? SystemMessage { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the developer instructions.
+    /// </summary>
+    public string? DeveloperInstructions { get; init; }
+
+    /// <summary>
+    /// Gets or initializes custom tools available to this session.
+    /// </summary>
+    public IReadOnlyList<AgentToolDefinition>? Tools { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the permission request handler (required; deny-by-default if you provide a handler that denies).
+    /// </summary>
+    public required AgentPermissionRequestHandler OnPermissionRequest { get; init; }
+
+    /// <summary>
+    /// Gets or initializes the user input request handler (optional).
+    /// </summary>
+    public AgentUserInputRequestHandler? OnUserInputRequest { get; init; }
+}

@@ -1,0 +1,58 @@
+namespace CodeNoesis.Agent;
+
+/// <summary>
+/// Represents a single conversation session.
+/// </summary>
+public interface IAgentSession : IAsyncDisposable
+{
+    /// <summary>
+    /// Gets the backend identifier.
+    /// </summary>
+    AgentBackendId BackendId { get; }
+
+    /// <summary>
+    /// Gets the backend session identifier.
+    /// </summary>
+    string SessionId { get; }
+
+    /// <summary>
+    /// Gets the optional backend-managed workspace directory for this session.
+    /// </summary>
+    string? WorkspacePath { get; }
+
+    /// <summary>
+    /// Streams normalized agent events.
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the enumeration.</param>
+    IAsyncEnumerable<AgentEvent> StreamEventsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Subscribes to normalized agent events.
+    /// </summary>
+    /// <param name="handler">The event handler.</param>
+    /// <returns>An <see cref="IDisposable"/> that unsubscribes when disposed.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="handler"/> is <see langword="null"/>.</exception>
+    IDisposable Subscribe(Action<AgentEvent> handler);
+
+    /// <summary>
+    /// Sends user input to the session.
+    /// </summary>
+    /// <param name="options">Send options.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The backend run identifier (e.g. turn id or message id).</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> is <see langword="null"/>.</exception>
+    Task<AgentRunId> SendAsync(AgentSendOptions options, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Aborts/cancels the currently running work in this session (best effort).
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task AbortAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the stored history for the session (best effort).
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    Task<IReadOnlyList<AgentEvent>> GetHistoryAsync(CancellationToken cancellationToken = default);
+}
+
