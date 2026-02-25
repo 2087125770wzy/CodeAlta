@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">CodeAlta</title>
+  <desc id="desc">A modern icon combining code brackets with a mountain peak.</desc>
+  <defs>
+    <style>
+      :root {
+        --ca-bg-0: #0B1220;
+        --ca-bg-1: #111B30;
+        --ca-ink: #EAF2FF;
+        --ca-ink-opacity: 0.92;
+        --ca-accent-0: #00D1FF;
+        --ca-accent-1: #4F46E5;
+        --ca-accent-2: #A855F7;
+        --ca-shine-0-opacity: 0.18;
+        --ca-shine-1-opacity: 0.06;
+        --ca-outline: #FFFFFF;
+        --ca-outline-opacity: 0.16;
+        --ca-shadow: #000000;
+        --ca-shadow-opacity: 0.35;
+      }
+    </style>
+
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="var(--ca-bg-0)"/>
+      <stop offset="1" stop-color="var(--ca-bg-1)"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(194.6 115.4) rotate(52) scale(344.6 270.8)">
+      <stop offset="0" stop-color="var(--ca-outline)" stop-opacity="var(--ca-shine-0-opacity)"/>
+      <stop offset="0.55" stop-color="var(--ca-outline)" stop-opacity="var(--ca-shine-1-opacity)"/>
+      <stop offset="1" stop-color="var(--ca-outline)" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="164" y1="124" x2="360" y2="396" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="var(--ca-accent-0)"/>
+      <stop offset="0.55" stop-color="var(--ca-accent-1)"/>
+      <stop offset="1" stop-color="var(--ca-accent-2)"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="var(--ca-shadow)" flood-opacity="var(--ca-shadow-opacity)"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="128" fill="url(#bg)"/>
+  <rect x="0" y="0" width="512" height="512" rx="128" fill="url(#shine)"/>
+
+  <g filter="url(#shadow)" transform="matrix(1.230769 0 0 1.230769 -59.076923 -59.076923)">
+    <path d="M168 178L112 256L168 334" stroke="var(--ca-ink)" stroke-opacity="var(--ca-ink-opacity)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M344 178L400 256L344 334" stroke="var(--ca-ink)" stroke-opacity="var(--ca-ink-opacity)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <path fill-rule="evenodd" clip-rule="evenodd"
+      d="M256 118L122 404H198L256 268L314 404H390L256 118Z
+         M256 186L216 304H296L256 186Z"
+      fill="url(#accent)"/>
+
+    <path d="M256 118L122 404H198L256 268L314 404H390L256 118Z" stroke="var(--ca-outline)" stroke-opacity="var(--ca-outline-opacity)" stroke-width="6" stroke-linejoin="round"/>
+  </g>
+</svg>
