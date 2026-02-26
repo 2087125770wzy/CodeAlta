@@ -3,6 +3,7 @@ using System.Text.Json;
 using CodeAlta.CodexSdk;
 using CodeAlta.CodexSdk.V2;
 using CodexThread = CodeAlta.CodexSdk.V2.Thread;
+using V2ReasoningEffort = CodeAlta.CodexSdk.V2.ReasoningEffort;
 using V2AskForApproval = CodeAlta.CodexSdk.V2.AskForApproval;
 using V2UserInput = CodeAlta.CodexSdk.V2.UserInput;
 
@@ -24,12 +25,18 @@ internal static class CodexAgentMapper
                 .Select(x => x.ReasoningEffort.ToString().ToLowerInvariant())
                 .ToArray()
         };
+        var supportedReasoningEfforts = model.SupportedReasoningEfforts
+            .Select(x => ToAgentReasoningEffort(x.ReasoningEffort))
+            .ToArray();
 
         return new AgentModelInfo(
             model.Id,
-            model.DisplayName,
+            DisplayName: model.DisplayName,
+            Description: model.Description,
             Provider: null,
-            capabilities);
+            DefaultReasoningEffort: ToAgentReasoningEffort(model.DefaultReasoningEffort),
+            SupportedReasoningEfforts: supportedReasoningEfforts,
+            Capabilities: capabilities);
     }
 
     public static AgentSessionMetadata ToAgentSessionMetadata(CodexThread thread)
@@ -609,5 +616,19 @@ internal static class CodexAgentMapper
 
         using var document = JsonDocument.Parse(stream.ToArray());
         return document.RootElement.Clone();
+    }
+
+    private static AgentReasoningEffort ToAgentReasoningEffort(V2ReasoningEffort reasoningEffort)
+    {
+        return reasoningEffort switch
+        {
+            V2ReasoningEffort.None => AgentReasoningEffort.None,
+            V2ReasoningEffort.Minimal => AgentReasoningEffort.Minimal,
+            V2ReasoningEffort.Low => AgentReasoningEffort.Low,
+            V2ReasoningEffort.Medium => AgentReasoningEffort.Medium,
+            V2ReasoningEffort.High => AgentReasoningEffort.High,
+            V2ReasoningEffort.Xhigh => AgentReasoningEffort.XHigh,
+            _ => throw new ArgumentOutOfRangeException(nameof(reasoningEffort), reasoningEffort, "Unsupported reasoning effort.")
+        };
     }
 }

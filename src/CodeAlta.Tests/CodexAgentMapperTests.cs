@@ -2,6 +2,7 @@ using CodeAlta.Agent;
 using CodeAlta.Agent.Codex;
 using CodeAlta.CodexSdk;
 using CodeAlta.CodexSdk.V2;
+using V2ReasoningEffort = CodeAlta.CodexSdk.V2.ReasoningEffort;
 using V2UserInput = CodeAlta.CodexSdk.V2.UserInput;
 
 namespace CodeAlta.Tests;
@@ -9,6 +10,33 @@ namespace CodeAlta.Tests;
 [TestClass]
 public sealed class CodexAgentMapperTests
 {
+    [TestMethod]
+    public void ToAgentModelInfo_MapsDescriptionAndReasoningEfforts()
+    {
+        var model = new Model
+        {
+            Id = "codex-mini",
+            DisplayName = "Codex Mini",
+            Description = "Fast coding model",
+            DefaultReasoningEffort = V2ReasoningEffort.Minimal,
+            SupportedReasoningEfforts =
+            [
+                new ReasoningEffortOption { ReasoningEffort = V2ReasoningEffort.Low, Description = "Low effort" },
+                new ReasoningEffortOption { ReasoningEffort = V2ReasoningEffort.Xhigh, Description = "Extra high effort" }
+            ]
+        };
+
+        var mapped = CodexAgentMapper.ToAgentModelInfo(model);
+
+        Assert.AreEqual("codex-mini", mapped.Id);
+        Assert.AreEqual("Codex Mini", mapped.DisplayName);
+        Assert.AreEqual("Fast coding model", mapped.Description);
+        Assert.AreEqual(AgentReasoningEffort.Minimal, mapped.DefaultReasoningEffort);
+        CollectionAssert.AreEqual(
+            new[] { AgentReasoningEffort.Low, AgentReasoningEffort.XHigh },
+            mapped.SupportedReasoningEfforts!.ToArray());
+    }
+
     [TestMethod]
     public void TryExtractRepository_ParsesHttpsAndSsh()
     {

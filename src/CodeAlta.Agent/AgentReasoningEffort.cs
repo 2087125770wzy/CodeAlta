@@ -8,21 +8,30 @@ public enum AgentReasoningEffort
     /// <summary>
     /// Low reasoning effort.
     /// </summary>
-    Low,
+    Low = 0,
 
     /// <summary>
     /// Medium reasoning effort.
     /// </summary>
-    Medium,
+    Medium = 1,
 
     /// <summary>
     /// High reasoning effort.
     /// </summary>
-    High,
+    High = 2,
 
     /// <summary>
     /// Extra-high reasoning effort.
     /// </summary>
-    XHigh,
-}
+    XHigh = 3,
 
+    /// <summary>
+    /// No additional reasoning effort.
+    /// </summary>
+    None = 4,
+
+    /// <summary>
+    /// Minimal reasoning effort.
+    /// </summary>
+    Minimal = 5,
+}

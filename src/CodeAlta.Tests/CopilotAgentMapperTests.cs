@@ -48,6 +48,28 @@ public sealed class CopilotAgentMapperTests
     }
 
     [TestMethod]
+    public void ToAgentModelInfo_MapsReasoningEffortMetadata()
+    {
+        var model = new ModelInfo
+        {
+            Id = "gpt-5",
+            Name = "GPT-5",
+            SupportedReasoningEfforts = ["minimal", "xhigh", "unknown"],
+            DefaultReasoningEffort = "medium"
+        };
+
+        var mapped = CopilotAgentMapper.ToAgentModelInfo(model);
+
+        Assert.AreEqual("gpt-5", mapped.Id);
+        Assert.AreEqual("GPT-5", mapped.DisplayName);
+        Assert.IsNull(mapped.Description);
+        Assert.AreEqual(AgentReasoningEffort.Medium, mapped.DefaultReasoningEffort);
+        CollectionAssert.AreEqual(
+            new[] { AgentReasoningEffort.Minimal, AgentReasoningEffort.XHigh },
+            mapped.SupportedReasoningEfforts!.ToArray());
+    }
+
+    [TestMethod]
     public void ToMessageOptions_MapsAttachmentsAndPromptFallbacks()
     {
         var options = new AgentSendOptions

@@ -19,8 +19,16 @@ internal static class CopilotAgentMapper
             ["supportedReasoningEfforts"] = model.SupportedReasoningEfforts,
             ["defaultReasoningEffort"] = model.DefaultReasoningEffort
         };
+        var supportedReasoningEfforts = ToAgentReasoningEfforts(model.SupportedReasoningEfforts);
 
-        return new AgentModelInfo(model.Id, model.Name, Provider: null, capabilities);
+        return new AgentModelInfo(
+            model.Id,
+            DisplayName: model.Name,
+            Description: null,
+            Provider: null,
+            DefaultReasoningEffort: ToAgentReasoningEffort(model.DefaultReasoningEffort),
+            SupportedReasoningEfforts: supportedReasoningEfforts,
+            Capabilities: capabilities);
     }
 
     public static AgentSessionMetadata ToAgentSessionMetadata(SessionMetadata metadata)
@@ -54,7 +62,7 @@ internal static class CopilotAgentMapper
             Model = options.Model,
             WorkingDirectory = options.WorkingDirectory,
             Streaming = options.Streaming,
-            ReasoningEffort = ToReasoningEffort(options.ReasoningEffort),
+            ReasoningEffort = ToCopilotReasoningEffort(options.ReasoningEffort),
             OnPermissionRequest = CreatePermissionHandler(options.OnPermissionRequest),
             OnUserInputRequest = CreateUserInputHandler(options.OnUserInputRequest),
             SystemMessage = systemMessage,
@@ -74,7 +82,7 @@ internal static class CopilotAgentMapper
             Model = options.Model,
             WorkingDirectory = options.WorkingDirectory,
             Streaming = options.Streaming,
-            ReasoningEffort = ToReasoningEffort(options.ReasoningEffort),
+            ReasoningEffort = ToCopilotReasoningEffort(options.ReasoningEffort),
             OnPermissionRequest = CreatePermissionHandler(options.OnPermissionRequest),
             OnUserInputRequest = CreateUserInputHandler(options.OnUserInputRequest),
             SystemMessage = systemMessage,
@@ -417,17 +425,55 @@ internal static class CopilotAgentMapper
             arguments);
     }
 
-    private static string? ToReasoningEffort(AgentReasoningEffort? effort)
+    private static string? ToCopilotReasoningEffort(AgentReasoningEffort? effort)
     {
         return effort switch
         {
             null => null,
+            AgentReasoningEffort.None => "none",
+            AgentReasoningEffort.Minimal => "minimal",
             AgentReasoningEffort.Low => "low",
             AgentReasoningEffort.Medium => "medium",
             AgentReasoningEffort.High => "high",
             AgentReasoningEffort.XHigh => "xhigh",
             _ => null
         };
+    }
+
+    private static AgentReasoningEffort? ToAgentReasoningEffort(string? effort)
+    {
+        if (string.IsNullOrWhiteSpace(effort))
+            return null;
+
+        return effort.Trim().ToLowerInvariant() switch
+        {
+            "none" => AgentReasoningEffort.None,
+            "minimal" => AgentReasoningEffort.Minimal,
+            "low" => AgentReasoningEffort.Low,
+            "medium" => AgentReasoningEffort.Medium,
+            "high" => AgentReasoningEffort.High,
+            "xhigh" => AgentReasoningEffort.XHigh,
+            _ => null
+        };
+    }
+
+    private static IReadOnlyList<AgentReasoningEffort>? ToAgentReasoningEfforts(IReadOnlyList<string>? efforts)
+    {
+        if (efforts is not { Count: > 0 })
+            return null;
+
+        var values = new List<AgentReasoningEffort>(efforts.Count);
+        foreach (var effort in efforts)
+        {
+            var mapped = ToAgentReasoningEffort(effort);
+            if (mapped is not { } value)
+                continue;
+
+            if (!values.Contains(value))
+                values.Add(value);
+        }
+
+        return values;
     }
 
     private static JsonElement ToRawElement(SessionEvent sessionEvent)
