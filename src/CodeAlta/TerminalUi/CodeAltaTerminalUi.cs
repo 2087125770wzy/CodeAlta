@@ -5,6 +5,10 @@ using CodeAlta.Search;
 using CodeAlta.Workspaces;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Extensions.Markdown;
+using XenoAtom.Terminal.UI.Geometry;
+using XenoAtom.Terminal.UI.Styling;
+using XenoAtom.Terminal.UI.Text;
 
 internal sealed class CodeAltaTerminalUi : IAsyncDisposable
 {
@@ -34,6 +38,10 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     private TextBox? _searchQueryInput;
     private TextBlock? _jobsOutput;
     private TextBlock? _mcpOutput;
+    private DocumentFlow? _chatFlow;
+    private ChatPromptEditor? _chatInput;
+    private Visual? _chatInputView;
+    private MarkdownMarkupConverter? _chatMarkdownConverter;
 
     public CodeAltaTerminalUi(
         WorkspaceCatalog workspaceCatalog,
@@ -114,6 +122,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         return new WrapHStack(
             [
                 new Button(new TextBlock("Home")).Click(() => Show(TerminalScreen.Home)),
+                new Button(new TextBlock("Chat")).Click(() => Show(TerminalScreen.Chat)),
                 new Button(new TextBlock("Workspaces")).Click(() => Show(TerminalScreen.Workspaces)),
                 new Button(new TextBlock("Tasks")).Click(() => Show(TerminalScreen.Tasks)),
                 new Button(new TextBlock("Search")).Click(() => Show(TerminalScreen.Search)),
@@ -142,6 +151,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                 _root.Content = screen switch
                 {
                     TerminalScreen.Home => BuildHomeView(),
+                    TerminalScreen.Chat => BuildChatView(),
                     TerminalScreen.Workspaces => BuildWorkspacesView(),
                     TerminalScreen.Tasks => BuildTasksView(),
                     TerminalScreen.Search => BuildSearchView(),
@@ -164,6 +174,73 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         {
             Spacing = 1,
         };
+    }
+
+    private Visual BuildChatView()
+    {
+        _chatMarkdownConverter ??= new MarkdownMarkupConverter();
+
+        _chatFlow = new DocumentFlow
+        {
+            HorizontalAlignment = Align.Stretch,
+            VerticalAlignment = Align.Stretch,
+            ItemPadding = new Thickness(1),
+            ItemSpacing = 1,
+        };
+        _chatFlow.ScrollToTail(false);
+
+        var chatInput = new ChatPromptEditor(
+                text => _ = SendChatMessageAsync(text))
+            .PromptMarkup("[primary]you[/] ")
+            .ContinuationPromptMarkup("[muted]·[/] ")
+            .EnableWordHints(false)
+            .Highlighter(HighlightMarkdown)
+            .MinHeight(3)
+            .MaxHeight(9)
+            ;
+
+        _chatInput = chatInput;
+        _chatInputView = chatInput.Scrollable();
+
+        var help = new Markup(
+            "[dim]Enter accepts the prompt. Use markdown for formatting; assistant messages will render markdown.[/]");
+
+        var controls = new WrapHStack(
+            [
+                new Button(new TextBlock("Clear")).Click(ClearChat),
+                new Button(new TextBlock("Send")).Click(() => _chatInput?.Accept()),
+            ])
+        {
+            Spacing = 2,
+            RunSpacing = 0,
+        };
+
+        return new DockLayout(
+            top: new VStack([new TextBlock("Chat"), help, controls]) { Spacing = 1 },
+            content: _chatFlow,
+            bottom: _chatInputView);
+
+        void HighlightMarkdown(in PromptEditorHighlightRequest request, List<StyledRun> runs)
+        {
+            var converter = _chatMarkdownConverter;
+            if (converter is null)
+            {
+                return;
+            }
+
+            converter.Theme = request.Theme;
+            converter.Highlight(SnapshotToString(request.Snapshot), runs);
+        }
+
+        static string SnapshotToString(ITextSnapshot snapshot)
+        {
+            if (snapshot.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            return string.Create(snapshot.Length, snapshot, static (span, s) => s.CopyTo(0, span));
+        }
     }
 
     private Visual BuildWorkspacesView()
@@ -533,6 +610,95 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         return $"CodeAlta | scope={scope} | screen={_screen.ToString().ToLowerInvariant()} | indexQueue={_indexer.Status.QueueDepth}";
     }
 
+    private void ClearChat()
+    {
+        PostToUi(() =>
+        {
+            _chatFlow?.Items.Clear();
+            if (_chatInput is not null)
+            {
+                _chatInput.Text = string.Empty;
+            }
+        });
+    }
+
+    private Task SendChatMessageAsync(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return Task.CompletedTask;
+        }
+
+        PostToUi(() =>
+        {
+            if (_chatInput is not null)
+            {
+                _chatInput.Text = string.Empty;
+            }
+
+            var flow = _chatFlow;
+            if (flow is null)
+            {
+                return;
+            }
+
+            flow.Items.Add(CreateUserChatItem(text));
+            flow.Items.Add(CreateAssistantChatItem(
+                "Chat UI is wired (PromptEditor + DocumentFlow + MarkdownControl), but agent runtime integration is not enabled yet."));
+            flow.ScrollToTail();
+        });
+
+        return Task.CompletedTask;
+    }
+
+    private static DocumentFlowItem CreateUserChatItem(string markdown)
+    {
+        var content = new FlowDocument()
+            .Add(new MarkdownControl(markdown)
+            {
+                HorizontalAlignment = Align.Stretch,
+                VerticalAlignment = Align.Stretch,
+                Options = MarkdownRenderOptions.Default with
+                {
+                    WrapCodeBlocks = true,
+                    MaxCodeBlockHeight = 10,
+                },
+            });
+
+        return new DocumentFlowItem
+        {
+            Content = content,
+            Alignment = DocumentFlowAlignment.Right,
+            MaxWidth = 80,
+            BackgroundStyle = Style.None.WithBackground(Colors.DarkSlateBlue),
+            BorderStyle = Style.None.WithForeground(Colors.SlateBlue),
+        };
+    }
+
+    private static DocumentFlowItem CreateAssistantChatItem(string markdown)
+    {
+        var content = new FlowDocument()
+            .Add(new MarkdownControl(markdown)
+            {
+                HorizontalAlignment = Align.Stretch,
+                VerticalAlignment = Align.Stretch,
+                Options = MarkdownRenderOptions.Default with
+                {
+                    WrapCodeBlocks = true,
+                    MaxCodeBlockHeight = 14,
+                },
+            });
+
+        return new DocumentFlowItem
+        {
+            Content = content,
+            Alignment = DocumentFlowAlignment.Left,
+            MaxWidth = 84,
+            BackgroundStyle = Style.None.WithBackground(Colors.DarkSlateGray),
+            BorderStyle = Style.None.WithForeground(Colors.SlateGray),
+        };
+    }
+
     private void SetStatus(string message)
     {
         PostToUi(() =>
@@ -558,10 +724,29 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     private enum TerminalScreen
     {
         Home,
+        Chat,
         Workspaces,
         Tasks,
         Search,
         Jobs,
         Mcp,
+    }
+
+    private sealed class ChatPromptEditor : PromptEditor
+    {
+        private readonly Action<string> _onAccepted;
+
+        public ChatPromptEditor(Action<string> onAccepted)
+        {
+            ArgumentNullException.ThrowIfNull(onAccepted);
+            _onAccepted = onAccepted;
+        }
+
+        protected override void OnAccepted(PromptEditorAcceptedEventArgs e)
+        {
+            ArgumentNullException.ThrowIfNull(e);
+            _onAccepted(e.Text);
+            base.OnAccepted(e);
+        }
     }
 }
