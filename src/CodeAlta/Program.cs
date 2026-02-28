@@ -12,6 +12,7 @@ using CodeAlta.Agent.Copilot;
 using GitHub.Copilot.SDK;
 using XenoAtom.Logging;
 using XenoAtom.Logging.Writers;
+using XenoAtom.Terminal;
 
 
 var factory = new AgentBackendFactory();
@@ -27,10 +28,21 @@ factory.RegisterCopilot(new CopilotAgentBackendOptions());
 var codex = factory.Create(AgentBackendIds.Codex);
 
 var models = await codex.ListModelsAsync();
+Terminal.WriteLine("Codex models:");
 foreach (var model in models)
 {
-    Console.WriteLine(model);
+    Terminal.WriteLine(model.ToString());
 }
+Terminal.WriteLine();
+
+var copilot = factory.Create(AgentBackendIds.Copilot);
+var copilotModels = await copilot.ListModelsAsync();
+Terminal.WriteLine("Copilot models:");
+foreach (var model in copilotModels)
+{
+    Terminal.WriteLine(model.ToString());
+}
+Terminal.WriteLine();
 
 /*
 NativeLibraryConfig.All.WithLogCallback((level, message) =>
