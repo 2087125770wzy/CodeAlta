@@ -114,6 +114,7 @@ Artifacts can be stored in multiple roots depending on scope and portability goa
 - **Per-user (workspace/global or sensitive)**:
   - Linux/macOS: `$HOME/.codealta/`
   - Windows: `%USERPROFILE%\\.codealta\\`
+  - When multi-machine portability is desired, this directory can be a **git working copy** of a “global knowledge repository” (auto pull/push), containing global manifests + curated artifacts (no secrets).
 
 The MCP server should decide the default root based on `(scope, type, policy)`, but callers may provide a storage hint.
 
@@ -248,6 +249,22 @@ Portability tools (multi-machine):
 - `workspace.export(workspaceId) -> workspaceManifest`
 - `workspace.import(workspaceManifest) -> workspaceId`
 - `workspace.set_home(workspaceId, homePathOrGitRemote)` (optional: git-backed workspace repo)
+
+Global knowledge repository tools (multi-machine):
+
+- `global_repo.configure(remoteUrl, branch?, autoSync?)`
+- `global_repo.sync(mode?)` (e.g. pull/push/rebase; conflict reporting)
+- `global_repo.status() -> { lastSync, dirty, remote, branch }`
+
+Bootstrap tools (“setup my dev experience”):
+
+- `bootstrap.plan(workspaceIds?, machineId?) -> plan` (templated checkout rules → concrete paths)
+- `bootstrap.apply(plan) -> result` (clone/sync repos, set active scope, rebuild indexes)
+
+Machine configuration tools (path roots, no secrets):
+
+- `machine.get_profile() -> { machineId, roots, overrides }`
+- `machine.set_roots(rootsPatch)`
 
 Optional scope helpers (for “global agent” UX and routing):
 

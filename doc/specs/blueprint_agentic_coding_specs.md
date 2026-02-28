@@ -294,6 +294,8 @@ Storage locations (both are useful):
     - `.codealta/shared/` (optionally committed)
     - `.codealta/local/` (gitignored; caches, per-machine logs)
 - **Per-user (`$HOME/.codealta/`)**: for workspace/global artifacts and anything sensitive or machine-specific.
+  - This directory can be a **git working copy** of a “global knowledge repository” when multi-machine portability is desired.
+  - Keep secrets out of git; store only manifests, curated artifacts, and machine config without credentials.
 
 Suggested root directory:
 
@@ -378,6 +380,24 @@ Suggested approach:
 - CodeAlta can clone/sync the workspace repo on a new machine, then reconstruct the workspace by:
   - cloning required project repos (by git remote URL)
   - applying local path mappings
+
+### 7.5 Global knowledge repository and “setup my dev experience”
+
+For multi-machine portability, prefer a single **global knowledge repository** that knows about *all* workspaces and projects.
+
+The global repo should contain:
+
+- a global workspace registry (all workspaces + manifests)
+- curated artifacts (global/workspace summaries, decision records, playbooks)
+- templated checkout rules for projects (avoid absolute paths)
+- optional per-machine overrides (path roots), without secrets
+
+Bootstrapping flow on a new machine:
+
+1. clone the global knowledge repo into `$HOME/.codealta/` (or Windows equivalent)
+2. select machine profile (e.g. by `machineId`/hostname) to resolve path roots
+3. clone/sync the repositories for selected workspaces using checkout templates
+4. start agents and rebuild indexes
 
 ---
 

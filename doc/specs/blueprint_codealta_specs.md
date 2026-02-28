@@ -52,6 +52,7 @@ CodeAlta’s direction is to make these failures *system problems* solved by arc
 ### Goals (what we want)
 
 - **Multiple workspaces** with a global registry (the app knows them all).
+- **Git-backed global knowledge**: persist global registry + knowledge under a dedicated git repo (auto-sync/push), so a new machine can be bootstrapped from it.
 - **Workspace switching** without losing running sessions, task state, or high-level context.
 - **Hierarchical agents**:
   - global agent (user entry point)
@@ -264,9 +265,8 @@ Recommended approach:
 
 Portability note (multi-machine):
 
-- For teams or multi-device usage, consider making “workspace metadata” live in a **workspace repository**:
-  - a git repo containing workspace manifests (YAML/Markdown) and curated knowledge artifacts
-  - CodeAlta can clone/sync this repo to reconstruct workspaces on a different machine
+- Persist global metadata and knowledge in a **global knowledge repository** (git-backed) so a new machine can be bootstrapped by cloning it.
+- Optionally, store workspace-specific curated artifacts in separate **workspace repositories**, but the global repository remains the “index of everything” (all workspaces/projects).
 
 ### 6.1 Scope selection (user-facing)
 
@@ -291,6 +291,37 @@ The chosen scope affects:
 - which roots are allowed for file operations and approvals
 - retrieval boundaries for FTS5/embeddings search
 - where tasks and artifacts are stored/linked
+
+### 6.2 Global knowledge repository and bootstrap
+
+The per-user directory (`$HOME/.codealta/` on Linux/macOS, `%USERPROFILE%\\.codealta\\` on Windows) should be able to act as a **git working copy** of a “global knowledge repository”.
+
+This repository is the durable global memory for CodeAlta. It should contain:
+
+- the global workspace registry (all workspaces, all projects, and their metadata)
+- curated knowledge artifacts (global/workspace-level summaries, decision records, playbooks)
+- optional shared agent role profiles and policies
+- checkout/bootstrapping rules so CodeAlta can “set up my dev experience” on a new machine
+
+Bootstrapping should be mostly automatic:
+
+1. clone the global knowledge repo (or initialize it)
+2. resolve machine-specific settings (path roots, credentials strategy, etc.)
+3. clone/sync the project repositories for selected workspaces using templated rules
+4. rebuild indexes and start the relevant scoped agents
+
+Machine variability:
+
+- Manifests should use **templated local paths** (e.g. `${codeRoot}/${org}/${repo}`) rather than absolute paths.
+- Each machine can override path roots (e.g. `codeRoot = C:\\code` on Windows vs `/code` on Linux).
+- Store machine overrides either:
+  - committed in the global repo under `machines/<machineId>.yml` (no secrets), or
+  - locally outside git (preferred for privacy), with the repo containing defaults.
+
+Sync strategy:
+
+- Prefer “local-first” writes (update files/SQLite immediately).
+- Background sync can `git pull --rebase` and `git push` automatically when configured (GitHub/GitLab/etc.), with clear conflict handling and audit logging.
 
 ---
 
