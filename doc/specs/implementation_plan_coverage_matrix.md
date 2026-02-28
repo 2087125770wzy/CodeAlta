@@ -86,7 +86,7 @@ Notes on “each slice should produce tests”:
 | In-memory transport tests (pipes) | Done | `src/CodeAlta.Mcp/InProcessMcpConnection.cs` | `src/CodeAlta.Mcp.Tests/McpInfrastructureTests.cs` |
 
 Tool-surface gaps versus `implementation_plan_mcp_server.md`:
-- `codealta.tasks.list` is not cursor-based pagination (it is `limit` only). Status: Partial. Evidence: `src/CodeAlta.Mcp/Tools/TasksTools.cs`.
+- `codealta.tasks.list` supports cursor-based pagination via `{ items, nextCursor }`. Evidence: `src/CodeAlta.Mcp/Tools/TasksTools.cs`, `src/CodeAlta.Persistence/TaskRepository.cs`.
 
 ### Milestone 3 — Indexing + search
 
@@ -121,4 +121,3 @@ Tool-surface gaps versus `implementation_plan_mcp_server.md`:
 | --- | --- | --- | --- |
 | Replace `Program.cs` playground with real TUI host | Not Started | `src/CodeAlta/Program.cs` is still a console menu | No TUI host exists |
 | Responsive UI loops, background job views, scope selection UX | Not Started | N/A | N/A |
-
