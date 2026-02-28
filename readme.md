@@ -8,6 +8,8 @@ An agentic AI coding CLI assistant developed in .NET.
 
 - Workspace descriptors and machine profile overrides (`CodeAlta.Workspaces`)
 - Scope resolution and checkout planning APIs for multi-repo workspaces
+- SQLite-backed durable state + migrations + repositories (`CodeAlta.Persistence`)
+- Markdown artifact store with YAML frontmatter parsing and plain-text extraction
 - MSTest coverage for workspace YAML parsing, template resolution, and bootstrap planning
 
 ## 📖 User Guide

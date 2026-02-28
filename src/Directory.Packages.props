@@ -10,6 +10,8 @@
     <PackageVersion Include="LLamaSharp.Backend.Vulkan" Version="0.26.0" />
     <PackageVersion Include="MinVer" Version="7.0.0" />
     <PackageVersion Include="MSTest" Version="4.1.0" />
+    <PackageVersion Include="Markdig" Version="0.45.0" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.3" />
     <PackageVersion Include="NJsonSchema" Version="11.5.2" />
     <PackageVersion Include="NJsonSchema.CodeGeneration.CSharp" Version="11.5.2" />
     <PackageVersion Include="SharpYaml" Version="2.1.4" />

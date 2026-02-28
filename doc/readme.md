@@ -9,6 +9,7 @@ Current infrastructure-first progress includes workspace bootstrapping primitive
 - `CodeAlta.Workspaces`: workspace/project descriptors, machine override profiles, catalog loading.
 - Scope resolution (`global`, `workspace`, `project`) into concrete checkout and `.codealta` roots.
 - Checkout planning (`clone` vs `update`) without network side effects.
+- `CodeAlta.Persistence`: SQLite migrations, task/artifact/agent repositories, and markdown artifact store.
 
 ## Workspace Descriptor Layout
 
@@ -20,3 +21,12 @@ Global repository layout (implemented reader support):
 
 The YAML model uses UUID v7 strings for workspace/project `id` values and validates
 workspace/project keys using `^[a-z0-9][a-z0-9\\-_.]{1,63}$`.
+
+## Persistence Model
+
+The persistence layer currently provides:
+
+- SQLite schema bootstrap with `schema_version` migration tracking.
+- Durable tables for `tasks`, `task_events`, `artifacts`, `artifact_links`, `agents`, and `agent_sessions`.
+- Search foundation tables: `documents`, `documents_fts` (FTS5), and `document_embeddings`.
+- Markdown artifact read/write with YAML frontmatter (`ArtifactStore`) and plain-text extraction for indexing.
