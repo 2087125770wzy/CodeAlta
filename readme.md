@@ -11,7 +11,8 @@ An agentic AI coding CLI assistant developed in .NET.
 - SQLite-backed durable state + migrations + repositories (`CodeAlta.Persistence`)
 - Markdown artifact store with YAML frontmatter parsing and plain-text extraction
 - FTS5 + embedding-backed hybrid search pipeline (`CodeAlta.Search`)
-- MSTest coverage for workspace YAML parsing, template resolution, and bootstrap planning
+- In-process MCP server surface with tools for tasks, artifacts, search, workspaces, and agents (`CodeAlta.Mcp`)
+- In-memory MCP transport tests for tool discovery and roundtrip tool calls
 
 ## 📖 User Guide
 

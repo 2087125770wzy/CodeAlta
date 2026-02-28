@@ -99,6 +99,56 @@ public sealed class AgentRepository
     }
 
     /// <summary>
+    /// Lists registered agents.
+    /// </summary>
+    /// <param name="limit">Maximum number of returned agents.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The matching agent records ordered by creation timestamp descending.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="limit"/> is not positive.</exception>
+    public Task<IReadOnlyList<AgentRecord>> ListAgentsAsync(
+        int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit), "Limit must be positive.");
+        }
+
+        return _db.ExecuteReadAsync<IReadOnlyList<AgentRecord>>(
+            async (connection, ct) =>
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText =
+                    """
+                    SELECT agent_id, role, scope_kind, scope_id, backend_id, created_at
+                    FROM agents
+                    ORDER BY created_at DESC
+                    LIMIT $limit;
+                    """;
+                command.Parameters.AddWithValue("$limit", limit);
+
+                var results = new List<AgentRecord>();
+                await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
+                while (await reader.ReadAsync(ct).ConfigureAwait(false))
+                {
+                    results.Add(
+                        new AgentRecord
+                        {
+                            AgentId = AgentId.Parse(reader.GetString(0)),
+                            Role = reader.GetString(1),
+                            ScopeKind = reader.GetString(2),
+                            ScopeId = reader.IsDBNull(3) ? null : reader.GetString(3),
+                            BackendId = reader.GetString(4),
+                            CreatedAt = DateTimeOffset.Parse(reader.GetString(5), provider: null),
+                        });
+                }
+
+                return results;
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Upserts an agent session record.
     /// </summary>
     /// <param name="record">Session record data.</param>

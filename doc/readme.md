@@ -42,3 +42,20 @@ Current search infrastructure (`CodeAlta.Search`) includes:
   - hybrid mode (FTS prefilter + vector rerank).
 - A deterministic local `HashEmbedder` for tests and offline indexing.
 - `LlamaSharpEmbedder` for local GGUF-based embeddings when a model path is configured.
+
+## In-process MCP Server
+
+Current MCP infrastructure (`CodeAlta.Mcp`) includes:
+
+- `CodeAltaMcpServerFactory` for building stream-transport MCP servers from internal services.
+- `InProcessMcpConnection` for in-memory client/server transport wiring used by tests and internal callers.
+- MCP tool sets:
+  - `codealta.tasks.*` for durable task CRUD, notes, and markdown exports.
+  - `codealta.artifacts.*` for markdown artifact write/read/list/link operations.
+  - `codealta.search.*` for indexing, hybrid query, and queue status.
+  - `codealta.workspaces.*` for workspace listing/getting/scope resolution.
+  - `codealta.agents.*` for agent registry register/update/list operations.
+- MSTest coverage for:
+  - in-process tool discovery (`ListTools`)
+  - task create/get roundtrip
+  - indexed search query returning artifact-backed sources.
