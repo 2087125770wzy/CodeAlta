@@ -7,12 +7,14 @@ using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Persistence;
 using CodeAlta.Search;
 using CodeAlta.Workspaces;
+using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Extensions.Markdown;
 using XenoAtom.Terminal.UI.Geometry;
 using XenoAtom.Terminal.UI.Styling;
 using XenoAtom.Terminal.UI.Text;
+using XenoAtom.Terminal.UI.Threading;
 
 internal sealed class CodeAltaTerminalUi : IAsyncDisposable
 {
@@ -27,7 +29,6 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     private readonly McpToolBridge _mcpToolBridge;
     private readonly AgentHub _agentHub;
 
-    private TerminalApp? _app;
     private DockLayout? _root;
     private TextBlock? _header;
     private TextBlock? _status;
@@ -119,21 +120,12 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
             content: BuildHomeView(),
             bottom: bottom);
 
-        _app = new TerminalApp(
-            _root,
-            terminal: null,
-            options: new TerminalAppOptions());
-
-        await _app.RunAsync(cancellationToken).ConfigureAwait(false);
+        await Terminal.RunAsync(_root, () => TerminalLoopResult.Continue, cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
     {
         _chatEventSubscription?.Dispose();
-        if (_app is not null)
-        {
-            await _app.DisposeAsync().ConfigureAwait(false);
-        }
     }
 
     private Visual BuildFooter()
@@ -147,7 +139,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                 new Button(new TextBlock("Search")).Click(() => Show(TerminalScreen.Search)),
                 new Button(new TextBlock("Jobs")).Click(() => Show(TerminalScreen.Jobs)),
                 new Button(new TextBlock("MCP")).Click(() => Show(TerminalScreen.Mcp)),
-                new Button(new TextBlock("Quit")).Click(() => _app?.Stop()),
+                //new Button(new TextBlock("Quit")).Click(() => _app?.Stop()),
             ])
         {
             Spacing = 2,
@@ -987,13 +979,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
 
     private void PostToUi(Action action)
     {
-        var app = _app;
-        if (app is null)
-        {
-            return;
-        }
-
-        app.Post(action);
+        Dispatcher.Current.Post(action);
     }
 
     private enum TerminalScreen
