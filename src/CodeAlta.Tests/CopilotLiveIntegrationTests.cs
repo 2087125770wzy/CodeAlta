@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Agent.Copilot;
 
@@ -10,7 +11,7 @@ public sealed class CopilotLiveIntegrationTests
 
     [TestMethod]
     [TestCategory("LiveCopilot")]
-    public async Task CopilotAgentBackend_LivePrompt_ProducesAssistantContent()
+    public async Task CopilotAgentBackend_LivePrompt_WithDottedTool_ProducesAssistantContent()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable(LiveCopilotTestsEnvironmentVariable), "1", StringComparison.Ordinal))
         {
@@ -19,6 +20,7 @@ public sealed class CopilotLiveIntegrationTests
         }
 
         await using var backend = new CopilotAgentBackend(new CopilotAgentBackendOptions());
+        var toolSchema = JsonDocument.Parse("""{"type":"object","properties":{"value":{"type":"string"}}}""").RootElement.Clone();
         IAgentSession session;
         try
         {
@@ -27,6 +29,15 @@ public sealed class CopilotLiveIntegrationTests
                     {
                         Streaming = true,
                         WorkingDirectory = Environment.CurrentDirectory,
+                        Tools =
+                        [
+                            new AgentToolDefinition(
+                                new AgentToolSpec("codealta.tasks.create", "Creates a task", toolSchema),
+                                static (_, _) => Task.FromResult<AgentToolResult>(
+                                    new(
+                                        true,
+                                        [new AgentToolResultItem.Text("ok")])))
+                        ],
                         OnPermissionRequest = static (_, _) =>
                             Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
                     })

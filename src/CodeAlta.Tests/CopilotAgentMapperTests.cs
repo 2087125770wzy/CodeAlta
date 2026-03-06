@@ -48,6 +48,39 @@ public sealed class CopilotAgentMapperTests
     }
 
     [TestMethod]
+    public void ToSessionConfig_SanitizesCopilotToolNames()
+    {
+        var toolSchema = JsonDocument.Parse("""{"type":"object","properties":{"value":{"type":"string"}}}""").RootElement;
+        var options = new AgentSessionCreateOptions
+        {
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+            Tools =
+            [
+                new AgentToolDefinition(
+                    new AgentToolSpec("codealta.tasks.create", "Creates a task", toolSchema),
+                    static (_, _) => Task.FromResult<AgentToolResult>(
+                        new(
+                            true,
+                            [new AgentToolResultItem.Text("ok")]))),
+                new AgentToolDefinition(
+                    new AgentToolSpec("codealta_tasks_create", "Creates another task", toolSchema),
+                    static (_, _) => Task.FromResult<AgentToolResult>(
+                        new(
+                            true,
+                            [new AgentToolResultItem.Text("ok")]))),
+            ]
+        };
+
+        var config = CopilotAgentMapper.ToSessionConfig(options);
+        var tools = config.Tools!.ToArray();
+
+        Assert.IsNotNull(config.Tools);
+        Assert.AreEqual(2, tools.Length);
+        Assert.AreEqual("codealta_tasks_create", tools[0].Name);
+        Assert.AreEqual("codealta_tasks_create_2", tools[1].Name);
+    }
+
+    [TestMethod]
     public void ToAgentModelInfo_MapsReasoningEffortMetadata()
     {
         var model = new ModelInfo

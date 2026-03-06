@@ -365,12 +365,16 @@ internal static class CopilotAgentMapper
         if (tools is not { Count: > 0 })
             return null;
 
-        return tools.Select(ToCopilotTool).ToArray();
+        var usedNames = new HashSet<string>(StringComparer.Ordinal);
+        return tools
+            .Select(tool => ToCopilotTool(tool, GetCopilotToolName(tool.Spec.Name, usedNames)))
+            .ToArray();
     }
 
-    private static AIFunction ToCopilotTool(AgentToolDefinition tool)
+    private static AIFunction ToCopilotTool(AgentToolDefinition tool, string registeredToolName)
     {
         ArgumentNullException.ThrowIfNull(tool);
+        ArgumentException.ThrowIfNullOrWhiteSpace(registeredToolName);
 
         return AIFunctionFactory.Create(
             async (JsonElement arguments, AIFunctionArguments rawArgs) =>
@@ -396,8 +400,68 @@ internal static class CopilotAgentMapper
 
                 return new ToolResultAIContent(payload);
             },
-            tool.Spec.Name,
+            registeredToolName,
             tool.Spec.Description);
+    }
+
+    internal static string GetCopilotToolName(string toolName, ISet<string>? usedNames = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(toolName);
+
+        Span<char> buffer = stackalloc char[toolName.Length];
+        var length = 0;
+        var lastWasSeparator = false;
+
+        foreach (var ch in toolName)
+        {
+            if (char.IsLetterOrDigit(ch) || ch is '_' or '-')
+            {
+                buffer[length++] = ch;
+                lastWasSeparator = false;
+                continue;
+            }
+
+            if (!lastWasSeparator)
+            {
+                buffer[length++] = '_';
+                lastWasSeparator = true;
+            }
+        }
+
+        var candidate = length == 0
+            ? "tool"
+            : new string(buffer[..length]).Trim('_');
+        if (candidate.Length == 0)
+        {
+            candidate = "tool";
+        }
+
+        const int maxToolNameLength = 64;
+        if (candidate.Length > maxToolNameLength)
+        {
+            candidate = candidate[..maxToolNameLength];
+        }
+
+        if (usedNames is null)
+        {
+            return candidate;
+        }
+
+        if (usedNames.Add(candidate))
+        {
+            return candidate;
+        }
+
+        for (var suffix = 2; ; suffix++)
+        {
+            var suffixText = $"_{suffix}";
+            var baseLength = Math.Min(candidate.Length, maxToolNameLength - suffixText.Length);
+            var uniqueCandidate = string.Concat(candidate.AsSpan(0, baseLength), suffixText);
+            if (usedNames.Add(uniqueCandidate))
+            {
+                return uniqueCandidate;
+            }
+        }
     }
 
     private static AgentToolInvocation GetInvocation(
@@ -413,7 +477,7 @@ internal static class CopilotAgentMapper
                 AgentBackendIds.Copilot,
                 invocation.SessionId,
                 invocation.ToolCallId,
-                invocation.ToolName,
+                toolName,
                 arguments);
         }
 
