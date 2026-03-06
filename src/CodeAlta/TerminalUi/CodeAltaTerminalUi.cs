@@ -57,11 +57,12 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     private Select<ChatBackendOption>? _chatBackendSelect;
     private Select<ChatModelOption>? _chatModelSelect;
     private Select<ChatReasoningOption>? _chatReasoningSelect;
+    private CheckBox? _chatAutoApproveCheckBox;
     private Markup? _chatBackendStatusMarkup;
     private AgentBackendId _chatBackendId = AgentBackendIds.Codex;
-    private bool _chatAutoApprove;
     private bool _chatBackendsInitializing;
     private bool _chatSelectorsRefreshing;
+    private readonly State<bool> _chatAutoApproveState = new(true);
     private readonly State<int> _chatBackendSelectedIndex = new(0);
     private readonly State<int> _chatModelSelectedIndex = new(0);
     private readonly State<int> _chatReasoningSelectedIndex = new(0);
@@ -263,6 +264,8 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
             .SelectionChanged((_, e) => OnChatReasoningSelectionChanged(e.NewIndex))
             .MinWidth(12)
             .MaxWidth(22);
+        _chatAutoApproveCheckBox ??= new CheckBox("Auto-Approve")
+            .IsChecked(_chatAutoApproveState);
         _chatBackendStatusMarkup ??= new Markup(string.Empty)
         {
             Wrap = true,
@@ -279,7 +282,6 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                 new Button(new TextBlock("Clear")).Click(ClearChat),
                 new Button(new TextBlock("Refresh Backends")).Click(() => _ = RefreshChatBackendsAsync()),
                 new Button(new TextBlock("Abort")).Click(() => _ = AbortChatAsync()),
-                new Button(new TextBlock("Toggle Auto-Approve")).Click(ToggleChatAutoApprove),
                 new Button(new TextBlock("Send")).Click(() => _chatInput?.Accept()),
             ])
         {
@@ -298,6 +300,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                             new VStack([new TextBlock("Agent"), _chatBackendSelect]) { Spacing = 0 },
                             new VStack([new TextBlock("Model"), _chatModelSelect]) { Spacing = 0 },
                             new VStack([new TextBlock("Reasoning"), _chatReasoningSelect]) { Spacing = 0 },
+                            new VStack([new TextBlock("Approvals"), _chatAutoApproveCheckBox]) { Spacing = 0 },
                         ])
                     {
                         Spacing = 2,
@@ -1243,12 +1246,6 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         return new PendingChatMessage(userItem, assistantItem, streamingMarkdown);
     }
 
-    private void ToggleChatAutoApprove()
-    {
-        _chatAutoApprove = !_chatAutoApprove;
-        SetStatus(_chatAutoApprove ? "Chat approvals: auto-approve ON" : "Chat approvals: auto-approve OFF");
-    }
-
     private async Task AbortChatAsync()
     {
         var connection = GetChatConnection(_chatBackendId);
@@ -1330,14 +1327,18 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         AgentPermissionRequest request,
         CancellationToken cancellationToken)
     {
-        _ = request;
         _ = cancellationToken;
+        RecordChatPermissionRequest(request);
 
-        if (_chatAutoApprove)
+        if (_chatAutoApproveState.Value)
         {
+            SetStatus($"Auto-approved permission request ({request.Kind}).", showSpinner: true);
             return Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce));
         }
 
+        SetStatus(
+            "Permission requested. Auto-Approve is off, so CodeAlta denied it because terminal approval UI is not implemented yet.",
+            showSpinner: true);
         return Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.Deny));
     }
 
@@ -1346,9 +1347,11 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         _ = cancellationToken;
-        var answers = request.Form.Prompts.ToDictionary(static x => x.Id, static _ => string.Empty, StringComparer.Ordinal);
-
-        return Task.FromResult(new AgentUserInputResponse(answers));
+        RecordChatUserInputRequest(request);
+        SetStatus(
+            "Interactive question received. Auto-Approve only applies to permission requests; terminal question prompts are not implemented yet.",
+            showSpinner: true);
+        return Task.FromResult(CreateEmptyChatUserInputResponse(request));
     }
 
     private void HandleChatAgentEvent(AgentEvent @event)
@@ -1373,30 +1376,14 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                 UpsertChatActivity(activity);
                 break;
             case AgentPermissionRequest permissionRequest:
-                lock (_chatTimelineLock)
-                {
-                    _chatPermissionRequests[permissionRequest.InteractionId] = permissionRequest;
-                }
-
-                UpsertChatInteraction(
-                    permissionRequest.InteractionId,
-                    FormatChatPermissionRequestMarkdown(permissionRequest),
-                    null,
-                    ChatTimelineTone.Interaction);
+                RecordChatPermissionRequest(permissionRequest);
                 SetStatus($"Permission requested ({permissionRequest.Kind}).", showSpinner: true);
                 break;
             case AgentUserInputRequest userInputRequest:
-                lock (_chatTimelineLock)
-                {
-                    _chatUserInputRequests[userInputRequest.InteractionId] = userInputRequest;
-                }
-
-                UpsertChatInteraction(
-                    userInputRequest.InteractionId,
-                    FormatChatUserInputRequestMarkdown(userInputRequest),
-                    null,
-                    ChatTimelineTone.Interaction);
-                SetStatus("Waiting for backend input resolution...", showSpinner: true);
+                RecordChatUserInputRequest(userInputRequest);
+                SetStatus(
+                    "Interactive question received. Terminal question prompts are not implemented yet.",
+                    showSpinner: true);
                 break;
             case AgentInteractionEvent interaction:
                 HandleChatInteraction(interaction);
@@ -1581,6 +1568,38 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         }
 
         AppendChatTimelineItem(CreateChatMarkdownItem(markdown, ChatTimelineTone.Interaction).Item);
+    }
+
+    private void RecordChatPermissionRequest(AgentPermissionRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        lock (_chatTimelineLock)
+        {
+            _chatPermissionRequests[request.InteractionId] = request;
+        }
+
+        UpsertChatInteraction(
+            request.InteractionId,
+            FormatChatPermissionRequestMarkdown(request),
+            null,
+            ChatTimelineTone.Interaction);
+    }
+
+    private void RecordChatUserInputRequest(AgentUserInputRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        lock (_chatTimelineLock)
+        {
+            _chatUserInputRequests[request.InteractionId] = request;
+        }
+
+        UpsertChatInteraction(
+            request.InteractionId,
+            FormatChatUserInputRequestMarkdown(request),
+            null,
+            ChatTimelineTone.Interaction);
     }
 
     private ChatContentState GetOrCreateChatContentState(AgentContentKind kind, string contentId)
@@ -1886,12 +1905,14 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var builder = new StringBuilder();
+        var builder = new StringBuilder("**Action Required · Permission Request** · ");
+        builder.AppendLine()
+            .AppendLine()
+            .Append("_The agent is blocked until this permission request is resolved._");
 
         switch (request)
         {
             case AgentCommandPermissionRequest command:
-                builder.Append("**Command Permission Request** · ");
                 builder.AppendLine()
                     .AppendLine()
                     .Append("- Kind: command execution");
@@ -1935,7 +1956,6 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                 break;
 
             case AgentFileChangePermissionRequest fileChange:
-                builder.Append("**File Change Permission Request** · ");
                 builder.AppendLine()
                     .AppendLine()
                     .Append("- Kind: file change");
@@ -1944,7 +1964,6 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                 break;
 
             case AgentGenericPermissionRequest generic:
-                builder.Append("**Permission Request** · ");
                 builder.AppendLine().AppendLine().Append("- Kind: ").Append(generic.Kind);
                 if (TryGetStringProperty(generic.Raw, "toolName", out var toolName))
                 {
@@ -1958,7 +1977,6 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                 break;
 
             default:
-                builder.Append("**Permission Request** · ");
                 builder.AppendLine().AppendLine().Append("- Kind: ").Append(request.Kind);
                 break;
         }
@@ -1970,28 +1988,44 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var builder = new StringBuilder("**User Input Requested** · 󰞋");
-        foreach (var prompt in request.Form.Prompts)
+        var builder = new StringBuilder("**Action Required · User Input Request** · 󰞋");
+        builder.AppendLine()
+            .AppendLine()
+            .Append("_The agent asked a question. Terminal question prompts are not implemented yet, so CodeAlta returns empty answers for now._");
+
+        for (var index = 0; index < request.Form.Prompts.Count; index++)
         {
+            var prompt = request.Form.Prompts[index];
             builder.AppendLine()
                 .AppendLine()
-                .Append("- Question: ")
-                .Append(prompt.Question);
+                .Append("**Question ")
+                .Append(index + 1)
+                .Append("**");
 
+            AppendBullet(builder, "Id", prompt.Id, code: true);
             if (!string.IsNullOrWhiteSpace(prompt.Header))
             {
                 builder.AppendLine().Append("- Header: ").Append(prompt.Header);
             }
 
+            builder.AppendLine().Append("- Question: ").Append(prompt.Question);
+
             if (prompt.Options is { Count: > 0 } options)
             {
-                builder.AppendLine().Append("- Options: ").Append(string.Join(", ", options.Select(static option => option.Label)));
+                builder.AppendLine().AppendLine().Append("**Choices**");
+                foreach (var option in options)
+                {
+                    builder.AppendLine().Append("- ").Append(option.Label);
+                    if (!string.IsNullOrWhiteSpace(option.Description))
+                    {
+                        builder.Append(": ").Append(option.Description);
+                    }
+                }
             }
 
-            if (!prompt.AllowFreeform)
-            {
-                builder.AppendLine().Append("- Freeform: disabled");
-            }
+            builder.AppendLine()
+                .Append("- Freeform: ")
+                .Append(prompt.AllowFreeform ? "allowed" : "disabled");
 
             if (prompt.IsSecret)
             {
@@ -2012,17 +2046,32 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
             AgentInteractionKind.UserInputResolved => "User Input Resolved",
             _ => interaction.Kind.ToString(),
         };
+        var detailsMarkdown = BuildChatInteractionResolutionDetailsMarkdown(interaction);
 
         if (!includeHeading)
         {
+            if (string.IsNullOrWhiteSpace(detailsMarkdown))
+            {
+                return string.IsNullOrWhiteSpace(interaction.Message)
+                    ? "_Status:_ resolved"
+                    : $"_Status:_ {interaction.Message}";
+            }
+
             return string.IsNullOrWhiteSpace(interaction.Message)
-                ? "_Status:_ resolved"
-                : $"_Status:_ {interaction.Message}";
+                ? $"_Status:_ resolved\n\n{detailsMarkdown}"
+                : $"_Status:_ {interaction.Message}\n\n{detailsMarkdown}";
         }
 
-        return string.IsNullOrWhiteSpace(interaction.Message)
-            ? $"**{label}** · "
-            : $"**{label}** · \n\n{interaction.Message}";
+        if (string.IsNullOrWhiteSpace(interaction.Message))
+        {
+            return string.IsNullOrWhiteSpace(detailsMarkdown)
+                ? $"**{label}** · "
+                : $"**{label}** · \n\n{detailsMarkdown}";
+        }
+
+        return string.IsNullOrWhiteSpace(detailsMarkdown)
+            ? $"**{label}** · \n\n{interaction.Message}"
+            : $"**{label}** · \n\n{interaction.Message}\n\n{detailsMarkdown}";
     }
 
     private static string CreateChatContentKey(AgentContentKind kind, string contentId)
@@ -2189,6 +2238,72 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
 
         value = null;
         return false;
+    }
+
+    private static AgentUserInputResponse CreateEmptyChatUserInputResponse(AgentUserInputRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var answers = request.Form.Prompts.ToDictionary(static x => x.Id, static _ => string.Empty, StringComparer.Ordinal);
+        return new AgentUserInputResponse(answers);
+    }
+
+    private static string BuildChatInteractionResolutionDetailsMarkdown(AgentInteractionEvent interaction)
+    {
+        if (interaction.Details is not { } details)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        switch (interaction.Kind)
+        {
+            case AgentInteractionKind.PermissionResolved:
+                if (TryGetStringProperty(details, "decisionKind", out var decisionKind))
+                {
+                    builder.Append("- Decision: ").Append(SplitPascalCase(decisionKind!));
+                }
+
+                break;
+
+            case AgentInteractionKind.UserInputResolved:
+                if (details.ValueKind == JsonValueKind.Object &&
+                    details.TryGetProperty("answers", out var answers) &&
+                    answers.ValueKind == JsonValueKind.Object)
+                {
+                    var answerLines = new List<string>();
+                    foreach (var answer in answers.EnumerateObject())
+                    {
+                        answerLines.Add(
+                            string.IsNullOrWhiteSpace(answer.Value.GetString())
+                                ? $"- `{answer.Name}`: _empty_"
+                                : $"- `{answer.Name}`: `{answer.Value.GetString()}`");
+                    }
+
+                    if (answerLines.Count == 0)
+                    {
+                        builder.Append("- Answers: _empty_");
+                    }
+                    else
+                    {
+                        builder.Append(string.Join(Environment.NewLine, answerLines));
+                    }
+
+                    if (answerLines.All(static line => line.EndsWith("_empty_", StringComparison.Ordinal)))
+                    {
+                        if (builder.Length > 0)
+                        {
+                            builder.AppendLine();
+                        }
+
+                        builder.Append("- Note: Terminal question prompts are not implemented yet.");
+                    }
+                }
+
+                break;
+        }
+
+        return builder.ToString();
     }
 
 

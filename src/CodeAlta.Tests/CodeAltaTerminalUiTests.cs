@@ -87,6 +87,7 @@ public sealed class CodeAltaTerminalUiTests
                 ProposedExecPolicyAmendment: null,
                 ProposedNetworkPolicyAmendments: null));
 
+        StringAssert.Contains(typedMarkdown, "Action Required");
         StringAssert.Contains(typedMarkdown, "Permission Request");
         StringAssert.Contains(typedMarkdown, "```shell");
         StringAssert.Contains(typedMarkdown, "dotnet test");
@@ -109,8 +110,42 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public void FormatChatUserInputRequestMarkdown_ShowsChoicesAndImplementationGap()
+    {
+        var markdown = CodeAltaTerminalUi.FormatChatUserInputRequestMarkdown(
+            new AgentUserInputRequest(
+                AgentBackendIds.Copilot,
+                "session-1",
+                DateTimeOffset.UtcNow,
+                null,
+                "interaction-1",
+                new AgentUserInputForm(
+                    [
+                        new AgentUserInputPrompt(
+                            Id: "answer",
+                            Question: "Which option do you prefer?",
+                            Header: "Pick one",
+                            Options:
+                            [
+                                new AgentUserInputOption("Search first", "Inspect the repository before answering."),
+                                new AgentUserInputOption("Answer directly", "Respond from prior knowledge."),
+                            ],
+                            AllowFreeform: false)
+                    ])));
+
+        StringAssert.Contains(markdown, "Action Required");
+        StringAssert.Contains(markdown, "User Input Request");
+        StringAssert.Contains(markdown, "Which option do you prefer?");
+        StringAssert.Contains(markdown, "Search first");
+        StringAssert.Contains(markdown, "Answer directly");
+        StringAssert.Contains(markdown, "Terminal question prompts are not implemented yet");
+        StringAssert.Contains(markdown, "Freeform: disabled");
+    }
+
+    [TestMethod]
     public void FormatChatInteractionResolutionMarkdown_CanProduceFooter()
     {
+        using var detailsJson = JsonDocument.Parse("""{"decisionKind":"AllowOnce"}""");
         var markdown = CodeAltaTerminalUi.FormatChatInteractionResolutionMarkdown(
             new AgentInteractionEvent(
                 AgentBackendIds.Copilot,
@@ -119,10 +154,34 @@ public sealed class CodeAltaTerminalUiTests
                 null,
                 AgentInteractionKind.PermissionResolved,
                 "interaction-1",
-                "Permission resolved: AllowOnce."),
+                "Permission resolved: AllowOnce.",
+                detailsJson.RootElement.Clone()),
             includeHeading: false);
 
-        Assert.AreEqual("_Status:_ Permission resolved: AllowOnce.", markdown);
+        StringAssert.Contains(markdown, "_Status:_ Permission resolved: AllowOnce.");
+        StringAssert.Contains(markdown, "Decision: Allow Once");
+    }
+
+    [TestMethod]
+    public void FormatChatInteractionResolutionMarkdown_NotesBlankUserInputAnswers()
+    {
+        using var detailsJson = JsonDocument.Parse("""{"answerCount":1,"answers":{"answer":""}}""");
+        var markdown = CodeAltaTerminalUi.FormatChatInteractionResolutionMarkdown(
+            new AgentInteractionEvent(
+                AgentBackendIds.Copilot,
+                "session-1",
+                DateTimeOffset.UtcNow,
+                null,
+                AgentInteractionKind.UserInputResolved,
+                "interaction-1",
+                "User input resolved (1 answer(s)).",
+                detailsJson.RootElement.Clone()),
+            includeHeading: false);
+
+        StringAssert.Contains(markdown, "_Status:_ User input resolved (1 answer(s)).");
+        StringAssert.Contains(markdown, "`answer`");
+        StringAssert.Contains(markdown, "_empty_");
+        StringAssert.Contains(markdown, "Terminal question prompts are not implemented yet");
     }
 
     [TestMethod]
