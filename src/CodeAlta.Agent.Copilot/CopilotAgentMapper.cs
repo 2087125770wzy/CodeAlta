@@ -677,11 +677,11 @@ internal static class CopilotAgentMapper
 
         var kind = decision.Kind switch
         {
-            AgentPermissionDecisionKind.AllowOnce => "approved",
-            AgentPermissionDecisionKind.AllowForSession => "approved",
-            AgentPermissionDecisionKind.Deny => "denied-interactively-by-user",
-            AgentPermissionDecisionKind.Cancel => "denied-interactively-by-user",
-            _ => "denied-interactively-by-user"
+            AgentPermissionDecisionKind.AllowOnce => PermissionRequestResultKind.Approved,
+            AgentPermissionDecisionKind.AllowForSession => PermissionRequestResultKind.Approved,
+            AgentPermissionDecisionKind.Deny => PermissionRequestResultKind.DeniedInteractivelyByUser,
+            AgentPermissionDecisionKind.Cancel => PermissionRequestResultKind.DeniedInteractivelyByUser,
+            _ => PermissionRequestResultKind.DeniedInteractivelyByUser
         };
 
         return new PermissionRequestResult

@@ -659,11 +659,11 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                 };
                 var icon = state.Availability switch
                 {
-                    ChatBackendAvailability.Ready => "󰄬",
-                    ChatBackendAvailability.Unsupported => "",
-                    ChatBackendAvailability.Failed => "",
-                    ChatBackendAvailability.Connecting => "󰔛",
-                    _ => "󰒓",
+                    ChatBackendAvailability.Ready => $"{NerdFont.MdCheck}",
+                    ChatBackendAvailability.Unsupported => $"{NerdFont.CodWarning}",
+                    ChatBackendAvailability.Failed => $"{NerdFont.MdClose}",
+                    ChatBackendAvailability.Connecting => $"{NerdFont.MdTimerOutline}",
+                    _ => $"{NerdFont.MdHelpBox}",
                 };
                 var selected = string.Equals(state.BackendId.Value, selectedBackendId.Value, StringComparison.OrdinalIgnoreCase)
                     ? "[bold]"
@@ -674,7 +674,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
             });
 
         var prefix = isInitializing
-            ? "[primary]󰔛 Detecting backends...[/] "
+            ? $"[primary]{NerdFont.MdTimerOutline} Detecting backends...[/] "
             : string.Empty;
         return prefix + string.Join("   ", items);
     }
@@ -1864,13 +1864,13 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     private static (string Icon, string Title, string ToneName) GetChatCardDefaults(ChatTimelineTone tone)
         => tone switch
         {
-            ChatTimelineTone.User => ("󰀄", "User Prompt", "accent"),
-            ChatTimelineTone.Assistant => ("󰚩", "Assistant", "success"),
-            ChatTimelineTone.Reasoning => ("", "Reasoning", "primary"),
-            ChatTimelineTone.Activity => ("", "Activity", "muted"),
-            ChatTimelineTone.Notice => ("", "Notice", "success"),
-            ChatTimelineTone.Interaction => ("", "Action Required", "warning"),
-            _ => ("󰍩", "Message", "primary"),
+            ChatTimelineTone.User => ($"{NerdFont.MdAccount}", "User Prompt", "accent"),
+            ChatTimelineTone.Assistant => ($"{NerdFont.MdRobot}", "Assistant", "success"),
+            ChatTimelineTone.Reasoning => ($"{NerdFont.CodLightbulb}", "Reasoning", "primary"),
+            ChatTimelineTone.Activity => ($"{NerdFont.CodTools}", "Activity", "muted"),
+            ChatTimelineTone.Notice => ($"{NerdFont.CodInfo}", "Notice", "success"),
+            ChatTimelineTone.Interaction => ($"{NerdFont.CodLock}", "Action Required", "warning"),
+            _ => ($"{NerdFont.MdMessageText}", "Message", "primary"),
         };
 
     private static ChatMarkdownEntry CreateChatMarkdownItem(
@@ -1899,7 +1899,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
             },
         };
 
-        var copyButton = new Button(new TextBlock("󰆏 Copy"))
+        var copyButton = new Button(new TextBlock($"{NerdFont.MdContentCopy} Copy"))
             .Click(() =>
             {
                 markdownControl.App?.Terminal.Clipboard.TrySetText(markdownControl.Markdown);
@@ -1928,13 +1928,13 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         return kind switch
         {
             AgentContentKind.Assistant => content,
-            AgentContentKind.Reasoning => FormatChatCalloutMarkdown("", "Reasoning", content),
-            AgentContentKind.ReasoningSummary => FormatChatCalloutMarkdown("󰦨", "Reasoning Summary", content),
-            AgentContentKind.Plan => FormatChatCalloutMarkdown("", "Plan", content),
-            AgentContentKind.CommandOutput => FormatChatOutputMarkdown("", "Command Output", content),
-            AgentContentKind.FileChangeOutput => FormatChatOutputMarkdown("", "File Change Output", content),
-            AgentContentKind.ToolOutput => FormatChatOutputMarkdown("", "Tool Output", content),
-            AgentContentKind.Notice => FormatChatCalloutMarkdown("", "Notice", content),
+            AgentContentKind.Reasoning => FormatChatCalloutMarkdown($"{NerdFont.CodLightbulb}", "Reasoning", content),
+            AgentContentKind.ReasoningSummary => FormatChatCalloutMarkdown($"{NerdFont.MdLightbulbOutline}", "Reasoning Summary", content),
+            AgentContentKind.Plan => FormatChatCalloutMarkdown($"{NerdFont.MdProgressWrench}", "Plan", content),
+            AgentContentKind.CommandOutput => FormatChatOutputMarkdown($"{NerdFont.CodTerminalPowershell}", "Command Output", content),
+            AgentContentKind.FileChangeOutput => FormatChatOutputMarkdown($"{NerdFont.CodEdit}", "File Change Output", content),
+            AgentContentKind.ToolOutput => FormatChatOutputMarkdown($"{NerdFont.CodTools}", "Tool Output", content),
+            AgentContentKind.Notice => FormatChatCalloutMarkdown($"{NerdFont.CodInfo}", "Notice", content),
             _ => content,
         };
     }
@@ -1943,7 +1943,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        var builder = new StringBuilder("** Plan");
+        var builder = new StringBuilder($"**{NerdFont.MdProgressWrench} Plan");
         if (snapshot.ChangeKind is { } changeKind)
         {
             builder.Append(' ').Append(SplitPascalCase(changeKind.ToString()));
@@ -2005,24 +2005,24 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
 
         var label = update.Kind switch
         {
-            AgentSessionUpdateKind.Info => " Info",
-            AgentSessionUpdateKind.Warning => " Warning",
-            AgentSessionUpdateKind.ModelChanged => "󰭹 Model Changed",
-            AgentSessionUpdateKind.ModeChanged => "󰆧 Mode Changed",
-            AgentSessionUpdateKind.TitleChanged => "󰑕 Title Changed",
-            AgentSessionUpdateKind.ContextChanged => "󰉋 Context Changed",
-            AgentSessionUpdateKind.PlanUpdated => " Plan Updated",
-            AgentSessionUpdateKind.UsageUpdated => "󰮯 Usage Updated",
-            AgentSessionUpdateKind.CompactionStarted => "󰫙 Compaction Started",
-            AgentSessionUpdateKind.CompactionCompleted => "󰫛 Compaction Completed",
-            AgentSessionUpdateKind.Handoff => "󰒍 Handoff",
-            AgentSessionUpdateKind.Truncated => "󰆴 Session Truncated",
-            AgentSessionUpdateKind.Shutdown => "󰅖 Session Shutdown",
-            AgentSessionUpdateKind.TaskCompleted => "󰄬 Task Completed",
-            AgentSessionUpdateKind.DiffUpdated => " Diff Updated",
-            AgentSessionUpdateKind.Started => "󰔛 Session Started",
-            AgentSessionUpdateKind.Resumed => "󰑐 Session Resumed",
-            AgentSessionUpdateKind.Idle => "󰄛 Agent Idle",
+            AgentSessionUpdateKind.Info => $"{NerdFont.CodInfo} Info",
+            AgentSessionUpdateKind.Warning => $"{NerdFont.CodWarning} Warning",
+            AgentSessionUpdateKind.ModelChanged => $"{NerdFont.MdChat} Model Changed",
+            AgentSessionUpdateKind.ModeChanged => $"{NerdFont.MdCubeOutline} Mode Changed",
+            AgentSessionUpdateKind.TitleChanged => $"{NerdFont.MdRenameBox} Title Changed",
+            AgentSessionUpdateKind.ContextChanged => $"{NerdFont.MdFolder} Context Changed",
+            AgentSessionUpdateKind.PlanUpdated => $"{NerdFont.MdProgressWrench} Plan Updated",
+            AgentSessionUpdateKind.UsageUpdated => $"{NerdFont.MdPacMan} Usage Updated",
+            AgentSessionUpdateKind.CompactionStarted => $"{NerdFont.MdSelectCompare} Compaction Started",
+            AgentSessionUpdateKind.CompactionCompleted => $"{NerdFont.MdShieldPlusOutline} Compaction Completed",
+            AgentSessionUpdateKind.Handoff => $"{NerdFont.MdServerNetwork} Handoff",
+            AgentSessionUpdateKind.Truncated => $"{NerdFont.MdDelete} Session Truncated",
+            AgentSessionUpdateKind.Shutdown => $"{NerdFont.MdClose} Session Shutdown",
+            AgentSessionUpdateKind.TaskCompleted => $"{NerdFont.MdCheck} Task Completed",
+            AgentSessionUpdateKind.DiffUpdated => $"{NerdFont.CodEdit} Diff Updated",
+            AgentSessionUpdateKind.Started => $"{NerdFont.MdTimerOutline} Session Started",
+            AgentSessionUpdateKind.Resumed => $"{NerdFont.MdAccountArrowRight} Session Resumed",
+            AgentSessionUpdateKind.Idle => $"{NerdFont.MdCat} Agent Idle",
             _ => update.Kind.ToString(),
         };
 
@@ -2035,7 +2035,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var builder = new StringBuilder("** Permission Request**");
+        var builder = new StringBuilder($"**{NerdFont.CodLock} Permission Request**");
         builder.AppendLine()
             .AppendLine()
             .Append("_The agent is blocked until this permission request is resolved._");
@@ -2141,7 +2141,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var builder = new StringBuilder("**󰞋 User Input Request**");
+        var builder = new StringBuilder($"**{NerdFont.MdHelpBox} User Input Request**");
         builder.AppendLine()
             .AppendLine()
             .Append(
@@ -2221,13 +2221,13 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         if (string.IsNullOrWhiteSpace(interaction.Message))
         {
             return string.IsNullOrWhiteSpace(detailsMarkdown)
-                ? $"** {label}**"
-                : $"** {label}**\n\n{detailsMarkdown}";
+                ? $"**{NerdFont.CodArrowRight} {label}**"
+                : $"**{NerdFont.CodArrowRight} {label}**\n\n{detailsMarkdown}";
         }
 
         return string.IsNullOrWhiteSpace(detailsMarkdown)
-            ? $"** {label}**\n\n{interaction.Message}"
-            : $"** {label}**\n\n{interaction.Message}\n\n{detailsMarkdown}";
+            ? $"**{NerdFont.CodArrowRight} {label}**\n\n{interaction.Message}"
+            : $"**{NerdFont.CodArrowRight} {label}**\n\n{interaction.Message}\n\n{detailsMarkdown}";
     }
 
     internal static string FormatChatImmediatePermissionDecisionMarkdown(
@@ -2344,16 +2344,16 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     {
         return kind switch
         {
-            AgentActivityKind.ToolCall or AgentActivityKind.McpToolCall or AgentActivityKind.DynamicToolCall => "",
-            AgentActivityKind.CommandExecution => "",
-            AgentActivityKind.FileChange => "",
-            AgentActivityKind.CollabAgentToolCall or AgentActivityKind.Subagent => "󰙨",
-            AgentActivityKind.Hook => "󰛢",
-            AgentActivityKind.Skill => "󰌵",
-            AgentActivityKind.WebSearch => "󰖟",
-            AgentActivityKind.ImageGeneration => "󰘨",
-            AgentActivityKind.Turn => "󰆍",
-            _ => "",
+            AgentActivityKind.ToolCall or AgentActivityKind.McpToolCall or AgentActivityKind.DynamicToolCall => $"{NerdFont.CodTools}",
+            AgentActivityKind.CommandExecution => $"{NerdFont.CodTerminalPowershell}",
+            AgentActivityKind.FileChange => $"{NerdFont.CodEdit}",
+            AgentActivityKind.CollabAgentToolCall or AgentActivityKind.Subagent => $"{NerdFont.MdTestTube}",
+            AgentActivityKind.Hook => $"{NerdFont.MdHook}",
+            AgentActivityKind.Skill => $"{NerdFont.MdLightbulb}",
+            AgentActivityKind.WebSearch => $"{NerdFont.MdWeb}",
+            AgentActivityKind.ImageGeneration => $"{NerdFont.MdMatrix}",
+            AgentActivityKind.Turn => $"{NerdFont.MdConsole}",
+            _ => $"{NerdFont.CodInfo}",
         };
     }
 

@@ -72,7 +72,7 @@ public sealed class CopilotAgentMapperTests
 
         var result = await config.OnPermissionRequest!(request, new PermissionInvocation { SessionId = "session-1" });
 
-        Assert.AreEqual("approved", result.Kind);
+        Assert.AreEqual(PermissionRequestResultKind.Approved, result.Kind);
         Assert.AreEqual(2, publishedEvents.Count);
         Assert.IsInstanceOfType<AgentGenericPermissionRequest>(publishedEvents[0]);
         var permissionRequest = (AgentGenericPermissionRequest)publishedEvents[0];
