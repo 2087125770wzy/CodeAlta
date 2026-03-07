@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace CodeAlta.Agent;
 
 /// <summary>
@@ -19,4 +21,5 @@ public sealed record AgentModelInfo(
     string? Provider = null,
     AgentReasoningEffort? DefaultReasoningEffort = null,
     IReadOnlyList<AgentReasoningEffort>? SupportedReasoningEfforts = null,
+    [property: JsonConverter(typeof(AgentObjectDictionaryJsonConverter))]
     IReadOnlyDictionary<string, object?>? Capabilities = null);

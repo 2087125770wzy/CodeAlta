@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace CodeAlta.Agent;
 
@@ -11,6 +12,10 @@ namespace CodeAlta.Agent;
 /// <param name="RunId">Optional run identifier.</param>
 /// <param name="InteractionId">Stable interaction identifier.</param>
 /// <param name="Kind">The shared permission-request kind.</param>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[JsonDerivedType(typeof(AgentGenericPermissionRequest), "generic")]
+[JsonDerivedType(typeof(AgentCommandPermissionRequest), "command")]
+[JsonDerivedType(typeof(AgentFileChangePermissionRequest), "fileChange")]
 public abstract record AgentPermissionRequest(
     AgentBackendId BackendId,
     string SessionId,

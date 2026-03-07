@@ -1,8 +1,19 @@
+using System.Text.Json.Serialization;
+
 namespace CodeAlta.Agent;
 
 /// <summary>
 /// Represents a typed user input item (text, image, attachment, skill, etc.).
 /// </summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[JsonDerivedType(typeof(AgentInputItem.Text), "text")]
+[JsonDerivedType(typeof(AgentInputItem.ImageUrl), "imageUrl")]
+[JsonDerivedType(typeof(AgentInputItem.LocalImage), "localImage")]
+[JsonDerivedType(typeof(AgentInputItem.File), "file")]
+[JsonDerivedType(typeof(AgentInputItem.Directory), "directory")]
+[JsonDerivedType(typeof(AgentInputItem.Selection), "selection")]
+[JsonDerivedType(typeof(AgentInputItem.Skill), "skill")]
+[JsonDerivedType(typeof(AgentInputItem.Mention), "mention")]
 public abstract record AgentInputItem
 {
     /// <summary>

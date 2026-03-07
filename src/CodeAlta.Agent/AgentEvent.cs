@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace CodeAlta.Agent;
 
@@ -9,6 +10,19 @@ namespace CodeAlta.Agent;
 /// <param name="SessionId">The session identifier.</param>
 /// <param name="Timestamp">Event timestamp.</param>
 /// <param name="RunId">Optional run identifier.</param>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[JsonDerivedType(typeof(AgentRawEvent), "raw")]
+[JsonDerivedType(typeof(AgentContentDeltaEvent), "contentDelta")]
+[JsonDerivedType(typeof(AgentContentCompletedEvent), "contentCompleted")]
+[JsonDerivedType(typeof(AgentActivityEvent), "activity")]
+[JsonDerivedType(typeof(AgentSessionUpdateEvent), "sessionUpdate")]
+[JsonDerivedType(typeof(AgentPlanSnapshotEvent), "planSnapshot")]
+[JsonDerivedType(typeof(AgentInteractionEvent), "interaction")]
+[JsonDerivedType(typeof(AgentErrorEvent), "error")]
+[JsonDerivedType(typeof(AgentGenericPermissionRequest), "permissionGeneric")]
+[JsonDerivedType(typeof(AgentCommandPermissionRequest), "permissionCommand")]
+[JsonDerivedType(typeof(AgentFileChangePermissionRequest), "permissionFileChange")]
+[JsonDerivedType(typeof(AgentUserInputRequest), "userInputRequest")]
 public abstract record AgentEvent(
     AgentBackendId BackendId,
     string SessionId,
@@ -503,17 +517,99 @@ public sealed record AgentInteractionEvent(
 /// <summary>
 /// Represents an error event.
 /// </summary>
-/// <param name="BackendId">The backend identifier.</param>
-/// <param name="SessionId">The session identifier.</param>
-/// <param name="Timestamp">Event timestamp.</param>
-/// <param name="Message">Error message.</param>
-/// <param name="Exception">Optional exception.</param>
-/// <param name="RunId">Optional run identifier.</param>
-public sealed record AgentErrorEvent(
-    AgentBackendId BackendId,
-    string SessionId,
-    DateTimeOffset Timestamp,
+public sealed record AgentErrorEvent : AgentEvent
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AgentErrorEvent"/> class.
+    /// </summary>
+    /// <param name="backendId">The backend identifier.</param>
+    /// <param name="sessionId">The session identifier.</param>
+    /// <param name="timestamp">Event timestamp.</param>
+    /// <param name="message">Error message.</param>
+    /// <param name="exceptionInfo">Optional JSON-safe exception payload.</param>
+    /// <param name="runId">Optional run identifier.</param>
+    [JsonConstructor]
+    internal AgentErrorEvent(
+        AgentBackendId backendId,
+        string sessionId,
+        DateTimeOffset timestamp,
+        string message,
+        AgentExceptionInfo? exceptionInfo = null,
+        AgentRunId? runId = null)
+        : base(backendId, sessionId, timestamp, runId)
+    {
+        Message = message;
+        ExceptionInfo = exceptionInfo;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AgentErrorEvent"/> class.
+    /// </summary>
+    /// <param name="backendId">The backend identifier.</param>
+    /// <param name="sessionId">The session identifier.</param>
+    /// <param name="timestamp">Event timestamp.</param>
+    /// <param name="message">Error message.</param>
+    /// <param name="exception">Optional runtime exception.</param>
+    /// <param name="runId">Optional run identifier.</param>
+    public AgentErrorEvent(
+        AgentBackendId backendId,
+        string sessionId,
+        DateTimeOffset timestamp,
+        string message,
+        Exception? exception = null,
+        AgentRunId? runId = null)
+        : base(backendId, sessionId, timestamp, runId)
+    {
+        Message = message;
+        Exception = exception;
+        ExceptionInfo = exception is null ? null : AgentExceptionInfo.FromException(exception);
+    }
+
+    /// <summary>
+    /// Gets the error message.
+    /// </summary>
+    public string Message { get; init; }
+
+    /// <summary>
+    /// Gets the optional runtime exception.
+    /// </summary>
+    [JsonIgnore]
+    public Exception? Exception { get; init; }
+
+    /// <summary>
+    /// Gets a JSON-safe exception payload for display and diagnostics.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AgentExceptionInfo? ExceptionInfo { get; init; }
+}
+
+/// <summary>
+/// JSON-safe exception payload.
+/// </summary>
+/// <param name="Type">The exception type name.</param>
+/// <param name="Message">The exception message.</param>
+/// <param name="StackTrace">Optional stack trace.</param>
+/// <param name="Source">Optional exception source.</param>
+/// <param name="HResult">Optional HRESULT.</param>
+/// <param name="InnerException">Optional inner exception payload.</param>
+public sealed record AgentExceptionInfo(
+    string Type,
     string Message,
-    Exception? Exception = null,
-    AgentRunId? RunId = null)
-    : AgentEvent(BackendId, SessionId, Timestamp, RunId);
+    string? StackTrace = null,
+    string? Source = null,
+    int? HResult = null,
+    AgentExceptionInfo? InnerException = null)
+{
+    internal static AgentExceptionInfo FromException(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        return new AgentExceptionInfo(
+            exception.GetType().FullName ?? exception.GetType().Name,
+            exception.Message,
+            exception.StackTrace,
+            exception.Source,
+            exception.HResult,
+            exception.InnerException is null ? null : FromException(exception.InnerException));
+    }
+}

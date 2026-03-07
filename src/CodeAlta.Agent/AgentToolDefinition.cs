@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace CodeAlta.Agent;
 
@@ -55,6 +56,9 @@ public sealed record AgentToolResult(
 /// <summary>
 /// Represents a tool result content item.
 /// </summary>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[JsonDerivedType(typeof(AgentToolResultItem.Text), "text")]
+[JsonDerivedType(typeof(AgentToolResultItem.ImageUrl), "imageUrl")]
 public abstract record AgentToolResultItem
 {
     /// <summary>
