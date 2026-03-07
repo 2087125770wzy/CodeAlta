@@ -119,10 +119,12 @@ public sealed class CodexAgentMapperTests
                 OnPermissionRequest = static (_, _) =>
                     Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
             },
-            new AskForApproval.OnRequest());
+            new AskForApproval.OnRequest(),
+            SandboxMode.DangerFullAccess);
 
         Assert.AreEqual("gpt-5-mini", parameters.Model);
         Assert.AreEqual(@"C:\repo", parameters.Cwd);
+        Assert.AreEqual(SandboxMode.DangerFullAccess, parameters.Sandbox);
         Assert.IsNotNull(parameters.Config);
         Assert.IsTrue(parameters.Config.ContainsKey("model_reasoning_effort"));
         Assert.AreEqual("high", parameters.Config["model_reasoning_effort"].GetString());
@@ -136,13 +138,32 @@ public sealed class CodexAgentMapperTests
             AgentInput.Text("hello"),
             @"C:\repo",
             "gpt-5-mini",
-            AgentReasoningEffort.Medium);
+            AgentReasoningEffort.Medium,
+            SandboxMode.DangerFullAccess);
 
         Assert.AreEqual("thread-1", parameters.ThreadId);
         Assert.AreEqual(@"C:\repo", parameters.Cwd);
         Assert.AreEqual("gpt-5-mini", parameters.Model);
         Assert.AreEqual(ReasoningEffort.Medium, parameters.Effort);
+        Assert.IsInstanceOfType<SandboxPolicy.DangerFullAccessSandboxPolicy>(parameters.SandboxPolicy);
         Assert.AreEqual(1, parameters.Input.Count);
+    }
+
+    [TestMethod]
+    public void ToTurnStartParams_MapsWorkspaceWriteSandboxPolicyWithFullReadAccess()
+    {
+        var parameters = CodexAgentMapper.ToTurnStartParams(
+            "thread-1",
+            AgentInput.Text("hello"),
+            @"C:\repo",
+            "gpt-5-mini",
+            reasoningEffort: null,
+            SandboxMode.WorkspaceWrite);
+
+        Assert.IsInstanceOfType<SandboxPolicy.WorkspaceWriteSandboxPolicy>(parameters.SandboxPolicy);
+        var sandboxPolicy = (SandboxPolicy.WorkspaceWriteSandboxPolicy)parameters.SandboxPolicy;
+        Assert.IsInstanceOfType<ReadOnlyAccess.FullAccessReadOnlyAccess>(sandboxPolicy.ReadOnlyAccess);
+        CollectionAssert.AreEqual(new[] { @"C:\repo" }, sandboxPolicy.WritableRoots!.Select(static x => x.Value).ToArray());
     }
 
     [TestMethod]

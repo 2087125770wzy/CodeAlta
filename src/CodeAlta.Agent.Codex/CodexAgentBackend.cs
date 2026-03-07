@@ -147,13 +147,14 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
         ValidateTools(options.Tools);
 
         var client = await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
-        var parameters = CodexAgentMapper.ToThreadStartParams(options, _options.ApprovalPolicy);
+        var parameters = CodexAgentMapper.ToThreadStartParams(options, _options.ApprovalPolicy, _options.SandboxMode);
         var response = await client.ThreadStartAsync(parameters, cancellationToken).ConfigureAwait(false);
         return RegisterSession(
             response.Thread.Id,
             options.WorkingDirectory,
             options.Model,
             options.ReasoningEffort,
+            _options.SandboxMode,
             options.OnPermissionRequest,
             options.OnUserInputRequest);
     }
@@ -169,13 +170,14 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
         ValidateTools(options.Tools);
 
         var client = await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
-        var parameters = CodexAgentMapper.ToThreadResumeParams(sessionId, options, _options.ApprovalPolicy);
+        var parameters = CodexAgentMapper.ToThreadResumeParams(sessionId, options, _options.ApprovalPolicy, _options.SandboxMode);
         var response = await client.ThreadResumeAsync(parameters, cancellationToken).ConfigureAwait(false);
         return RegisterSession(
             response.Thread.Id,
             options.WorkingDirectory,
             options.Model,
             options.ReasoningEffort,
+            _options.SandboxMode,
             options.OnPermissionRequest,
             options.OnUserInputRequest);
     }
@@ -210,6 +212,7 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
         string? workingDirectory,
         string? model,
         AgentReasoningEffort? reasoningEffort,
+        SandboxMode? sandboxMode,
         AgentPermissionRequestHandler permissionHandler,
         AgentUserInputRequestHandler? userInputHandler)
     {
@@ -221,6 +224,7 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
                 tuple.WorkingDirectory,
                 tuple.Model,
                 tuple.ReasoningEffort,
+                tuple.SandboxMode,
                 tuple.PermissionHandler,
                 tuple.UserInputHandler),
             (
@@ -228,10 +232,11 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
                 WorkingDirectory: workingDirectory,
                 Model: model,
                 ReasoningEffort: reasoningEffort,
+                SandboxMode: sandboxMode,
                 PermissionHandler: permissionHandler,
                 UserInputHandler: userInputHandler));
 
-        session.UpdateSessionOptions(workingDirectory, model, reasoningEffort, permissionHandler, userInputHandler);
+        session.UpdateSessionOptions(workingDirectory, model, reasoningEffort, sandboxMode, permissionHandler, userInputHandler);
         return session;
     }
 

@@ -89,7 +89,10 @@ internal static class CodexAgentMapper
         return true;
     }
 
-    public static ThreadStartParams ToThreadStartParams(AgentSessionCreateOptions options, V2AskForApproval approvalPolicy)
+    public static ThreadStartParams ToThreadStartParams(
+        AgentSessionCreateOptions options,
+        V2AskForApproval approvalPolicy,
+        SandboxMode? sandboxMode)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -100,14 +103,16 @@ internal static class CodexAgentMapper
             Config = CreateThreadConfig(options.ReasoningEffort),
             DeveloperInstructions = options.DeveloperInstructions,
             Cwd = options.WorkingDirectory,
-            Model = options.Model
+            Model = options.Model,
+            Sandbox = sandboxMode
         };
     }
 
     public static ThreadResumeParams ToThreadResumeParams(
         string threadId,
         AgentSessionResumeOptions options,
-        V2AskForApproval approvalPolicy)
+        V2AskForApproval approvalPolicy,
+        SandboxMode? sandboxMode)
     {
         ArgumentNullException.ThrowIfNull(threadId);
         ArgumentNullException.ThrowIfNull(options);
@@ -120,7 +125,8 @@ internal static class CodexAgentMapper
             Config = CreateThreadConfig(options.ReasoningEffort),
             DeveloperInstructions = options.DeveloperInstructions,
             Cwd = options.WorkingDirectory,
-            Model = options.Model
+            Model = options.Model,
+            Sandbox = sandboxMode
         };
     }
 
@@ -129,7 +135,8 @@ internal static class CodexAgentMapper
         AgentInput input,
         string? workingDirectory,
         string? model,
-        AgentReasoningEffort? reasoningEffort)
+        AgentReasoningEffort? reasoningEffort,
+        SandboxMode? sandboxMode)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         ArgumentNullException.ThrowIfNull(input);
@@ -141,6 +148,7 @@ internal static class CodexAgentMapper
             Cwd = workingDirectory,
             Model = model,
             Effort = ToCodexReasoningEffort(reasoningEffort),
+            SandboxPolicy = CreateSandboxPolicy(sandboxMode, workingDirectory),
         };
     }
 
@@ -1830,6 +1838,27 @@ internal static class CodexAgentMapper
             AgentReasoningEffort.High => V2ReasoningEffort.High,
             AgentReasoningEffort.XHigh => V2ReasoningEffort.Xhigh,
             _ => throw new ArgumentOutOfRangeException(nameof(reasoningEffort), reasoningEffort, "Unsupported reasoning effort."),
+        };
+    }
+
+    private static SandboxPolicy? CreateSandboxPolicy(SandboxMode? sandboxMode, string? workingDirectory)
+    {
+        return sandboxMode switch
+        {
+            null => null,
+            SandboxMode.DangerFullAccess => new SandboxPolicy.DangerFullAccessSandboxPolicy(),
+            SandboxMode.ReadOnly => new SandboxPolicy.ReadOnlySandboxPolicy
+            {
+                Access = new ReadOnlyAccess.FullAccessReadOnlyAccess()
+            },
+            SandboxMode.WorkspaceWrite => new SandboxPolicy.WorkspaceWriteSandboxPolicy
+            {
+                ReadOnlyAccess = new ReadOnlyAccess.FullAccessReadOnlyAccess(),
+                WritableRoots = string.IsNullOrWhiteSpace(workingDirectory)
+                    ? null
+                    : [workingDirectory]
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(sandboxMode), sandboxMode, "Unsupported sandbox mode."),
         };
     }
 

@@ -16,6 +16,7 @@ public sealed class CodexAgentSession : ICodexAgentSession
     private string? _workingDirectory;
     private string? _model;
     private AgentReasoningEffort? _reasoningEffort;
+    private SandboxMode? _sandboxMode;
     private AgentPermissionRequestHandler _permissionHandler;
     private AgentUserInputRequestHandler? _userInputHandler;
     private AgentRunId? _activeRunId;
@@ -27,6 +28,7 @@ public sealed class CodexAgentSession : ICodexAgentSession
         string? workingDirectory,
         string? model,
         AgentReasoningEffort? reasoningEffort,
+        SandboxMode? sandboxMode,
         AgentPermissionRequestHandler permissionHandler,
         AgentUserInputRequestHandler? userInputHandler)
     {
@@ -38,6 +40,7 @@ public sealed class CodexAgentSession : ICodexAgentSession
         _workingDirectory = workingDirectory;
         _model = model;
         _reasoningEffort = reasoningEffort;
+        _sandboxMode = sandboxMode;
         _permissionHandler = permissionHandler;
         _userInputHandler = userInputHandler;
         ThreadId = threadId;
@@ -91,11 +94,13 @@ public sealed class CodexAgentSession : ICodexAgentSession
         string? workingDirectory;
         string? model;
         AgentReasoningEffort? reasoningEffort;
+        SandboxMode? sandboxMode;
         lock (_handlerLock)
         {
             workingDirectory = _workingDirectory;
             model = _model;
             reasoningEffort = _reasoningEffort;
+            sandboxMode = _sandboxMode;
         }
 
         var parameters = CodexAgentMapper.ToTurnStartParams(
@@ -103,7 +108,8 @@ public sealed class CodexAgentSession : ICodexAgentSession
             options.Input,
             workingDirectory,
             model,
-            reasoningEffort);
+            reasoningEffort,
+            sandboxMode);
 
         var response = await _backend.Client.TurnStartAsync(parameters, cancellationToken).ConfigureAwait(false);
         var runId = new AgentRunId(response.Turn.Id);
@@ -172,6 +178,7 @@ public sealed class CodexAgentSession : ICodexAgentSession
         string? workingDirectory,
         string? model,
         AgentReasoningEffort? reasoningEffort,
+        SandboxMode? sandboxMode,
         AgentPermissionRequestHandler permissionHandler,
         AgentUserInputRequestHandler? userInputHandler)
     {
@@ -182,6 +189,7 @@ public sealed class CodexAgentSession : ICodexAgentSession
             _workingDirectory = workingDirectory;
             _model = model;
             _reasoningEffort = reasoningEffort;
+            _sandboxMode = sandboxMode;
             _permissionHandler = permissionHandler;
             _userInputHandler = userInputHandler;
         }

@@ -36,4 +36,10 @@ public sealed class CodexAgentBackendOptions
     /// Gets or initializes the default approval policy used when creating/resuming threads.
     /// </summary>
     public AskForApproval ApprovalPolicy { get; init; } = new AskForApproval.OnRequest();
+
+    /// <summary>
+    /// Gets or initializes the default Codex sandbox mode used for new and resumed sessions.
+    /// Set this to <see langword="null"/> to let the Codex server decide.
+    /// </summary>
+    public SandboxMode? SandboxMode { get; init; } = CodeAlta.CodexSdk.SandboxMode.DangerFullAccess;
 }

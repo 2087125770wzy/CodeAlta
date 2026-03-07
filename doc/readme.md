@@ -100,6 +100,7 @@ Current terminal host capabilities:
 - Chat (global agent) operations:
   - Chat screen powered by `PromptEditor` (input) and `DocumentFlow` + `MarkdownControl` (rendered conversation history).
   - Automatically probes and initializes both Copilot and Codex backends (when available), with inline warnings when a local CLI/runtime is not installed.
+  - Codex backend sessions default to `danger-full-access` (no sandbox) in CodeAlta so prompts can inspect sibling projects outside the current working directory without first switching the session root.
   - Backend, model, and reasoning-effort selectors are shown under the prompt and are kept in-memory for the current UI session.
   - Copilot sessions are started with `codealta.*` MCP tools bridged into the backend via `McpToolBridge` (tool calls execute against the in-process MCP server, with MCP tool ids normalized to Copilot-compatible function names).
   - "Auto-Approve" in the Chat screen now auto-approves backend permission requests and auto-resolves `ask_user` prompts by preferring continue/inspect-style choices (or a neutral fallback for freeform prompts). When disabled, permission requests are denied and question prompts currently resolve to empty answers.
