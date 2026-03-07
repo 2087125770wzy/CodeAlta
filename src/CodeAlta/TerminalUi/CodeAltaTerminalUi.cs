@@ -64,6 +64,8 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     private AgentBackendId _chatBackendId = AgentBackendIds.Codex;
     private bool _chatBackendsInitializing;
     private bool _chatSelectorsRefreshing;
+    private volatile bool _chatAutoApproveEnabled = true;
+    private bool _chatBindingEventsSubscribed;
     private readonly State<bool> _chatAutoApproveState = new(true);
     private readonly State<int> _chatBackendSelectedIndex = new(0);
     private readonly State<int> _chatModelSelectedIndex = new(0);
@@ -118,6 +120,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         _dispatcher = Dispatcher.Current;
+        SubscribeChatBindingEvents();
         _header = new TextBlock
         {
             Wrap = false,
@@ -164,6 +167,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        UnsubscribeChatBindingEvents();
         foreach (var connection in _chatConnections.Values)
         {
             await connection.DisposeAsync().ConfigureAwait(false);
@@ -1158,7 +1162,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         }
 
         LogChatDebug(
-            $"SendChatMessage backend={_chatBackendId.Value} model={_chatBackendStates[_chatBackendId.Value].SelectedModelId ?? "<default>"} reasoning={_chatBackendStates[_chatBackendId.Value].SelectedReasoningEffort?.ToString() ?? "<default>"} autoApprove={_chatAutoApproveState.Value} text={text}");
+            $"SendChatMessage backend={_chatBackendId.Value} model={_chatBackendStates[_chatBackendId.Value].SelectedModelId ?? "<default>"} reasoning={_chatBackendStates[_chatBackendId.Value].SelectedReasoningEffort?.ToString() ?? "<default>"} autoApprove={_chatAutoApproveEnabled} text={text}");
 
         var pendingChatMessage = CreatePendingChatMessage(text);
         PostToUi(() =>
@@ -1311,7 +1315,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
             ? await _mcpToolBridge.GetToolsAsync().ConfigureAwait(false)
             : null;
         LogChatDebug(
-            $"EnsureChatSession backend={backendId.Value} model={selectedModelId ?? "<default>"} reasoning={selectedReasoningEffort?.ToString() ?? "<default>"} autoApprove={_chatAutoApproveState.Value} tools={FormatToolNames(tools)}");
+            $"EnsureChatSession backend={backendId.Value} model={selectedModelId ?? "<default>"} reasoning={selectedReasoningEffort?.ToString() ?? "<default>"} autoApprove={_chatAutoApproveEnabled} tools={FormatToolNames(tools)}");
 
         var agentId = await connection.EnsureConnectedAsync(
                 backendId,
@@ -1341,7 +1345,7 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         LogChatDebug($"Permission request received backend={request.BackendId.Value} payload={request.ToJson()}");
 
         AgentPermissionDecision decision;
-        if (_chatAutoApproveState.Value)
+        if (_chatAutoApproveEnabled)
         {
             decision = new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce);
         }
@@ -1357,10 +1361,10 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                 UpsertChatInteraction(
                     request.InteractionId,
                     null,
-                    FormatChatImmediatePermissionDecisionMarkdown(decision, _chatAutoApproveState.Value),
+                    FormatChatImmediatePermissionDecisionMarkdown(decision, _chatAutoApproveEnabled),
                     ChatTimelineTone.Interaction);
                 SetStatus(
-                    _chatAutoApproveState.Value
+                    _chatAutoApproveEnabled
                         ? $"Auto-approved permission request ({request.Kind})."
                         : "Permission requested. Auto-Approve is off, so CodeAlta denied it because terminal approval UI is not implemented yet.",
                     showSpinner: true);
@@ -1378,19 +1382,19 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         _ = cancellationToken;
         LogChatDebug($"User input request received backend={request.BackendId.Value} payload={request.ToJson()}");
 
-        var response = CreateChatUserInputResponse(request, _chatAutoApproveState.Value);
+        var response = CreateChatUserInputResponse(request, _chatAutoApproveEnabled);
         var hasMeaningfulAnswer = response.Answers.Values.Any(static value => !string.IsNullOrWhiteSpace(value));
         TryRenderChatInteraction(
             () =>
             {
-                RecordChatUserInputRequest(request, _chatAutoApproveState.Value);
+                RecordChatUserInputRequest(request, _chatAutoApproveEnabled);
                 UpsertChatInteraction(
                     request.InteractionId,
                     null,
-                    FormatChatImmediateUserInputResponseMarkdown(response, _chatAutoApproveState.Value),
+                    FormatChatImmediateUserInputResponseMarkdown(response, _chatAutoApproveEnabled),
                     ChatTimelineTone.Interaction);
                 SetStatus(
-                    _chatAutoApproveState.Value
+                    _chatAutoApproveEnabled
                         ? hasMeaningfulAnswer
                             ? "Interactive question received. Auto-Approve selected a default answer so the run can continue."
                             : "Interactive question received. Auto-Approve could not infer a safe answer, so CodeAlta returned an empty response."
@@ -1433,9 +1437,9 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
                 SetStatus($"Permission requested ({permissionRequest.Kind}).", showSpinner: true);
                 break;
             case AgentUserInputRequest userInputRequest:
-                RecordChatUserInputRequest(userInputRequest, _chatAutoApproveState.Value);
+                RecordChatUserInputRequest(userInputRequest, _chatAutoApproveEnabled);
                 SetStatus(
-                    _chatAutoApproveState.Value
+                    _chatAutoApproveEnabled
                         ? "Interactive question received. Auto-Approve is selecting a default answer."
                         : "Interactive question received. Terminal question prompts are not implemented yet.",
                     showSpinner: true);
@@ -2636,6 +2640,38 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         });
     }
 
+    private void SubscribeChatBindingEvents()
+    {
+        if (_chatBindingEventsSubscribed)
+        {
+            return;
+        }
+
+        BindingManager.Current.ValueChanged += OnBindingValueChanged;
+        _chatBindingEventsSubscribed = true;
+    }
+
+    private void UnsubscribeChatBindingEvents()
+    {
+        if (!_chatBindingEventsSubscribed)
+        {
+            return;
+        }
+
+        BindingManager.Current.ValueChanged -= OnBindingValueChanged;
+        _chatBindingEventsSubscribed = false;
+    }
+
+    private void OnBindingValueChanged(Binding binding)
+    {
+        if (!IsChatAutoApproveBinding(binding, _chatAutoApproveState))
+        {
+            return;
+        }
+
+        _chatAutoApproveEnabled = _chatAutoApproveState.Value;
+    }
+
     private void PostToUi(Action action)
     {
         (_dispatcher ?? Dispatcher.Current).Post(action);
@@ -2665,6 +2701,14 @@ internal sealed class CodeAltaTerminalUi : IAsyncDisposable
         }
 
         return string.Join(", ", tools.Select(static tool => tool.Spec.Name));
+    }
+
+    internal static bool IsChatAutoApproveBinding(Binding binding, State<bool> autoApproveState)
+    {
+        ArgumentNullException.ThrowIfNull(autoApproveState);
+
+        return ReferenceEquals(binding.Owner, autoApproveState) &&
+               string.Equals(binding.Accessor.Name, nameof(State<bool>.Value), StringComparison.Ordinal);
     }
 
     private enum TerminalScreen

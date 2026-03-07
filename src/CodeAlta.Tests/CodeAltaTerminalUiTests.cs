@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeAlta.Agent;
+using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.Tests;
@@ -85,6 +86,16 @@ public sealed class CodeAltaTerminalUiTests
         StringAssert.Contains(markdown, "permission.request");
         StringAssert.Contains(markdown, "\"kind\":\"shell\"");
         StringAssert.Contains(markdown, "\"toolCallId\":\"call-1\"");
+    }
+
+    [TestMethod]
+    public void IsChatAutoApproveBinding_OnlyMatchesAutoApproveStateValueBinding()
+    {
+        var autoApproveState = new State<bool>(true);
+        var otherState = new State<bool>(false);
+
+        Assert.IsTrue(CodeAltaTerminalUi.IsChatAutoApproveBinding((Binding)autoApproveState, autoApproveState));
+        Assert.IsFalse(CodeAltaTerminalUi.IsChatAutoApproveBinding((Binding)otherState, autoApproveState));
     }
 
     [TestMethod]
