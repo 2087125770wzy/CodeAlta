@@ -241,7 +241,8 @@ Key reading:
 - `~/.codealta/` is the global durable root
 - `{projectPath}/.codealta/` is the project-local overlay
 - `~/.codealta/machine/` is the local runtime/index/cache root
-- UI does not dispatch work directly to agents; it goes into the host orchestrator, which either handles the request directly or sends it to the coordinator session
+- UI tabs map to durable work threads; UI does not dispatch work directly to agents
+- the host orchestrator either handles a thread prompt directly or sends it to that thread's coordinator session
 - backends, MCP, search, and task services are all downstream of host orchestration
 
 ## 4.1 Portable catalog
@@ -353,37 +354,74 @@ Important rule:
 
 ---
 
-## 4.7 Prompt ingress and control flow
+## 4.7 Thread model, prompt ingress, and control flow
 
 One missing clarification is how a user prompt actually enters the system.
 
-CodeAlta should use a **single named planning session** plus host-side pre-routing logic.
+CodeAlta should use a **durable work-thread model** plus host-side pre-routing logic.
 
 That means:
 
 - there is **no separate intake agent/session**
-- the host orchestrator receives the prompt first
+- the user always types into a **work thread**
+- the host orchestrator receives the prompt for that thread first
 - the host performs a small amount of non-model pre-routing logic
-- only then, if planning/routing is needed, the host sends the request to the coordinator session
+- only then, if planning/routing is needed, the host sends the request to that thread's coordinator session
+
+### Work Thread
+
+A **Work Thread** is the durable user-facing unit above runs and sessions.
+
+It owns:
+
+- prompt history
+- curated timeline
+- scope
+- coordinator session
+- linked runs, tasks, and activity
+- tab identity in the UI
+
+Thread kinds:
+
+- **Global Thread**
+- **Workspace Thread**
+
+Scope rules:
+
+- every non-global thread belongs to **exactly one workspace**
+- the workspace is selected before the first prompt
+- after the first prompt, the workspace is **locked**
+- the thread may focus on:
+  - one project
+  - multiple projects
+  - all projects
+  inside the owning workspace
+- the active project set may evolve over time, but only inside the owning workspace
+- the **Global Thread** is the only thread allowed to span all workspaces
+
+This is the durable boundary that makes restart, restoration, sidebar navigation, and follow-up steering understandable.
 
 ### Host-side pre-routing
 
-Before invoking the coordinator, the host orchestrator should handle cheap or mandatory cases directly in code.
+Before invoking a thread coordinator, the host orchestrator should handle cheap or mandatory cases directly in code.
 
 Responsibilities:
 
 - capture the raw user prompt
-- attach active scope and recent-focus context
+- attach thread scope and recent-focus context
 - resolve pending interactive flows
 - detect direct host commands
 - decide whether the prompt:
   - can be handled directly by the host
-  - should resume an existing flow
-  - should be sent to the coordinator
+  - should resume or continue the current thread
+  - should create a new thread because another workspace is required
+  - should be sent to the current thread coordinator
 
 Examples of host-side pre-routing decisions:
 
-- switching workspace/project
+- creating a workspace thread after scope selection
+- switching to another existing thread
+- opening a new thread because another workspace is needed
 - accepting or rejecting a pending approval
 - answering “continue previous task?” prompts
 - resuming an interrupted run
@@ -395,7 +433,7 @@ This is not a separate agent. It is ordinary orchestrator logic.
 
 The coordinator is the planning and routing authority.
 
-The coordinator is the **single top-level planning session** used when the host needs model help to decide what happens next.
+Each work thread owns **one coordinator session** used when the host needs model help to decide what happens next for that thread.
 
 The host creates or reuses a coordinator session through the same shared Agent API used elsewhere, with coordinator-specific system instructions such as:
 
@@ -411,7 +449,7 @@ The canonical coordinator instruction template is defined in:
 
 The coordinator receives a normalized request from the host plus the relevant context:
 
-- active scope
+- thread scope
 - recent focus
 - unfinished plan/task state
 - available agents
@@ -430,9 +468,10 @@ They are launched, steered, and monitored by the host orchestrator after the coo
 
 ```mermaid
 flowchart TD
-    U[User Prompt] --> HOST[Host Orchestrator]
+    U[User Prompt] --> T[Selected Work Thread]
+    T --> HOST[Host Orchestrator]
     HOST -->|direct host command / pending flow| SYS[Host Action]
-    HOST -->|needs planning| ORG[Coordinator Session]
+    HOST -->|needs planning| ORG[Thread Coordinator Session]
     ORG -->|structured schedule| HOST
     HOST --> W1[Worker Agent]
     HOST --> W2[Reviewer Agent]
@@ -440,7 +479,7 @@ flowchart TD
     W1 --> HOST
     W2 --> HOST
     W3 --> HOST
-    HOST --> UI[UI Timeline / Suggestions / State]
+    HOST --> UI[Thread Timeline / Suggestions / State]
 ```
 
 ### Key rule
@@ -449,7 +488,7 @@ The user prompt is **not** connected directly to worker agents.
 
 Normal path:
 
-- user prompt -> host orchestrator -> coordinator session -> host orchestrator -> worker agents
+- user prompt -> selected work thread -> host orchestrator -> thread coordinator session -> host orchestrator -> worker agents
 
 This keeps routing, parallelism, retries, and unfinished-work recovery under host control.
 
@@ -476,7 +515,7 @@ But the spec should keep the precise name.
 
 This is the most efficient setup because:
 
-- only one planning session exists at the top
+- each thread has one planning session at the top of that thread
 - there is no ambiguity about how prompts “move” between layers
 - all interception happens in host code
 - all agent creation still goes through the same Agent API
@@ -484,8 +523,8 @@ This is the most efficient setup because:
 
 In practice:
 
-1. UI sends prompt to host orchestrator
-2. host either handles it directly or sends it to the coordinator session
+1. UI sends prompt from the selected thread to host orchestrator
+2. host either handles it directly or sends it to that thread's coordinator session
 3. coordinator responds with normal text plus a fenced `codealta_schedule` block
 4. host intercepts that block from the coordinator output stream or final content
 5. host validates and strips the block from normal UI rendering
@@ -507,14 +546,39 @@ That document defines:
 
 ---
 
-## 4.8 Run model and session graph
+## 4.8 Thread, run, and session graph
 
 The missing formalization is the distinction between:
 
+- a **work thread**
 - a **user-visible run**
 - a **session**
 
 These are not the same thing.
+
+### Work Thread
+
+A **work thread** is the durable UX and navigation unit.
+
+Example:
+
+- workspace: `platform`
+- projects: `build`, `search`
+- thread title: “Review sqlitevec integration for platform search”
+
+That thread owns:
+
+- one tab in the UI
+- one durable timeline
+- one coordinator session
+- zero or more runs
+- zero or more worker sessions created across those runs
+
+For non-global threads:
+
+- the thread belongs to exactly one workspace
+- the workspace is locked after the first prompt
+- the project set may change only within that workspace
 
 ### Run
 
@@ -524,10 +588,10 @@ Example:
 
 - user prompt: “Review all pull requests for project XYZ, validate them, and merge them.”
 
-That prompt creates one run:
+That prompt, inside a thread, creates one run:
 
 - one run id
-- one top-level timeline in the UI
+- one entry in the thread timeline
 - one coordinator planning cycle
 - zero or more worker sessions
 - one eventual completion, pause, or failure state
@@ -542,7 +606,7 @@ Session types:
 - worker session
 - reviewer/verifier/challenger session
 
-Sessions are children of a run. A run can own multiple sessions.
+Sessions are children of a run. A run can own multiple sessions. Runs are children of a work thread.
 
 ### Recommended topology
 
@@ -562,15 +626,17 @@ This keeps the system understandable and observable.
 
 ```mermaid
 flowchart TD
-    RUN[User Run]
+    THREAD[Work Thread]
     HOST[Host Orchestrator]
     COORD[Coordinator Session]
+    RUN[Run]
     W1[Worker Session A]
     W2[Worker Session B]
     W3[Reviewer / Verifier Session]
 
-    RUN --> HOST
+    THREAD --> HOST
     HOST --> COORD
+    HOST --> RUN
     HOST --> W1
     HOST --> W2
     HOST --> W3
@@ -582,7 +648,8 @@ flowchart TD
 
 This is the key simplification:
 
-- user conversation is a run
+- user conversation lives inside a work thread
+- runs are execution slices inside that thread
 - sessions are execution nodes inside the run
 - host orchestrator owns all edges
 
@@ -619,7 +686,7 @@ The host is responsible for:
 
 The UI should not pretend that every visible item comes from a single assistant session.
 
-The timeline for a run can contain:
+The timeline for a work thread can contain:
 
 - user messages
 - coordinator messages
@@ -638,7 +705,7 @@ User prompt:
 
 Recommended flow:
 
-1. UI appends the user prompt to the run timeline.
+1. UI appends the user prompt to the thread timeline.
 2. Host sends the prompt plus context to the coordinator session.
 3. Coordinator returns:
    - a short visible acknowledgement
@@ -657,21 +724,23 @@ Recommended flow:
 sequenceDiagram
     participant User
     participant UI
+    participant Thread as Work Thread
     participant Host
     participant Coord as Coordinator Session
     participant Worker as Worker Sessions
 
     User->>UI: Prompt
-    UI->>Host: Start run
+    UI->>Thread: Append prompt
+    Thread->>Host: Start run
     Host->>Coord: User prompt + scope + context
     Coord-->>Host: Visible text + codealta_schedule
-    Host-->>UI: Show coordinator visible text
+    Host-->>Thread: Show coordinator visible text
     Host->>Worker: Launch/steer worker sessions
     Worker-->>Host: Results / tool activity / artifacts
-    Host-->>UI: Show activity cards
+    Host-->>Thread: Show activity cards
     Host->>Coord: Synthesize final answer from worker outcomes
     Coord-->>Host: Final summary
-    Host-->>UI: Show final coordinator answer
+    Host-->>Thread: Show final coordinator answer
 ```
 
 ### Interception boundary
@@ -687,6 +756,32 @@ The important interception points are:
   - final user-visible answer
 
 This is how the system stays simple while still using only basic session primitives.
+
+### Sidebar and navigation model
+
+The sidebar should be **scope-first**, not a flat recent-chat list.
+
+Recommended structure:
+
+- `Global Thread`
+- `Workspaces`
+  - workspace row
+  - project rows under the workspace
+  - thread/activity rows nested under the relevant workspace or project context
+
+Thread display rules:
+
+- every workspace thread shows:
+  - title
+  - workspace badge
+  - project badge(s) or `All Projects`
+  - status
+  - recent activity summary
+- a single-project thread should show that project prominently
+- a multi-project thread should show compact project badges or a count
+- an all-projects thread should show `All Projects`
+
+This structure makes it obvious which discussion belongs to which workspace and project context.
 
 ---
 

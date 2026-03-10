@@ -354,6 +354,52 @@ Important rule:
 - the profile should separate **observations**, **inferred patterns**, and **confirmed preferences**
 - not every observed behavior should become a durable preference automatically
 
+## 7.7 Work thread storage
+
+Work threads should be first-class durable entities because the UI restores them, navigates them, and summarizes them.
+
+Recommended shape:
+
+- workspace-owned threads live under their owning workspace
+- the global thread has its own dedicated global location
+
+Examples:
+
+- `~/.codealta/workspaces/platform/threads/<thread-id>/readme.md`
+- `~/.codealta/workspaces/platform/threads/<thread-id>/activity/2026-03.jsonl`
+- `~/.codealta/threads/global/readme.md`
+- `~/.codealta/threads/global/activity/2026-03.jsonl`
+
+Portable thread metadata should include:
+
+- `thread_id`
+- `kind` (`global`, `workspace_thread`)
+- `workspace_ref` for non-global threads
+- `project_refs`
+- `scope_mode` (`single_project`, `multi_project`, `all_projects`)
+- `title`
+- `status`
+- `created_at`
+- `updated_at`
+- `last_active_at`
+- `latest_summary`
+
+Important rules:
+
+- every non-global thread belongs to exactly one workspace
+- the thread workspace is selected before the first prompt and locked after the first prompt
+- `project_refs` may change over time, but only inside the owning workspace
+- a thread with `scope_mode: all_projects` still belongs to exactly one workspace
+- the global thread is the only thread allowed to span all workspaces
+
+Machine-local UI restoration state should stay separate:
+
+- open-tab order
+- active tab selection
+- window/layout preferences
+
+Those belong under `~/.codealta/machine/`, not in the portable thread descriptor.
+
 ## 8. File Format
 
 ## 8.1 Primary format
@@ -384,6 +430,29 @@ tags: ["dotnet", "shared-infra"]
 # Platform
 
 This workspace contains the shared platform services, libraries, and build infrastructure.
+```
+
+Example work thread file:
+
+```md
+---
+thread_id: "platform-search-review"
+kind: "workspace_thread"
+workspace_ref: "01963b36-0d6f-7e4b-a7e0-6b2e6d1f4c8a"
+project_refs:
+  - "01963b36-0d70-7a11-b3c2-1f2e3d4c5b6a"
+scope_mode: "single_project"
+title: "Review sqlitevec integration"
+status: "active"
+created_at: "2026-03-10T09:00:00Z"
+updated_at: "2026-03-10T10:15:00Z"
+last_active_at: "2026-03-10T10:15:00Z"
+latest_summary: "Investigating semantic-search storage and integration tradeoffs."
+---
+
+# Review sqlitevec integration
+
+Active workspace thread for semantic-search work in the platform workspace.
 ```
 
 Example agent file:
@@ -433,6 +502,12 @@ Exception for agents:
 - agents should not carry `uid`
 - agents use `name` / filename-derived `agent-key` as identity
 - any references to agents should use that stable textual key
+
+Exception for work threads:
+
+- work threads use `thread_id` as their stable identity
+- workspace-owned threads should also carry `workspace_ref`
+- `project_refs` may be empty, one entry, many entries, or omitted when `scope_mode: all_projects`
 
 ## 9. References Between Entities
 
@@ -553,6 +628,8 @@ Suggested discovery order:
 2. `projects/**/readme.md`
 3. `agents/**/*.agent.md`
 4. `skills/**/SKILL.md`
+5. `workspaces/**/threads/**/readme.md`
+6. `threads/global/readme.md`
 
 Discovery output:
 

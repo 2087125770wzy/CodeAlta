@@ -122,9 +122,17 @@ Make orchestration host-owned and explicit.
 ## Work
 
 - Introduce typed route decision objects.
+- Introduce `WorkThread` as a first-class domain model above runs and sessions.
 - Introduce an explicit prompt ingress model:
   - host-side pre-routing inside the orchestrator
-  - one coordinator session when model planning is needed
+  - one coordinator session per thread when model planning is needed
+- Require workspace selection when creating a workspace thread.
+- Support initial project-set selection for a workspace thread:
+  - single project
+  - multiple projects
+  - all projects in the workspace
+- Lock the workspace after the first prompt in a workspace thread.
+- Allow project-set mutation only within the owning workspace.
 - Introduce typed execution requests:
   - send
   - steer
@@ -148,6 +156,7 @@ The orchestrator should not depend on backend-native tool orchestration for its 
 ### Required deliverables in this phase
 
 - host pre-routing component
+- work-thread model
 - run model and session-graph model
 - coordinator prompt contract based on the canonical instruction template spec
 - general-agent template integration for lower-level sessions
@@ -158,6 +167,8 @@ The orchestrator should not depend on backend-native tool orchestration for its 
 - host-side conversion from coordinator schedule -> route/dispatch/task objects
 - UI filtering so raw coordinator schedule blocks are not rendered as ordinary assistant text
 - host-side synthesis loop from worker outcomes -> final coordinator summary
+- global-thread delegation for cross-workspace work
+- sidebar projection for workspace/project/thread/activity hierarchy
 
 ## Code impact
 
@@ -170,6 +181,7 @@ The orchestrator should not depend on backend-native tool orchestration for its 
 
 - a route decision can be represented, logged, and executed without UI-specific logic
 - orchestrator controls parallel dispatch directly
+- tabs can map cleanly to durable workspace-owned threads
 
 ---
 
@@ -184,6 +196,10 @@ Prevent work from disappearing mid-plan.
 - Define durable task/plan storage ownership:
   - what is portable
   - what is machine-local
+- Persist durable thread metadata and a thread summary index suitable for:
+  - recent threads
+  - workspace/project navigation
+  - restart restoration
 - Persist active plans and unfinished tasks in a recoverable way.
 - Track task states and transitions:
   - pending
@@ -208,6 +224,7 @@ Prevent work from disappearing mid-plan.
 
 - CodeAlta can reopen and surface unfinished work after restart
 - task ownership and status are visible and queryable
+- restart can restore work threads and their scope metadata without replaying raw histories
 
 ---
 

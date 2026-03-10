@@ -252,6 +252,16 @@ Instruction-building recommendation:
 - instead, the effective instructions for a session should be composed from the canonical templates in `doc/specs/agent_instruction_templates_spec.md`
 - callers may still provide run-specific additions, but the base and role instructions should come from a central provider
 
+Important boundary:
+
+- `IAgentSession` is a low-level execution primitive
+- workspace ownership, project selection, and work-thread identity belong to CodeAlta orchestration, not to backend adapters
+- the host orchestrator decides:
+  - whether a prompt belongs to the global thread or a workspace thread
+  - which workspace a new thread belongs to
+  - the initial project selection for that thread
+  - when a new thread is required because another workspace is involved
+
 #### Sending user input
 
 ```csharp
