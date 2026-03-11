@@ -2,43 +2,45 @@
 
 This document is the current implementation entry point for CodeAlta.
 
-It replaces the earlier “infrastructure first” emphasis with an **MVP-first** plan centered on the core user experience.
+It defines a **project-first MVP** aimed at feeling close to a raw Copilot/Codex CLI while adding CodeAlta-owned structure where it materially improves usability.
 
 Related specs:
+
 - `doc/specs/readme.md`
 - `doc/specs/codealta_adaptive_orchestration_architecture.md`
 - `doc/specs/filesystem_metadata_catalog_spec.md`
 - `doc/specs/agent_api_specs.md`
-- `doc/specs/agent_configuration_spec.md`
 - `doc/specs/agent_instruction_templates_spec.md`
+- `doc/specs/agent_configuration_spec.md`
 
 Deferred/follow-up plans:
+
 - adaptive behavior: `doc/specs/implementation_plan_adaptive_orchestration.md`
-- MCP server: `doc/specs/implementation_plan_mcp_server.md`
 - storage + indexing + search: `doc/specs/implementation_plan_storage_search.md`
+- MCP server product flows: `doc/specs/implementation_plan_mcp_server.md`
 - .NET support: `doc/specs/implementation_plan_dotnet.md`
 - older workspace/bootstrap plan: `doc/specs/implementation_plan_workspaces_bootstrap.md`
-- older agent-orchestration plan: `doc/specs/implementation_plan_agent_orchestration.md`
 
 ## 1. Goal
 
-Deliver a minimal but solid coding-agent product that feels close to a raw Copilot/Codex CLI while adding CodeAlta’s own structure for:
+Deliver a minimal but solid coding-agent product that:
 
-- workspaces
-- projects
-- durable work threads
-- multiple tabs / sessions
-- agent configuration
-- host-owned orchestration
+- discovers projects automatically
+- lets a user open project threads with no setup ceremony
+- lets a user open global threads that coordinate across projects
+- supports multiple concurrent threads/tabs
+- restores those threads after restart
+- runs on Copilot or Codex through a shared CodeAlta-owned orchestration model
 
 The MVP should let a user:
 
-1. create/select a workspace
-2. configure/select projects inside that workspace
-3. create a work thread
-4. send prompts and continue work in that thread
-5. manage multiple concurrent work threads
-6. restore those threads after restart
+1. start CodeAlta from any project folder
+2. have that project discovered and added automatically
+3. reopen known projects from the UI
+4. create and continue project threads
+5. create and continue global threads
+6. manage multiple concurrent threads cleanly
+7. restore those threads after restart
 
 ## 2. What is explicitly not MVP
 
@@ -46,134 +48,152 @@ The following areas should be postponed or disabled for now:
 
 - semantic search and indexing
 - MCP-centered product flows
-- adaptive/proactive orchestration
-- background suggestions
+- adaptive or proactive suggestions
+- background self-directed work
 - .NET-specific product features
-- ambitious knowledge/memory automation beyond what is needed to restore work threads and scope
+- user-managed tag editing UI
+- any requirement to create workspaces before doing useful work
 
-Those areas remain valid future directions, but they should not block or complicate the first product slice.
+These areas remain valid future directions, but they should not complicate the first product slice.
 
 ## 3. Product shape
 
-The MVP product should be organized around:
+The MVP is organized around:
 
-- one **Global Thread**
-- multiple **Workspace Threads**
-- workspace/project-first navigation
-- one workspace per non-global thread
+- a durable catalog of known projects
+- automatic project discovery
+- multiple **Project Threads**
+- multiple **Global Threads**
+- internal host-owned child threads for delegated work
 - Copilot/Codex as pluggable execution backends
-- a host orchestrator that owns thread routing, dispatch, and restoration
+- a host orchestrator that owns routing, dispatch, and restoration
 
-The MVP should not require semantic infrastructure in order to feel useful.
+The MVP should not require workspace creation in order to start working.
 
-## 4. Implementation order
+## 4. MVP implementation checklist
 
-Proceed in these ordered slices.
-
-## 4.1 MVP implementation checklist
-
-Use the list below as the concrete step-by-step checklist for implementation.
+Use this checklist as the step-by-step implementation list.
 
 The list is intentionally ordered, but it is not rigid in the wrong way:
 
 - an implementer may split a step into smaller steps
-- an implementer may add new steps when they simplify the MVP or remove ambiguity
-- an implementer should not expand scope into deferred areas unless a step is truly required for the MVP
+- an implementer may add steps when that simplifies the MVP
+- an implementer should not expand into deferred areas unless the step is clearly required for the MVP
 
-- [x] Keep `doc/specs/readme.md` as the clear start-here document for the spec set.
-- [x] Keep `doc/specs/implementation_plan.md` aligned with the actual MVP scope and sequence.
-- [x] Finalize the workspace metadata model, identity rules, and loading rules.
-- [x] Finalize project descriptors and project-to-workspace attachment rules.
-- [x] Implement catalog loading for workspaces, projects, and agents from `~/.codealta/` and project overlays.
-- [x] Introduce `WorkThread` as the primary user-facing unit.
-- [x] Support both `Global Thread` and `Workspace Thread`.
-- [x] Enforce workspace selection before the first prompt in a workspace thread.
-- [x] Enforce workspace lock after the first prompt in a workspace thread.
-- [x] Allow project focus to evolve only within the owning workspace.
-- [x] Persist durable thread metadata, summaries, and status.
-- [x] Restore open threads/tabs and their scope after restart.
-- [x] Load file-based global and project-local agents.
-- [x] Compose coordinator and general-agent instructions consistently across Copilot and Codex.
-- [x] Keep Copilot and Codex sessions usable as thread execution backends.
-- [x] Give each work thread one coordinator session.
-- [x] Implement minimal host-owned orchestration for send, steer, dispatch, and explicit thread handoff.
-- [x] Project backend/coordinator/host activity into a curated thread timeline.
-- [x] Hide raw schedule payloads from the normal user timeline.
-- [x] Implement workspace/project-first sidebar navigation with threads and activity under scope.
-- [x] Implement thread creation UX for selecting a workspace and initial project scope.
-- [x] Implement multi-thread UX so several concurrent threads can be continued and steered without confusion.
-- [x] Make the global thread the cross-workspace overview and delegation surface.
-- [x] Add regression coverage for workspace/project/thread/orchestration basics before expanding scope.
+- [ ] Keep `doc/specs/readme.md` as the clear start-here document for the active spec set.
+- [ ] Keep `doc/specs/implementation_plan.md` aligned with the actual MVP scope and sequence.
+- [ ] Remove workspace ownership from the active MVP model.
+- [ ] Finalize the project descriptor model, identity rules, and loading rules.
+- [ ] Implement durable loading of known projects from `~/.codealta/projects/`.
+- [ ] Implement automatic project upsert when CodeAlta starts inside an unknown project folder.
+- [ ] Implement optional discovery/import of previously used backend sessions into the known-project list.
+- [ ] Introduce tags/labels as project metadata, but keep tag management out of the MVP UI.
+- [ ] Introduce `WorkThread` as the primary user-facing unit.
+- [ ] Support multiple `GlobalThread` instances.
+- [ ] Support `ProjectThread` scoped to exactly one project.
+- [ ] Support internal host-owned child threads for delegated work.
+- [ ] Keep internal child threads inspectable without making them the primary visible unit of work.
+- [ ] Keep each thread bound to a single backend for its lifetime.
+- [ ] Use `~/.codealta/` as the backend working directory for global threads so they can be restored from backend session history.
+- [ ] Recover project/global threads directly from backend session listings plus cwd.
+- [ ] Persist CodeAlta-owned thread records only for internal delegated linkage or UI state that the backend does not own.
+- [ ] Restore open threads/tabs after restart.
+- [ ] Reopen an existing project/global thread as the full backend-owned conversation, not as a summary-only reconstruction.
+- [ ] Load file-based global and project-local agents.
+- [ ] Compose coordinator and general-agent instructions consistently across Copilot and Codex.
+- [ ] Keep Copilot and Codex sessions usable as thread execution backends.
+- [ ] Give each user-facing thread one coordinator session.
+- [ ] Implement minimal host-owned orchestration for send, steer, dispatch, and explicit thread handoff.
+- [ ] Project backend/coordinator/host activity into a curated thread timeline.
+- [ ] Hide raw schedule payloads from the normal user timeline.
+- [ ] Implement project-first sidebar navigation with known projects and their threads.
+- [ ] Implement thread creation UX for project threads and global threads without requiring manual project creation.
+- [ ] Implement multi-thread UX so several concurrent threads can be continued and steered without confusion.
+- [ ] Make each open thread appear in its own closable tab without deleting the underlying thread when the tab closes.
+- [ ] Make global threads the cross-project overview and delegation surface.
+- [ ] Add regression coverage for project discovery, thread restoration, and orchestration basics before expanding scope.
 
-### Phase 1 — Clarify and simplify the active specs
+## 5. Implementation slices
+
+### Phase 1 - Clarify and simplify the active specs
 
 Work:
 
 - keep `doc/specs/readme.md` as the entry point
-- make the MVP-driving specs obvious
+- make the project-first MVP-driving specs obvious
 - mark search, MCP, .NET, and adaptive behavior as deferred
-- remove conflicting “infrastructure first” guidance from active planning docs
+- remove conflicting workspace-first guidance from active planning docs
 
 Exit criteria:
 
 - a new contributor can tell where to start
 - the MVP story is clearer than the long-term vision
 
-### Phase 2 — Workspace and project catalog
+### Phase 2 - Project catalog and discovery
 
 Work:
 
 - finalize the durable file model for:
-  - workspaces
   - projects
   - global agents
   - project-local agents/skills
 - make `~/.codealta/` the clear global root
 - keep machine-only state under `~/.codealta/machine/`
-- define how a user creates/selects a workspace and configures projects
+- define automatic project discovery from:
+  - current working directory
+  - previously known backend sessions
+  - existing catalog files
 
 Exit criteria:
 
-- CodeAlta can load workspaces and projects from the catalog
+- CodeAlta can load known projects from the catalog
+- CodeAlta can upsert a newly encountered project automatically
 - the scope model is understandable from the filesystem alone
 
-### Phase 3 — Work thread model
+### Phase 3 - Thread model
 
 Work:
 
 - implement `WorkThread` as the primary user-facing unit
 - support:
-  - global thread
-  - workspace thread
-- lock the workspace after the first prompt
-- allow project focus to evolve within that workspace
-- add durable thread metadata and summaries
-- map tabs directly to work threads
+  - global threads
+  - project threads
+- support host-owned internal child threads for delegated work
+- keep internal child threads inspectable through summaries, activity, or details views
+- keep backend choice immutable for an existing thread
+- use `~/.codealta/` as the stable cwd for global-thread sessions
+- recover project/global threads from backend ids and cwd instead of inventing new thread ids
+- add only minimal host-owned linkage records for internal delegated work when required
+- map tabs directly to user-facing work threads
+- reopen selected prior threads by recovering their full backend interaction history
 
 Exit criteria:
 
 - a user can create and reopen multiple threads cleanly
-- the relationship between workspace, project, and thread is clear
+- reopening a previous thread preserves the existing conversation, not only a synthetic summary
+- the relationship between project, global context, backend ownership, and thread recovery is clear
 
-### Phase 4 — Minimal orchestration
+### Phase 4 - Minimal orchestration
 
 Work:
 
 - keep orchestration host-owned
-- give each thread one coordinator session
+- give each user-facing thread one coordinator session
 - support:
   - send
   - steer
   - thread restoration
-  - explicit cross-thread/global handoff
+  - explicit cross-thread handoff
+  - internal child-thread dispatch
 - avoid bringing in adaptive/proactive orchestration yet
 
 Exit criteria:
 
-- one thread can run like a clean coding-agent conversation
+- one project thread can run like a clean coding-agent conversation
+- global threads can coordinate across projects
 - multiple threads can coexist without ambiguity
 
-### Phase 5 — Minimal agent configuration
+### Phase 5 - Minimal agent configuration
 
 Work:
 
@@ -187,35 +207,108 @@ Exit criteria:
 - CodeAlta can instantiate usable agents from files
 - agent configuration is understandable without backend-specific knowledge
 
-### Phase 6 — Core UI experience
+### Phase 6 - Core UI experience
 
 Work:
 
-- make the sidebar workspace/project-first
+- make the sidebar project-first
 - let the user:
-  - create/select workspaces
-  - create/select threads
+  - see known projects
+  - open or continue project threads
+  - open or continue global threads
   - see recent thread activity
   - continue and steer work
+- open multiple thread tabs and close tabs independently of thread lifetime
 - restore all open tabs/threads on restart
+- do not require a “create project” setup flow
 
 Exit criteria:
 
-- the UI makes the scope model obvious
+- the UI makes the project/global scope model obvious
 - the user can manage multiple threads without confusion
 
-## 5. Technical constraints
+## 6. Technical constraints
 
 Keep these near-term constraints:
 
-- Async-first, cancellation-first, non-blocking; UI must remain responsive.
-- Multi-thread aware (multiple agents and sessions running concurrently).
-- Pluggable but not over-engineered (clear scopes, minimal dependencies, predictable layering).
-- Language-agnostic overall.
-- Markdown + YAML frontmatter remain the preferred durable metadata format.
-- Copilot and Codex remain the execution backends for the MVP.
+- async-first, cancellation-first, non-blocking; UI must remain responsive
+- multi-thread aware (multiple agents and sessions running concurrently)
+- pluggable but not over-engineered (clear scopes, minimal dependencies, predictable layering)
+- language-agnostic overall
+- Markdown + YAML frontmatter remain the preferred durable metadata format
+- Copilot and Codex remain the execution backends for the MVP
 
-## 6. Project focus
+## 7. Project/module realignment
+
+The current project named `CodeAlta.Workspaces` no longer matches the active product model.
+
+The project-first MVP does not use workspaces as the primary durable ownership boundary, so keeping project discovery, catalog loading, agent file loading, and thread-linkage metadata inside a project called `Workspaces` will keep pushing the codebase in the wrong direction.
+
+### 7.1 Recommended change
+
+The most sensible target is:
+
+- replace `CodeAlta.Workspaces` with `CodeAlta.Catalog`
+
+`CodeAlta.Catalog` should own:
+
+- project descriptors and project discovery
+- catalog file loading/saving under `~/.codealta/`
+- project-local overlay loading from `{projectPath}/.codealta/`
+- agent and skill catalog loading
+- lightweight host-owned internal-thread linkage manifests
+- path-template and machine-override logic when it is used to resolve project locations
+- tag metadata once tags are persisted
+
+`CodeAlta.Persistence` should remain a storage-mechanics project, not the home of the catalog/domain model.
+
+It should own only:
+
+- SQLite access
+- repositories backed by SQLite
+- rebuildable caches
+- ephemeral local coordination state
+- artifact/file-store mechanics when those mechanics are not themselves catalog modeling
+
+### 7.2 What not to do
+
+Do not move the old `CodeAlta.Workspaces` responsibilities into `CodeAlta.Persistence`.
+
+Reason:
+
+- `Persistence` describes storage mechanics
+- project discovery and catalog loading are domain behavior, not just persistence
+- putting descriptors, discovery rules, and file-based catalog semantics into `Persistence` would blur an important boundary
+
+Do not introduce a generic `CodeAlta.Model` project yet.
+
+Reason:
+
+- `Model` is too vague
+- it tends to become an anemic dumping ground for disconnected types
+- the current codebase does not yet justify a separate pure-contracts assembly for shared domain records
+
+If a pure-contracts split becomes necessary later, it should happen in response to a concrete dependency problem, not as an up-front abstraction exercise.
+
+### 7.3 Recommended migration order
+
+- keep the runtime design centered on catalog + orchestration + backend adapters
+- rename or replace `CodeAlta.Workspaces` with `CodeAlta.Catalog`
+- remove true workspace-specific types from the active MVP surface
+- keep only project-first catalog types, overlays, tags, thread-linkage records, and related loaders
+- leave `CodeAlta.Persistence` focused on SQLite/file-store mechanics
+
+### 7.4 MVP implementation note
+
+For the MVP, it is acceptable if `CodeAlta.Catalog` is slightly broad, as long as the boundary is clear:
+
+- catalog/discovery/domain-loading lives in `CodeAlta.Catalog`
+- DB/caches/indexes live in `CodeAlta.Persistence`
+- workflow/runtime decisions live in `CodeAlta.Orchestration`
+
+That is clearer and more practical than trying to split the current surface into too many projects too early.
+
+## 8. Project focus
 
 For now, the spec and implementation focus should stay on:
 
@@ -225,9 +318,9 @@ For now, the spec and implementation focus should stay on:
 - `CodeAlta.Agent.Copilot`
 - `CodeAlta.CodexSdk`
 - `CodeAlta.CodexSdk.Generator`
-- `CodeAlta.Workspaces`
+- `CodeAlta.Catalog` as the replacement for the current `CodeAlta.Workspaces` responsibilities
 - `CodeAlta.Orchestration`
-- `CodeAlta.Persistence` only for the minimum durable thread/workspace state needed by the MVP
+- `CodeAlta.Persistence` only for SQLite/file-store mechanics and the minimum machine-local durable state needed by the MVP
 
 Deferred from active product scope for now:
 
@@ -237,17 +330,18 @@ Deferred from active product scope for now:
 
 These projects may remain in the repo, but they should not drive product design or implementation priority until the MVP core experience is solid.
 
-## 7. MVP acceptance criteria
+## 9. MVP acceptance criteria
 
 The MVP is successful when:
 
-- a user can create/select a workspace
-- a user can create/select/configure projects
-- a user can start a new thread in a workspace
-- a thread can target one, many, or all projects in that workspace
+- a user can start CodeAlta in a project folder without prior setup
+- that project is added to the known-project catalog automatically
+- a user can open a project thread for a known project
+- a user can open one or more global threads
 - a user can keep multiple work threads open at once
+- selecting a previous thread under a project reopens the full conversation history from the backend
 - each thread can send prompts and receive results through Copilot or Codex
-- the workspace/thread model is understandable from the UI
+- the project/global thread model is understandable from the UI
 - restart restores the open threads and their scopes
 
 The MVP is not blocked on:
@@ -256,8 +350,9 @@ The MVP is not blocked on:
 - MCP tools
 - adaptive suggestions
 - .NET-specific capabilities
+- user-managed tag editing
 
-## 8. Deferred follow-up work
+## 10. Deferred follow-up work
 
 After the MVP core experience is working, the next layers can be resumed in this order:
 
@@ -265,36 +360,37 @@ After the MVP core experience is working, the next layers can be resumed in this
 2. search/indexing/semantic retrieval
 3. MCP integration as a product feature
 4. language-specific intelligence such as .NET support
+5. richer project grouping such as tags, saved collections, or optional workspaces
 
-## 9. Cross-cutting implementation notes
+## 11. Cross-cutting implementation notes
 
-### 9.1 Async model and threading
+### 10.1 Async model and threading
 
 - Every service API should be `async` (or return `ValueTask`) even if underlying libraries are synchronous.
 - Use cancellation tokens in all long-running operations.
 - Keep orchestration, UI, and backend execution separated cleanly.
 
-### 9.2 Logging
+### 10.2 Logging
 
 - Keep logging clear and host-owned.
 - Logging should help explain:
+  - project discovery
   - thread selection
-  - scope resolution
   - coordinator dispatch
   - restoration behavior
 
-### 9.3 Durable user-visible state
+### 10.3 Durable user-visible state
 
 Anything needed to restore the user’s work should be persisted as files:
 
-- workspace/project metadata
+- project metadata
 - thread summaries
 - decisions/rationale that matter to resumed work
-- task and plan snapshots when they become part of the MVP restoration model
+- task and plan snapshots once they become part of the active model
 
 Machine-local state should not be the only copy of meaningful user-visible state.
 
-### 9.4 UI implementation references
+### 10.4 UI implementation references
 
 When implementing or refining the terminal UI, use the local XenoAtom.Terminal.UI materials as the primary reference:
 
@@ -304,14 +400,15 @@ When implementing or refining the terminal UI, use the local XenoAtom.Terminal.U
 
 The expectation is that an implementer should consult those local materials first instead of inferring behavior from compiled .NET assemblies.
 
-## 10. Summary
+## 12. Summary
 
 The project should now optimize for:
 
-- clarity
-- scope ownership
-- thread restoration
+- low setup friction
+- automatic project awareness
+- clear project/global thread ownership
 - predictable orchestration
+- durable restoration
 - a minimal but strong coding-agent UX
 
 The architectural extras remain valuable, but they should stay out of the critical path until the core experience is solid.

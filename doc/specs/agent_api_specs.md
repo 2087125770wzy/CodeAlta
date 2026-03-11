@@ -121,7 +121,7 @@ public interface IAgentSession : IAsyncDisposable
     AgentBackendId BackendId { get; }
     string SessionId { get; }
 
-    /// Optional path to a backend-managed workspace directory (if the backend supports it).
+    /// Optional backend-managed working directory / cwd for the session.
     string? WorkspacePath { get; }
 
     /// Streams normalized agent events.
@@ -255,12 +255,20 @@ Instruction-building recommendation:
 Important boundary:
 
 - `IAgentSession` is a low-level execution primitive
-- workspace ownership, project selection, and work-thread identity belong to CodeAlta orchestration, not to backend adapters
+- project selection, thread identity, and thread cwd decisions belong to CodeAlta orchestration, not to backend adapters
 - the host orchestrator decides:
-  - whether a prompt belongs to the global thread or a workspace thread
-  - which workspace a new thread belongs to
-  - the initial project selection for that thread
-  - when a new thread is required because another workspace is involved
+  - whether a prompt belongs to the global thread or a project thread
+  - which project a new thread belongs to
+  - the working directory used for the session
+  - that a thread keeps its backend for its lifetime
+  - when a new project thread is required because another project is involved
+
+Important storage rule:
+
+- Copilot and Codex remain the owners of raw thread/session history
+- CodeAlta should use backend session/thread ids as the canonical ids for project/global threads
+- CodeAlta may keep lightweight host-owned linkage records for delegated internal work when backend history alone is insufficient
+- the shared agent API does not define a cross-backend durable transcript format
 
 #### Sending user input
 

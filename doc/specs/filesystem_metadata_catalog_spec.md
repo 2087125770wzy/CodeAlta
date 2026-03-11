@@ -1,54 +1,74 @@
-# Filesystem Metadata Catalog Specification (Draft)
+# Filesystem Metadata Catalog Specification
 
 Status: **Proposal**  
-Audience: implementers of `CodeAlta.Workspaces`, `CodeAlta.Persistence`, `CodeAlta.Orchestration`, MCP services, and future bootstrap/sync flows.
+Audience: implementers of `CodeAlta.Catalog` (or the current `CodeAlta.Workspaces` during migration), `CodeAlta.Persistence`, `CodeAlta.Orchestration`, and UI/project discovery flows.
 
 Related specs:
-- `doc/specs/agent_configuration_spec.md`
+
 - `doc/specs/codealta_adaptive_orchestration_architecture.md`
+- `doc/specs/agent_configuration_spec.md`
 
 ## 1. Problem
 
-CodeAlta currently leans too much on SQLite for durable metadata such as:
+CodeAlta should not depend on a database as the source of truth for durable user-visible metadata.
 
-- workspaces
+The durable source of truth should be plain text files under `~/.codealta/`.
+
+The MVP should optimize for:
+
+- low setup friction
+- automatic project discovery
+- durable project/thread restoration
+- human-readable state
+
+The older workspace-first shape created unnecessary complexity. The catalog should now be centered on:
+
 - projects
+- threads
 - agents
 - skills
-- artifacts metadata
+- profile
 
-That is the wrong ownership boundary.
+## 2. Core decision
 
-SQLite is useful for:
+CodeAlta should adopt a **filesystem-first project catalog**.
 
-- full-text search (`FTS5`)
-- embeddings / vector search
-- local machine caches
-- ephemeral coordination state
+### 2.3 Project boundary recommendation
 
-But SQLite is a poor source of truth for human-authored metadata that should be:
+The code project that owns this spec should be a catalog/discovery library, not a workspace-named library and not the SQLite persistence layer.
 
-- readable without tooling
-- diffable and reviewable in git
-- easy to copy between machines
-- easy to share with a team
-- resilient to schema churn while CodeAlta is still pre-release
+Recommended target:
 
-The source of truth for durable metadata should be plain text files under `~/.codealta/`.
+- `CodeAlta.Catalog`
 
-## 2. Core Decision
+Why:
 
-CodeAlta should adopt a **filesystem-first metadata catalog**.
+- this spec is about durable file-backed catalog semantics
+- it includes project discovery, descriptor loading, overlay resolution, and host-owned linkage metadata
+- those concerns are broader than “persistence” and no longer centered on “workspaces”
+
+`CodeAlta.Persistence` should stay focused on machine-local storage mechanics:
+
+- SQLite
+- caches
+- rebuildable indexes
+- file-store mechanics where the concern is storage
+
+`CodeAlta.Model` is not recommended as the primary destination for this logic:
+
+- the name is too generic
+- the main need here is behavior plus file conventions, not just passive records
+- splitting into a pure model assembly would add indirection before there is a demonstrated dependency problem
 
 ### 2.1 Source of truth
 
 Durable metadata lives as files on disk, not in SQLite:
 
-- workspaces
 - projects
+- threads
 - agents
 - skills
-- user profile and adaptive memory summaries
+- profile memory summaries
 - durable artifacts metadata
 - append-only activity logs
 
@@ -56,58 +76,12 @@ Durable metadata lives as files on disk, not in SQLite:
 
 SQLite should be limited to:
 
-- search indexes over files and logs
+- search indexes
 - embeddings
-- other rebuildable machine-local caches
+- rebuildable caches
 - ephemeral local coordination state
-- optionally current tasks, if we decide they are machine-local and not part of the portable catalog
 
-### 2.3 Breaking-change policy
-
-CodeAlta is private and pre-release.
-
-- preserving the current DB-centric metadata model is **not** a goal
-- existing assumptions in older specs can be replaced
-- the cleanest long-term ownership model should win
-
-## 3. Terminology
-
-The existing term `~/.codealta/repo/` is misleading.
-
-This storage root is not “a source repo” in the normal sense. It is a **git-backed catalog of CodeAlta metadata and durable text artifacts**.
-
-Recommended model:
-
-- use `~/.codealta/` itself as the portable catalog root
-- reserve `~/.codealta/machine/` for machine-local state
-
-Rationale:
-
-- avoids an unnecessary extra directory level
-- keeps the user-facing layout simple
-- makes `~/.codealta/` directly usable as a git repository
-- still separates portable data from local-only state
-
-If needed, CodeAlta can temporarily recognize `~/.codealta/repo/` as a legacy location during migration, but the spec should standardize on the root-level catalog model.
-
-## 4. Goals
-
-- Store durable metadata in plain text files under `~/.codealta/`
-- Make the catalog easy to version in git
-- Keep entity folders portable and movable
-- Support workspace nesting without hardcoding parent ids
-- Allow all agents, including built-ins, to be defined through files
-- Keep artifacts close to the entity that owns them
-- Keep SQLite rebuildable from filesystem sources
-
-## 5. Non-Goals
-
-- keeping DB tables as the authoritative copy of workspaces/projects/agents/skills
-- designing the full task model in this document
-- solving every sync/conflict policy detail up front
-- supporting backward compatibility with the current storage shape
-
-## 6. Top-Level Layout
+## 3. Top-level layout
 
 Canonical machine root:
 
@@ -116,12 +90,12 @@ Canonical machine root:
 Proposed structure:
 
 - `~/.codealta/`
-  - `workspaces/`
   - `projects/`
+  - `threads/`
   - `agents/`
   - `skills/`
   - `profiles/`
-  - `artifacts/` (global/orphan/shared artifacts only)
+  - `artifacts/`
   - `readme.md`
   - `.gitignore`
   - `machine/`
@@ -129,24 +103,12 @@ Proposed structure:
     - `config.yaml`
     - `logs/`
     - `cache/`
-    - `models/`
-    - `extensions/`
 
 Rules:
 
 - the root `~/.codealta/` is portable, text-first, and intended to live in git
 - `machine/` is machine-local, rebuildable, and never the source of truth for durable metadata
 - CodeAlta should create a `.gitignore` in `~/.codealta/` that excludes `machine/`
-- use top-level files inside `machine/` when there is only one instance of a thing
-- use subfolders only for multi-file or rolling content
-
-Rationale for this shape:
-
-- `machine/` is a clearer name than `local/`; it describes why the data is excluded
-- `codealta.db` does not need a `db/` folder if there is only one database
-- `config.yaml` does not need a separate `machine/` subfolder under an already machine-local root
-- `logs/` remains a folder because rolling log files naturally create multiple files
-- `cache/`, `models/`, and `extensions/` remain folders because they are collections, not single files
 
 Recommended initial `.gitignore`:
 
@@ -154,17 +116,15 @@ Recommended initial `.gitignore`:
 /machine/
 ```
 
-## 6.1 Runtime root behavior
+## 4. Runtime root behavior
 
-When CodeAlta starts, `~/.codealta/` is the global root from which it discovers and navigates:
+When CodeAlta starts, `~/.codealta/` is the global root from which it discovers:
 
-- workspaces
-- projects
+- known projects
+- known threads
 - global agents
 - global skills
-- user profile and adaptive memory
-
-This root is the global management surface for all workspaces and projects.
+- profile memory
 
 Project repositories may also contain a local overlay under:
 
@@ -175,99 +135,107 @@ This project-local root should support at least:
 - `{projectPath}/.codealta/agents/`
 - `{projectPath}/.codealta/skills/`
 
-Rationale:
+## 5. Entity storage model
 
-- agents/skills under `~/.codealta/` are global and can manage multiple workspaces/projects
-- agents/skills under `{projectPath}/.codealta/` are repository-specific overrides or additions
-- this mirrors the distinction between global durable catalog behavior and project-local specialization
-
-## 7. Entity Storage Model
-
-## 7.1 General rules
+## 5.1 General rules
 
 Most durable entities get their own folder.
 
 Preferred convention:
 
-- workspace/project folders use `readme.md`
+- project folders use `readme.md`
+- thread folders use `readme.md`
 - agent definitions use single files named `<agent-key>.agent.md`
 - skill folders keep `SKILL.md`
 
-Folder-owned entities can contain:
+## 5.2 Project folders
 
-- one primary markdown file with YAML frontmatter
-- optional child folders for artifacts, activity logs, notes, attachments, or sub-entities
-
-Examples:
-
-- `~/.codealta/workspaces/<workspace-slug>/readme.md`
-- `~/.codealta/projects/<project-slug>/readme.md`
-- `~/.codealta/agents/<agent-slug>.agent.md`
-- `~/.codealta/skills/<skill-slug>/SKILL.md`
-- `~/.codealta/profiles/self/readme.md`
-
-The markdown body is free text intended for humans.
-The YAML frontmatter is stable structured metadata intended for CodeAlta.
-
-Rationale:
-
-- `readme.md` makes workspace/project folders easier to browse in default git hosting views
-- workspace/project folders are primarily human-facing catalog entries
-- `.agent.md` aligns better with Copilot and Claude conventions than a nested `agent.md` file
-- agents and skills remain explicit because those files behave more like executable/config definitions than folder landing pages
-
-## 7.2 Workspace folders
-
-Example:
-
-- `~/.codealta/workspaces/platform/readme.md`
-- `~/.codealta/workspaces/platform/activity/2026-03.jsonl`
-- `~/.codealta/workspaces/platform/artifacts/...`
-- `~/.codealta/workspaces/platform/workspaces/observability/readme.md`
-
-This allows nested workspaces by folder structure.
-
-Important rule:
-
-- do **not** store `parent_workspace_id` in frontmatter
-
-Parentage should be inferred from directory structure:
-
-- the nearest ancestor workspace folder is the parent workspace
-- moving a workspace folder should not require editing parent ids
-
-Optional frontmatter may still include:
-
-- `workspace_kind`
-- `tags`
-- `default_agent_refs`
-- `project_refs`
-
-But not a hardcoded parent id.
-
-## 7.3 Project folders
-
-Projects should be first-class catalog entities.
+Projects are first-class catalog entities.
 
 Example:
 
 - `~/.codealta/projects/tomlyn/readme.md`
+- `~/.codealta/projects/tomlyn/activity/2026-03.jsonl`
+- `~/.codealta/projects/tomlyn/artifacts/...`
+- `~/.codealta/projects/tomlyn/threads/<thread-id>/readme.md`
 
-Workspaces reference projects by UID, not by embedding the whole project object.
+Important rule:
 
-Rationale:
+- projects should be discoverable and upsertable automatically from actual use
+- the user should not need a manual “create project” flow to start using CodeAlta
 
-- projects can be reused by multiple catalog views in the future
-- project metadata stays stable even if a workspace is reorganized
-- workspaces remain lightweight and portable
+## 5.3 Thread folders
 
-The project folder can also contain:
+Threads are first-class durable entities.
 
-- `activity/*.jsonl`
-- `artifacts/`
-- optional local notes
+Recommended shape:
 
-## 7.4 Agent files
+- project and global threads should be recovered primarily from backend session listings plus cwd
+- CodeAlta-owned thread folders should exist only when CodeAlta has unique metadata to persist
+
+Examples:
+
+- project thread recovery source:
+  - backend session with cwd matching the project `path`
+- global thread recovery source:
+  - backend session with cwd `~/.codealta/`
+- possible host-owned internal-thread root when needed:
+  - `~/.codealta/threads/internal/...`
+
+Working-directory rule:
+
+- global thread sessions should use `~/.codealta/` as their backend working directory / cwd
+- project thread sessions should use the owning project's local `path`
+- this allows global threads to be rediscovered from backend session history in the same way project threads can be rediscovered from project paths
+
+Backend-immutability rule:
+
+- a thread is created against one backend
+- the backend of an existing thread should not change
+- moving the same logical work to another backend should create a new CodeAlta thread that links back to the prior one if needed
+
+Important ownership rule:
+
+- Copilot and Codex already persist their own thread/session history under their own roots
+- CodeAlta should not duplicate the full backend transcript or raw event stream by default
+- CodeAlta should also avoid duplicating basic thread identity when it can be recovered from backend session listings
+
+For project and global threads, CodeAlta can recover the following without persisting its own duplicate manifest:
+
+- canonical thread id = backend session/thread id
+- backend identity = inferred from the backend that emitted the session
+- project/global scope = inferred from cwd
+- lightweight display title = inferred from backend summary or first user prompt
+
+The main reasons to keep CodeAlta-owned thread metadata are narrower:
+
+- parent/child relationships for delegated internal threads
+- open-tab or pinned-thread UI state
+- host-authored orchestration annotations that the backend does not store
+
+If CodeAlta cannot point to a concrete piece of metadata it uniquely owns, it should not create its own thread manifest for that thread.
+
+Important reopening rule:
+
+- when the user selects a previous project/global thread in the UI, CodeAlta should reopen the existing backend-owned conversation
+- the source of truth for prior interactions remains the backend session/thread store
+- CodeAlta should not duplicate the full interaction transcript in `~/.codealta/` just to support reopening
+
+Internal child threads may be:
+
+- ephemeral runtime objects
+- or persisted under the owning thread if their outputs or progress become valuable
+
+Important internal-thread constraint:
+
+- backend-generated session/thread ids are not available until after session creation
+- therefore CodeAlta cannot generally choose an internal-thread cwd that embeds the backend id before the session exists
+
+If CodeAlta needs a dedicated cwd marker for internal delegated work, it should use a host-chosen internal path such as a folder under `~/.codealta/threads/internal/`, then record the resulting backend session id after creation if the relationship must be restored later
+
+The MVP does not require durable first-class browsing of internal child threads in the UI, but it should preserve enough state that a user can inspect delegated sub-agent work when needed.
+
+## 5.4 Agent files
 
 Agents should be catalog entities, including built-in agents.
 
@@ -279,28 +247,9 @@ Canonical definition shape:
 Examples:
 
 - `~/.codealta/agents/<agent-slug>.agent.md`
-- `~/.codealta/agents/builtin/<agent-slug>.agent.md`
+- `{projectPath}/.codealta/agents/<agent-slug>.agent.md`
 
-This is a major architectural rule:
-
-- built-in agents should not be special-case code-only definitions
-- CodeAlta should be able to discover agents from files and instantiate them
-- the app can seed builtin agent files on first run, but afterwards they are just catalog entries
-
-This is the foundation for CodeAlta creating its own configurable “team”.
-
-Additional rule:
-
-- the loader should merge agent definitions from the global catalog and the active project overlay
-- project-local agents should be able to add new agents or override matching global agent keys for that project scope only
-
-Identity rule:
-
-- agents do **not** use GUIDs or UUIDs as their canonical identifier
-- the canonical identifier is the `agent-key`, derived from the filename stem before `.agent.md`
-- if frontmatter includes `name`, it must match the filename-derived `agent-key`
-
-## 7.5 Skill folders
+## 5.5 Skill folders
 
 Skills should also be catalog entities.
 
@@ -308,417 +257,238 @@ Example:
 
 - `~/.codealta/skills/repo-onboarding/SKILL.md`
 
-This does not replace the existing `SKILL.md` execution format for agent skills.
-Instead, it adds a catalog layer that can describe:
+Project-local skill overlays:
 
-- what the skill is
-- who owns it
-- where the executable skill content lives
-- whether it is builtin, imported, or linked from another repo
+- `{projectPath}/.codealta/skills/<skill-slug>/SKILL.md`
 
-The catalog entry can point to:
+## 5.6 User profile
 
-- an internal folder
-- a checked out skill repository
-- a repo-local skill definition
-
-Additional rule:
-
-- skill resolution should consider project-local `{projectPath}/.codealta/skills/` before or alongside global skills, depending on scope resolution policy
-
-## 7.6 User profile
-
-CodeAlta should add a first-class durable user profile entry.
+CodeAlta should keep a first-class durable profile entry.
 
 Example:
 
 - `~/.codealta/profiles/self/readme.md`
 - `~/.codealta/profiles/self/activity/2026-03.jsonl`
 
-The user profile is where CodeAlta stores durable, human-visible information about:
+This profile is the durable place for:
 
-- confirmed working preferences
+- confirmed preferences
 - recent focus areas
-- preferred workflows
-- accepted or rejected suggestions
-- recurring conventions that are about the developer rather than a specific workspace
+- accepted or rejected suggestions later
 
-This profile is required for adaptive behaviors such as:
+## 6. File format
 
-- suggesting recent unfinished work
-- asking whether to continue yesterday's task
-- learning review habits and preferred agents
-
-Important rule:
-
-- the profile should separate **observations**, **inferred patterns**, and **confirmed preferences**
-- not every observed behavior should become a durable preference automatically
-
-## 7.7 Work thread storage
-
-Work threads should be first-class durable entities because the UI restores them, navigates them, and summarizes them.
-
-Recommended shape:
-
-- workspace-owned threads live under their owning workspace
-- the global thread has its own dedicated global location
-
-Examples:
-
-- `~/.codealta/workspaces/platform/threads/<thread-id>/readme.md`
-- `~/.codealta/workspaces/platform/threads/<thread-id>/activity/2026-03.jsonl`
-- `~/.codealta/threads/global/readme.md`
-- `~/.codealta/threads/global/activity/2026-03.jsonl`
-
-Portable thread metadata should include:
-
-- `thread_id`
-- `kind` (`global`, `workspace_thread`)
-- `workspace_ref` for non-global threads
-- `project_refs`
-- `scope_mode` (`single_project`, `multi_project`, `all_projects`)
-- `title`
-- `status`
-- `created_at`
-- `updated_at`
-- `last_active_at`
-- `latest_summary`
-
-Important rules:
-
-- every non-global thread belongs to exactly one workspace
-- the thread workspace is selected before the first prompt and locked after the first prompt
-- `project_refs` may change over time, but only inside the owning workspace
-- a thread with `scope_mode: all_projects` still belongs to exactly one workspace
-- the global thread is the only thread allowed to span all workspaces
-
-Machine-local UI restoration state should stay separate:
-
-- open-tab order
-- active tab selection
-- window/layout preferences
-
-Those belong under `~/.codealta/machine/`, not in the portable thread descriptor.
-
-## 8. File Format
-
-## 8.1 Primary format
+## 6.1 Primary format
 
 All durable metadata entities should use:
 
 - Markdown file
 - YAML frontmatter
 
-Example workspace file:
+### Example project file
 
 ```md
 ---
-uid: "01963b36-0d6f-7e4b-a7e0-6b2e6d1f4c8a"
-kind: "workspace"
-slug: "platform"
-display_name: "Platform"
-version: 1
-checkout:
-  path_template: "{codeRoot}/{workspaceSlug}"
-project_refs:
-  - "01963b36-0d70-7a11-b3c2-1f2e3d4c5b6a"
-default_agent_refs:
-  - "security-expert"
-tags: ["dotnet", "shared-infra"]
+id: "01963b36-0d70-7a11-b3c2-1f2e3d4c5b6a"
+kind: "project"
+slug: "tomlyn"
+display_name: "Tomlyn"
+path: "C:\\code\\Tomlyn"
+default_branch: "main"
+tags:
+  - dotnet
+  - parser
 ---
 
-# Platform
+# Tomlyn
 
-This workspace contains the shared platform services, libraries, and build infrastructure.
+TOML parsing project discovered from a local checkout.
 ```
 
-Example work thread file:
+### Example project thread file
+
+A project thread does not need its own CodeAlta file by default.
+
+It can be recovered from:
+
+- backend session/thread id
+- backend source
+- cwd matching the project `path`
+- backend summary or first user prompt for a display title
+
+### Example global thread file
+
+A global thread does not need its own CodeAlta file by default.
+
+It can be recovered from:
+
+- backend session/thread id
+- backend source
+- cwd `~/.codealta/`
+- backend summary or first user prompt for a display title
+
+### Example internal thread manifest
+
+If CodeAlta needs to persist delegated internal-thread linkage, the stored record should be minimal and host-owned:
 
 ```md
 ---
-thread_id: "platform-search-review"
-kind: "workspace_thread"
-workspace_ref: "01963b36-0d6f-7e4b-a7e0-6b2e6d1f4c8a"
-project_refs:
-  - "01963b36-0d70-7a11-b3c2-1f2e3d4c5b6a"
-scope_mode: "single_project"
-title: "Review sqlitevec integration"
-status: "active"
+kind: "internal_thread_link"
+backend_session_id: "019cc85b-01fb-76d1-a785-2ea9f177e184"
+parent_backend_session_id: "019cc85b-01fb-76d1-a785-2ea9f177e111"
+role: "reviewer"
+cwd: "~/.codealta/threads/internal/review-pass-01"
 created_at: "2026-03-10T09:00:00Z"
-updated_at: "2026-03-10T10:15:00Z"
-last_active_at: "2026-03-10T10:15:00Z"
-latest_summary: "Investigating semantic-search storage and integration tradeoffs."
 ---
 
-# Review sqlitevec integration
-
-Active workspace thread for semantic-search work in the platform workspace.
+# Internal reviewer thread link
 ```
 
-Example agent file:
+## 6.2 Frontmatter rules
 
-```md
----
-kind: "agent"
-name: security-expert
-description: Reviews code and plans with a focus on security issues and threat modeling.
-tools: [read, grep, search]
-model: gpt-5.3-codex
-codealta:
-  default_backend: codex
-  scope: workspace
-  is_builtin: false
-  tags: [security, review]
----
+Recommended shared fields:
 
-# Security Expert
-
-Use this agent for security reviews, threat modeling, and hardening plans.
-```
-
-## 8.2 Frontmatter rules
-
-Recommended shared frontmatter fields:
-
-- `uid`
+- `id`
 - `kind`
 - `slug`
 - `display_name`
-- `version`
 - `tags`
 - `created_at`
 - `updated_at`
 
-Entity-specific fields live alongside them.
+Entity-specific rules:
 
-Rules:
+- projects use `id` as their stable identifier
+- projects use `path` as the local project root
+- project/global threads use the backend session/thread id as their stable identifier
+- CodeAlta-owned internal linkage records should store `backend_session_id` only when CodeAlta needs to restore parent/child relationships
+- agents do not use GUIDs; they use filename-derived `agent-key`
 
-- `uid` is the stable cross-reference key for workspaces, projects, artifacts, and similar folder-owned entities
-- `slug` is human-friendly and used for folder names
-- the markdown body is descriptive, not required for strict machine parsing
-
-Exception for agents:
-
-- agents should not carry `uid`
-- agents use `name` / filename-derived `agent-key` as identity
-- any references to agents should use that stable textual key
-
-Exception for work threads:
-
-- work threads use `thread_id` as their stable identity
-- workspace-owned threads should also carry `workspace_ref`
-- `project_refs` may be empty, one entry, many entries, or omitted when `scope_mode: all_projects`
-
-## 9. References Between Entities
+## 7. References between entities
 
 Cross-entity references should use stable identifiers.
 
 Examples:
 
-- workspace -> project: `project_refs`
-- workspace -> agent: `default_agent_refs`
-- agent -> skill: `skill_refs`
-- artifact -> workspace/project/agent: `owner_ref`
+- thread -> project: `project_ref`
+- global thread -> projects: `project_refs`
+- project -> agent defaults later: `default_agent_refs`
+- artifact -> project/thread: owner reference fields
 
 Rules:
 
 - references should not depend on physical paths
-- physical folder nesting is used for containment, not identity
-- moving folders should not invalidate stable-id references
-- agent references are the exception: they use textual `agent-key`, not UUID
+- physical folder structure is containment, not identity
+- agent references use textual `agent-key`, not UUID
 
-## 10. Artifacts
+## 8. Tags and future grouping
 
-Artifacts should be stored **under the entity that owns them** whenever possible.
+The MVP should not use workspaces as the required grouping boundary.
 
-Preferred layout:
+Instead, projects may carry optional metadata such as:
 
-- workspace artifacts:
-  - `~/.codealta/workspaces/<slug>/artifacts/...`
-- project artifacts:
-  - `~/.codealta/projects/<slug>/artifacts/...`
+- `tags`
+- `labels`
+- inferred categories later
 
-Use the top-level shared folder only for artifacts that have no clear owner:
+Examples:
 
-- `~/.codealta/artifacts/...`
+- `dotnet`
+- `infra`
+- `xenoatom`
+- `review-needed`
 
-Rule:
+For the MVP:
 
-- artifacts produced by agents should normally be stored under the owning workspace or project, not under the agent definition itself
+- tags may be inferred or persisted
+- full tag-management UX can wait
 
-Rationale:
-
-- ownership is obvious
-- folders remain self-contained
-- indexing can still flatten these locations into SQLite later
-
-## 11. Activity Logs
+## 9. Activity logs
 
 Activity that should be readable and append-only should be stored as JSONL.
 
 Examples:
 
-- `~/.codealta/workspaces/platform/activity/2026-03.jsonl`
 - `~/.codealta/projects/tomlyn/activity/2026-03.jsonl`
+- `~/.codealta/projects/tomlyn/threads/<thread-id>/activity/2026-03.jsonl`
+- `~/.codealta/threads/global/<thread-id>/activity/2026-03.jsonl`
 
 Why JSONL:
 
 - easy to append
 - easy to read manually
-- easy to stream
-- easy to reindex into SQLite later
+- easy to reindex later
 
-Suggested record kinds:
-
-- `workspace_note`
-- `workspace_decision`
-- `workspace_sync`
-- `agent_run_summary`
-- `artifact_created`
-- `project_attached`
-- `project_detached`
-
-This document does not lock the final event schema yet, only the storage pattern.
-
-## 12. What Stays in SQLite
+## 10. What stays in SQLite
 
 SQLite should remain machine-local and rebuildable.
 
 Recommended contents:
 
-- `FTS5` index tables
-- embeddings / vector index tables
+- FTS indexes
+- embeddings
 - file hash / reindex bookkeeping
 - transient caches
 - local execution queues
-- optionally current task state if tasks are explicitly treated as machine-local coordination state
 
-SQLite should **not** be the source of truth for:
+SQLite should not be the source of truth for:
 
-- workspace definitions
-- project definitions
-- agent definitions
-- skill definitions
+- projects
+- threads
+- agents
+- skills
 - durable artifact metadata
 
-## 13. Built-in Agents as Files
-
-Built-in agents should be represented the same way as custom agents.
-
-Recommended rule:
-
-- CodeAlta ships seed templates for builtin agent files
-- on first run, those files are materialized into `~/.codealta/agents/builtin/*.agent.md`
-- discovery treats them exactly like user-defined catalog agents
-
-This gives CodeAlta a file-defined team model:
-
-- built-ins are inspectable
-- built-ins are overrideable
-- users can add or remove agents without code changes
-- future orchestration can assemble a team by reading catalog files
-
-## 14. Discovery and Loading
+## 11. Discovery and loading
 
 CodeAlta should load the catalog by walking the filesystem, not by querying a metadata DB first.
 
 Suggested discovery order:
 
-1. `workspaces/**/readme.md`
-2. `projects/**/readme.md`
-3. `agents/**/*.agent.md`
-4. `skills/**/SKILL.md`
-5. `workspaces/**/threads/**/readme.md`
-6. `threads/global/readme.md`
+1. `projects/**/readme.md`
+2. backend session listings from Copilot and Codex
+3. `threads/internal/**/readme.md` only for host-owned internal linkage records if present
+4. `agents/**/*.agent.md`
+5. `skills/**/SKILL.md`
+6. `profiles/**/readme.md`
 
-Discovery output:
+Project upsert should also be possible from runtime signals:
 
-- immutable in-memory descriptors
-- path + uid + parsed frontmatter + markdown body
+- current working directory
+- backend session history where `cwd`/repo root is known
 
-SQLite can then index the parsed files, but never owns them.
+Thread restoration should combine:
 
-## 15. Naming and Folder Policies
+- backend session/thread listings
+- backend session/thread listings from Copilot or Codex
+- cwd-based matching for project/global thread recovery
+- CodeAlta-owned internal linkage records only where parent/child recovery is needed
 
-Recommended policies:
+UI tab restoration may persist only the minimum host-owned state needed to reconstruct the visible UI, such as:
 
-- folder names use slugs, not opaque ids
-- frontmatter always contains the stable UID
-- one primary metadata markdown file per entity folder
-- `artifacts/` and `activity/` are reserved subfolder names
-- nested workspaces are allowed through `workspaces/<child>/readme.md` under a workspace folder
+- which backend-owned thread ids were open in tabs
+- tab ordering or selected-tab state if the UI needs it
 
-## 16. Migration Strategy
+That persisted UI state should point back to backend-owned threads rather than replace them.
 
-Because breaking changes are acceptable, migration can be direct.
-
-Suggested phases:
-
-### Phase 1
-
-- introduce the filesystem catalog loader
-- define markdown + frontmatter schemas
-- keep existing DB code for search only
-
-### Phase 2
-
-- move workspace/project/agent/skill definitions to catalog files
-- stop writing those entities into SQLite
-
-### Phase 3
-
-- move durable artifact metadata to owning folders
-- keep SQLite only as index/cache
-
-### Phase 4
-
-- materialize builtin agents as catalog files
-- instantiate built-in teams from catalog definitions
-
-## 17. Implementation Impact
-
-Expected impact areas:
-
-- `CodeAlta.Workspaces`
-  - move from YAML-only descriptors toward markdown + frontmatter entity folders
-  - add nested workspace discovery
-- `CodeAlta.Persistence`
-  - remove authoritative workspace/project/agent metadata tables from the design
-  - keep indexing and ephemeral state
-- `CodeAlta.Orchestration`
-  - load agents from catalog files
-  - stop assuming built-ins are code-only registrations
-- MCP services
-  - read and write catalog files instead of DB metadata rows
-
-## 18. Open Questions
-
-These are intentionally left open for the follow-up implementation plan:
-
-1. Should `machine/` remain the final name, or do we prefer a hidden variant such as `.machine/`?
-2. Should tasks live in SQLite only, or also have an exportable plain-text form?
-3. Should skill catalog entries wrap existing `SKILL.md` folders, or should the catalog file itself be the skill entry point?
-4. How much machine-local override data belongs in `machine/config.yaml` versus the portable catalog?
-5. Do we want agent activity logs per agent, per workspace, or both by default?
-
-## 19. Recommendation
+## 12. Recommendation
 
 Adopt the following model:
 
 - durable metadata is filesystem-first
 - `~/.codealta/` is the portable git-backed root
-- `~/.codealta/machine/` is reserved for machine-local state and ignored by git
-- entities are folders with markdown + YAML frontmatter
-- artifacts live under the entity that owns them
-- activity logs are JSONL
+- `~/.codealta/machine/` is reserved for machine-local state
+- projects are first-class catalog entities
+- project/global threads are backend-owned and should be recovered from backend history
+- CodeAlta-owned thread records should be limited to genuinely host-owned linkage metadata
+- workspaces are not part of the MVP ownership model
+- tags replace the immediate need for rigid grouping
 - SQLite is reduced to indexing and ephemeral local state
-- built-in agents are materialized and loaded from the same file model as user agents
 
-That model best matches CodeAlta’s goals:
+That model best matches CodeAlta’s MVP goals:
 
 - transparent
+- low-friction
 - portable
-- git-friendly
-- easy to share
 - easy to inspect
-- robust against schema churn
+- easy to adopt without setup ceremony

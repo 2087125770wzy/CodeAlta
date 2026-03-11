@@ -1,9 +1,10 @@
-# CodeAlta Adaptive Orchestration Architecture
+# CodeAlta Project-First Architecture
 
 Status: **Proposal**  
-Audience: `CodeAlta`, `CodeAlta.Agent*`, `CodeAlta.Orchestration`, `CodeAlta.Workspaces`, `CodeAlta.Persistence`, UI, and future bootstrap/sync work.
+Audience: `CodeAlta`, `CodeAlta.Agent*`, `CodeAlta.Orchestration`, `CodeAlta.Catalog` (or the current `CodeAlta.Workspaces` during migration), `CodeAlta.Persistence`, and UI implementers.
 
 Related specs:
+
 - `doc/specs/readme.md`
 - `doc/specs/filesystem_metadata_catalog_spec.md`
 - `doc/specs/agent_api_specs.md`
@@ -13,49 +14,25 @@ Related specs:
 
 ## 1. Why this document exists
 
-CodeAlta has reached the point where the next important work is not another isolated feature. The next important work is clarifying the architecture around a few core ideas:
+CodeAlta needs a simpler, lower-friction runtime model than the workspace-first design we had before.
 
-- portable, file-backed durable state
-- orchestrator-owned routing and execution
-- adaptive memory that is visible to the user
-- background and proactive behavior
-- backend-agnostic orchestration over Copilot and Codex
+The main problem with the earlier direction was not technical elegance. It was user cost:
 
-The analysis reinforced two conclusions:
+- the user could not work on a project without first creating a workspace
+- the UI forced structural decisions before useful work could start
+- the scope model was more rigid than how people actually use coding agents today
 
-1. the strongest product value comes from **durable visible working memory and team structure**
-2. the strongest implementation choice is to keep orchestration in **host code**, not to delegate it entirely to model-native tool orchestration
+The better model is:
 
-This document reframes CodeAlta around those conclusions.
-
-## 1.1 MVP focus for now
-
-This document describes the long-term architecture direction, but not every section should drive immediate implementation.
-
-The current MVP should focus on:
-
-- workspaces
-- projects
-- durable work threads
-- host-owned orchestration
-- thread-scoped coordinator flow
-- multiple tabs / thread restoration
-- Copilot/Codex as execution backends
-
-The following topics are valid but should be treated as **later work**:
-
-- adaptive memory and proactive behavior
-- semantic search
-- MCP-first product flows
-- .NET-specific product capabilities
-
-When this document presents both MVP and later-state ideas, MVP should win implementation priority.
-
----
+- projects are first-class
+- projects are discovered automatically
+- user-facing work happens in project threads or global threads
+- the host orchestrator owns routing and delegation
+- richer grouping such as tags can come later without blocking the MVP
 
 ## 2. Core architecture decision
 
-CodeAlta should be built around a **host-owned orchestrator** with a **filesystem-first portable catalog**.
+CodeAlta should be built around a **host-owned orchestrator** plus a **filesystem-first project catalog**.
 
 That means:
 
@@ -63,1303 +40,484 @@ That means:
 - machine-local operational state lives under `~/.codealta/machine/`
 - the orchestrator, written in C#, owns routing, dispatch, lifecycle, and recovery
 - Copilot and Codex are execution backends, not the owners of orchestration
-- MCP is used for external tools and selected model-callable services, not as the main internal routing backbone
-
-This is the architectural center of gravity for the project.
-
----
+- the MVP works without mandatory workspaces
+- project grouping is optional metadata, not a prerequisite for use
 
 ## 3. Design principles
 
-## 3.1 Orchestrator-owned routing
+### 3.1 Project-first, not workspace-first
+
+The first durable unit a user should care about is the project.
+
+The practical consequences are:
+
+- opening a project folder is enough to start using CodeAlta
+- CodeAlta should upsert that project automatically
+- the project list should grow naturally from actual usage
+- users should not have to model their work before they can benefit from the tool
+
+### 3.2 Threads are the UX unit
+
+The durable user-facing unit is the **Work Thread**.
+
+The user does not talk to “the orchestrator” directly. The user talks through a thread.
+
+Thread kinds:
+
+- **Project Thread**
+- **Global Thread**
+- **Internal Thread** (host-owned, inspectable, but not a primary user-facing conversation)
+
+### 3.3 Host-owned orchestration
 
 The host decides:
 
-- which agent(s) should receive work
-- whether work is direct, background, coordinated, or review-oriented
-- when to steer, retry, escalate, or recover
-- when unfinished work should be resumed
+- which thread receives a prompt
+- whether a response should stay direct or become coordinated work
+- whether new internal or project threads must be created
+- when worker/reviewer/verifier roles should be spawned
+- how thread results are summarized back to the user
 
 Models may suggest routing decisions, but CodeAlta remains the authority.
 
-## 3.2 Filesystem-first durable memory
+### 3.4 Filesystem-first durable state
 
 Human-visible state is a product feature, not merely a debugging aid.
 
-Durable memory should be:
+Durable state should be:
 
 - readable in a text editor
 - versionable in git
 - copyable across machines
-- reviewable and adaptable by the user
+- inspectable without opening SQLite
 
-Frontmatter and stable file contracts are used to keep this safe and machine-parseable.
+### 3.5 Backend-agnostic core
 
-## 3.3 Machine-local runtime state is not the source of truth
-
-SQLite and caches remain important, but only for:
-
-- indexes
-- embeddings
-- ephemeral coordination state
-- rebuildable machine state
-
-The user should be able to understand the durable system state without opening a database.
-
-## 3.4 Adaptive behavior is a first-class goal
-
-CodeAlta should learn:
-
-- how the developer tends to work
-- what the developer is currently focused on
-- what work was recently active
-- which patterns and preferences recur
-- which agents or roles repeatedly become useful
-
-The system should then react:
-
-- propose continuation of recent work
-- propose review/background checks
-- suggest creating or refining agents/skills
-- notice unfinished plans/tasks and resume them
-
-## 3.5 Scope-first architecture
-
-Everything is scoped:
-
-- global
-- workspace
-- project
-- task/plan
-- artifact/activity
-
-Scope determines:
-
-- what memory is loaded
-- what projects are available
-- what agents can act
-- what checkout paths apply
-- what approvals and policies are valid
-
-## 3.6 Backend-agnostic core
-
-Copilot and Codex should not define CodeAlta's product model.
+Copilot and Codex should not define the product model.
 
 The core abstractions belong to CodeAlta:
 
-- agents
-- tasks
-- plans
+- projects
+- threads
+- runs
 - route decisions
-- interactions
+- agents
 - activity streams
-- artifacts
-- adaptive memory
+- durable summaries
 
 Backends are adapters that implement execution semantics.
 
-## 3.7 Park premature specialization
+## 3.6 Module boundary
 
-The .NET specialization is useful code, but it should not drive the near-term architecture.
+The active architecture needs a clearer project boundary than the current codebase exposes.
 
-Near-term priority should be:
+The current project name `CodeAlta.Workspaces` is misleading under the project-first model. The responsibilities it currently carries are closer to a filesystem catalog/discovery layer than to a workspace domain.
 
-- orchestration
-- routing
-- durable state
-- adaptive memory
-- workspace/project portability
+Recommended target split:
 
-Language-specific intelligence can remain available, but should not dominate current architecture decisions.
+- `CodeAlta.Catalog`
+  - project descriptors
+  - project discovery and upsert
+  - catalog file loading/saving
+  - project-local overlays
+  - agent and skill catalog loading
+  - lightweight host-owned internal-thread linkage records
+  - machine override and path-template resolution related to project location recovery
+- `CodeAlta.Persistence`
+  - SQLite access
+  - repositories backed by SQLite
+  - caches and rebuildable indexes
+  - artifact/file-store mechanics where the concern is storage, not catalog semantics
+- `CodeAlta.Orchestration`
+  - routing
+  - dispatch
+  - coordinator/worker lifecycle
+  - thread restoration decisions
 
----
+`CodeAlta.Persistence` should not absorb catalog and discovery responsibilities.
+
+`CodeAlta.Model` is not recommended at this stage. It would be too vague and would likely become a generic type bucket before there is a concrete dependency problem that justifies extracting pure contracts.
 
 ## 4. System model
 
-CodeAlta should be understood as six connected layers.
+CodeAlta should be understood as five connected layers.
 
-## 4.0 System overview diagram
-
-The following diagram shows the intended high-level structure and boundaries.
+## 4.1 System overview
 
 ```mermaid
 flowchart LR
     U[User]
     UI[CodeAlta UI]
-    COORD[Coordinator]
     HOST[Host Orchestrator]
+    COORD[Coordinator Session]
 
     subgraph CATALOG[Portable Catalog]
         ROOT["~/.codealta/"]
-        WS[Workspaces]
-        PRJ[Projects]
-        AGG[Global Agents]
-        SKG[Global Skills]
-        PROF[User Profile]
-        ACT[Durable Activity]
+        PROJ[Projects]
+        THREADS[Threads]
+        AGENTS[Agents]
+        SKILLS[Skills]
+        PROFILE[Profile]
     end
 
-    subgraph PROJECT[Project Overlay]
+    subgraph OVERLAY[Project Overlay]
         PROOT["{projectPath}/.codealta/"]
-        AGL[Project Agents]
-        SKL[Project Skills]
-        ART[Project Artifacts]
+        PAGENTS[Project Agents]
+        PSKILLS[Project Skills]
     end
 
     subgraph MACHINE[Machine State]
         MROOT["~/.codealta/machine/"]
         DB[(codealta.db)]
-        IDX[Index / Embeddings]
-        LOGS[Logs / Cache / Overrides]
+        CACHE[Cache / Logs / Overrides]
     end
 
     subgraph EXEC[Execution Backends]
-        COP[Copilot Session]
-        COD[Codex Session]
-    end
-
-    subgraph INTEG[Tool / Integration Layer]
-        MCP[MCP / External Tools]
-        SEARCH[Search Services]
-        TASKS[Task / Plan Services]
+        COP[Copilot]
+        COD[Codex]
     end
 
     U --> UI
     UI --> HOST
     HOST -->|needs planning| COORD
     COORD -->|codealta_schedule| HOST
-
     HOST --> COP
     HOST --> COD
-    HOST --> MCP
-    HOST --> SEARCH
-    HOST --> TASKS
-
-    COORD --> ROOT
     HOST --> ROOT
     HOST --> PROOT
     HOST --> MROOT
-
-    ROOT --> WS
-    ROOT --> PRJ
-    ROOT --> AGG
-    ROOT --> SKG
-    ROOT --> PROF
-    ROOT --> ACT
-
-    PROOT --> AGL
-    PROOT --> SKL
-    PROOT --> ART
-
-    MROOT --> DB
-    MROOT --> IDX
-    MROOT --> LOGS
-
-    SEARCH --> DB
-    SEARCH --> IDX
-    TASKS --> DB
 ```
 
 Key reading:
 
 - `~/.codealta/` is the global durable root
 - `{projectPath}/.codealta/` is the project-local overlay
-- `~/.codealta/machine/` is the local runtime/index/cache root
-- UI tabs map to durable work threads; UI does not dispatch work directly to agents
-- the host orchestrator either handles a thread prompt directly or sends it to that thread's coordinator session
-- backends, MCP, search, and task services are all downstream of host orchestration
+- `~/.codealta/machine/` is local runtime/index/cache state
+- the host orchestrator is the hub for all thread and session communication
 
-## 4.1 Portable catalog
+## 4.2 Projects
 
-Location:
+A project is the durable definition of a codebase or local code root.
 
-- `~/.codealta/`
+For the MVP, a project should capture:
 
-Purpose:
+- stable `id`
+- stable `slug`
+- human `display_name`
+- local `path`
+- optional descriptive metadata
+- optional tags
 
-- source of truth for durable metadata and durable human-visible memory
+Project discovery should be automatic.
 
-Contains:
+Primary discovery sources:
 
-- workspaces
-- projects
-- agents
-- skills
-- user/profile memory
-- durable activity summaries
-- durable artifacts and notes
+- current working directory when CodeAlta starts
+- known durable project files under `~/.codealta/projects/`
+- backend session history where a usable `cwd` or repository root can be inferred
 
-This is the root folder CodeAlta should treat as the global operating context when it starts.
+### Important rule
 
-From `~/.codealta/`, CodeAlta should be able to:
+The MVP should not require a “create project” setup step.
 
-- discover all known workspaces and projects
-- resolve local checkout paths through machine overrides
-- pick the active workspace/project scope
-- load global agents and skills that apply across workspaces
-- load global templates that can scaffold agents, skills, and other catalog files
+If CodeAlta can infer a project from where the user is working, it should upsert it.
 
-## 4.2 Machine state
+## 4.3 Threads
 
-Location:
+Threads are the primary durable UX object.
 
-- `~/.codealta/machine/`
+### Project Thread
 
-Purpose:
+A project thread:
 
-- local-only execution state and rebuildable caches
+- belongs to exactly one project
+- is user-facing
+- owns one coordinator session
+- has a fixed backend after creation; changing backend requires creating a new thread
+- should use the backend session/thread id as its canonical runtime identity
+- should be reopenable from the project view as the same backend-owned conversation, including its prior interaction history
 
-Contains:
+### Global Thread
 
-- `codealta.db`
-- logs
-- indexes
-- embedding caches
-- machine-specific checkout overrides
-- local runtime/session state
+A global thread:
 
-## 4.3 Orchestrator
+- is user-facing
+- is not bound to one project
+- may coordinate across multiple projects
+- may create or steer project threads
+- may summarize the state of other threads
+- should use `~/.codealta/` as its working directory / session cwd so backend session history can recover it consistently
+- has a fixed backend after creation; changing backend requires creating a new thread
+- should use the backend session/thread id as its canonical runtime identity
+- should be reopenable as the same backend-owned conversation, including its prior interaction history
 
-Purpose:
+There may be multiple global threads.
 
-- the host-owned execution brain
+### Internal Thread
 
-Responsibilities:
+An internal thread:
 
-- route work
-- create and steer sessions
-- track plans/tasks
-- schedule background work
-- recover unfinished work
-- collect activity
-- update durable memory
-- drive proactive suggestions
-
-## 4.4 Agent sessions
-
-Purpose:
-
-- backend execution units
-
-Backends:
-
-- Copilot
-- Codex
-
-The orchestrator creates and manages sessions explicitly. Backend-native tooling is used where helpful, but session lifecycle remains CodeAlta-owned.
-
-## 4.5 Tool and integration layer
-
-Purpose:
-
-- expose model-callable capabilities and external integrations
+- is host-owned
+- is created for delegated work with a specific role
+- is not a primary UI conversation surface
+- remains inspectable by the user when needed
+- is usually surfaced through summaries, activity cards, or a details/inspect view rather than as the main visible unit of work
 
 Examples:
 
-- search
-- task lookup
-- artifact lookup
-- project/workspace inspection
-- external systems through MCP
-
-This layer should not be the sole route by which agents coordinate with each other.
-
-## 4.6 User interfaces
-
-Purpose:
-
-- present state
-- gather approvals/input
-- surface reasoning, routing, plans, tools, and background work
-
-Important rule:
-
-- the UI should present orchestration state, not own orchestration behavior
-
----
-
-## 4.7 Thread model, prompt ingress, and control flow
-
-One missing clarification is how a user prompt actually enters the system.
-
-CodeAlta should use a **durable work-thread model** plus host-side pre-routing logic.
-
-That means:
-
-- there is **no separate intake agent/session**
-- the user always types into a **work thread**
-- the host orchestrator receives the prompt for that thread first
-- the host performs a small amount of non-model pre-routing logic
-- only then, if planning/routing is needed, the host sends the request to that thread's coordinator session
-
-### Work Thread
-
-A **Work Thread** is the durable user-facing unit above runs and sessions.
-
-It owns:
-
-- prompt history
-- curated timeline
-- scope
-- coordinator session
-- linked runs, tasks, and activity
-- tab identity in the UI
-
-Thread kinds:
-
-- **Global Thread**
-- **Workspace Thread**
-
-Scope rules:
-
-- every non-global thread belongs to **exactly one workspace**
-- the workspace is selected before the first prompt
-- after the first prompt, the workspace is **locked**
-- the thread may focus on:
-  - one project
-  - multiple projects
-  - all projects
-  inside the owning workspace
-- the active project set may evolve over time, but only inside the owning workspace
-- the **Global Thread** is the only thread allowed to span all workspaces
-
-This is the durable boundary that makes restart, restoration, sidebar navigation, and follow-up steering understandable.
-
-### Host-side pre-routing
-
-Before invoking a thread coordinator, the host orchestrator should handle cheap or mandatory cases directly in code.
-
-Responsibilities:
-
-- capture the raw user prompt
-- attach thread scope and recent-focus context
-- resolve pending interactive flows
-- detect direct host commands
-- decide whether the prompt:
-  - can be handled directly by the host
-  - should resume or continue the current thread
-  - should create a new thread because another workspace is required
-  - should be sent to the current thread coordinator
-
-Examples of host-side pre-routing decisions:
-
-- creating a workspace thread after scope selection
-- switching to another existing thread
-- opening a new thread because another workspace is needed
-- accepting or rejecting a pending approval
-- answering “continue previous task?” prompts
-- resuming an interrupted run
-- handling direct UI/system commands
-
-This is not a separate agent. It is ordinary orchestrator logic.
-
-### Coordinator
-
-The coordinator is the planning and routing authority.
-
-Each work thread owns **one coordinator session** used when the host needs model help to decide what happens next for that thread.
-
-The host creates or reuses a coordinator session through the same shared Agent API used elsewhere, with coordinator-specific system instructions such as:
-
-- scope awareness
-- routing policy
-- scheduling contract
-- allowed structured output format
-- constraints about not directly launching agents
-
-The canonical coordinator instruction template is defined in:
-
-- `doc/specs/agent_instruction_templates_spec.md`
-
-The coordinator receives a normalized request from the host plus the relevant context:
-
-- thread scope
-- recent focus
-- unfinished plan/task state
-- available agents
-- policy constraints
-- optional retrieval snippets
-
-The coordinator then produces a **structured scheduling decision** that the host parses and executes.
-
-### Worker/reviewer agents
-
-Worker, reviewer, challenger, and verification agents should not be directly coordinated by the UI.
-
-They are launched, steered, and monitored by the host orchestrator after the coordinator produces a validated scheduling decision.
-
-### Prompt flow diagram
-
-```mermaid
-flowchart TD
-    U[User Prompt] --> T[Selected Work Thread]
-    T --> HOST[Host Orchestrator]
-    HOST -->|direct host command / pending flow| SYS[Host Action]
-    HOST -->|needs planning| ORG[Thread Coordinator Session]
-    ORG -->|structured schedule| HOST
-    HOST --> W1[Worker Agent]
-    HOST --> W2[Reviewer Agent]
-    HOST --> W3[Verifier / Challenger]
-    W1 --> HOST
-    W2 --> HOST
-    W3 --> HOST
-    HOST --> UI[Thread Timeline / Suggestions / State]
-```
-
-### Key rule
-
-The user prompt is **not** connected directly to worker agents.
-
-Normal path:
-
-- user prompt -> selected work thread -> host orchestrator -> thread coordinator session -> host orchestrator -> worker agents
-
-This keeps routing, parallelism, retries, and unfinished-work recovery under host control.
-
-### Naming recommendation
-
-The recommended canonical term is:
-
-- **Coordinator**
-
-Reason:
-
-- it is explicit about its job
-- it maps well to routing/scheduling behavior
-- it avoids inventing a second pseudo-agent layer
-
-If CodeAlta later wants a more productized display name in the UI, it can alias the coordinator visually without changing the architecture. For example:
-
-- internal/spec name: `Coordinator`
-- optional UI display name: `Conductor`
-
-But the spec should keep the precise name.
-
-### Why this is the best setup
-
-This is the most efficient setup because:
-
-- each thread has one planning session at the top of that thread
-- there is no ambiguity about how prompts “move” between layers
-- all interception happens in host code
-- all agent creation still goes through the same Agent API
-- the host remains the place where special instructions are extracted and executed
-
-In practice:
-
-1. UI sends prompt from the selected thread to host orchestrator
-2. host either handles it directly or sends it to that thread's coordinator session
-3. coordinator responds with normal text plus a fenced `codealta_schedule` block
-4. host intercepts that block from the coordinator output stream or final content
-5. host validates and strips the block from normal UI rendering
-6. host launches or steers worker sessions through the Agent API
-
-That is the cleanest model and avoids an unnecessary extra layer.
-
-### Instruction source of truth
-
-The effective instructions for coordinator and worker sessions should come from the canonical template spec:
-
-- `doc/specs/agent_instruction_templates_spec.md`
-
-That document defines:
-
-- the shared base instructions for general agents
-- the coordinator instructions
-- composition rules for backend/session creation
-
----
-
-## 4.8 Thread, run, and session graph
-
-The missing formalization is the distinction between:
-
-- a **work thread**
-- a **user-visible run**
-- a **session**
-
-These are not the same thing.
-
-### Work Thread
-
-A **work thread** is the durable UX and navigation unit.
-
-Example:
-
-- workspace: `platform`
-- projects: `build`, `search`
-- thread title: “Review sqlitevec integration for platform search”
-
-That thread owns:
-
-- one tab in the UI
-- one durable timeline
-- one coordinator session
-- zero or more runs
-- zero or more worker sessions created across those runs
-
-For non-global threads:
-
-- the thread belongs to exactly one workspace
-- the workspace is locked after the first prompt
-- the project set may change only within that workspace
-
-### Run
-
-A **run** is the top-level unit of user work.
-
-Example:
-
-- user prompt: “Review all pull requests for project XYZ, validate them, and merge them.”
-
-That prompt, inside a thread, creates one run:
-
-- one run id
-- one entry in the thread timeline
-- one coordinator planning cycle
-- zero or more worker sessions
-- one eventual completion, pause, or failure state
-
-### Session
-
-A **session** is one execution primitive created through the shared Agent API.
-
-Session types:
-
-- coordinator session
-- worker session
-- reviewer/verifier/challenger session
-
-Sessions are children of a run. A run can own multiple sessions. Runs are children of a work thread.
-
-### Recommended topology
-
-Do **not** model the runtime as an arbitrary DAG of sessions talking directly to each other.
-
-Use a simpler star topology:
-
-- the **host orchestrator** is the hub
-- all sessions communicate only with the host
-- the host can send synthetic follow-up input to any session
-- workers do not message each other directly
-- workers do not message the coordinator directly
-
-This keeps the system understandable and observable.
-
-### Session graph diagram
-
-```mermaid
-flowchart TD
-    THREAD[Work Thread]
-    HOST[Host Orchestrator]
-    COORD[Coordinator Session]
-    RUN[Run]
-    W1[Worker Session A]
-    W2[Worker Session B]
-    W3[Reviewer / Verifier Session]
-
-    THREAD --> HOST
-    HOST --> COORD
-    HOST --> RUN
-    HOST --> W1
-    HOST --> W2
-    HOST --> W3
-    COORD --> HOST
-    W1 --> HOST
-    W2 --> HOST
-    W3 --> HOST
-```
-
-This is the key simplification:
-
-- user conversation lives inside a work thread
-- runs are execution slices inside that thread
-- sessions are execution nodes inside the run
-- host orchestrator owns all edges
-
-### Coordinator responsibilities inside a run
-
-The coordinator is responsible for:
-
-- proposing the schedule
-- optionally giving the user an immediate visible acknowledgment
-- optionally synthesizing the final result from worker outputs
-
-The coordinator is **not** responsible for:
-
-- directly supervising worker sessions
-- directly receiving worker-to-worker traffic
-- directly launching or stopping sessions
-
-### Host orchestrator responsibilities inside a run
-
-The host is responsible for:
-
-- creating the run
-- invoking the coordinator
-- parsing `codealta_schedule`
-- launching worker sessions
-- collecting worker outputs
-- deciding whether to:
-  - update the UI directly with activity
-  - re-invoke the coordinator for synthesis
-  - request user input/approval
-  - mark the run complete
-
-### UI timeline model
-
-The UI should not pretend that every visible item comes from a single assistant session.
-
-The timeline for a work thread can contain:
-
-- user messages
-- coordinator messages
-- host-generated activity/status cards
-- worker-derived activity cards
-- approval/input cards
-- final coordinator summary
-
-This is still one coherent top-level run from the user's perspective.
-
-### Practical example
-
-User prompt:
-
-- “Review all pull requests for project XYZ, validate them, and merge them.”
-
-Recommended flow:
-
-1. UI appends the user prompt to the thread timeline.
-2. Host sends the prompt plus context to the coordinator session.
-3. Coordinator returns:
-   - a short visible acknowledgement
-   - a `codealta_schedule` block
-4. Host strips the schedule block from normal chat display.
-5. UI shows the coordinator acknowledgement.
-6. Host launches worker sessions for review/validation/merge steps.
-7. Worker progress and tool activity appear as host-managed timeline cards.
-8. When work is complete, host asks the coordinator for a final synthesis using structured worker outcomes/artifact references.
-9. Coordinator returns the final user-visible summary.
-10. Host marks the run completed.
-
-### Sequence diagram
+- reviewer child thread
+- verifier child thread
+- narrow planner or investigator child thread
+
+## 4.4 Prompt ingress and control flow
+
+There is no separate “front desk” session.
+
+Normal flow:
+
+1. user types into the selected thread
+2. host orchestrator receives the prompt
+3. host performs cheap pre-routing logic
+4. if planning is needed, host sends to the thread coordinator
+5. coordinator emits visible framing plus optional `codealta_schedule`
+6. host validates and executes the schedule
+7. worker results flow back to the host
+8. host updates the thread timeline and may ask the coordinator for final synthesis
 
 ```mermaid
 sequenceDiagram
     participant User
     participant UI
-    participant Thread as Work Thread
+    participant Thread
     participant Host
-    participant Coord as Coordinator Session
-    participant Worker as Worker Sessions
+    participant Coord
+    participant Worker
 
     User->>UI: Prompt
     UI->>Thread: Append prompt
     Thread->>Host: Start run
-    Host->>Coord: User prompt + scope + context
+    Host->>Coord: Prompt + scope + context
     Coord-->>Host: Visible text + codealta_schedule
-    Host-->>Thread: Show coordinator visible text
-    Host->>Worker: Launch/steer worker sessions
-    Worker-->>Host: Results / tool activity / artifacts
-    Host-->>Thread: Show activity cards
-    Host->>Coord: Synthesize final answer from worker outcomes
-    Coord-->>Host: Final summary
-    Host-->>Thread: Show final coordinator answer
+    Host-->>Thread: Show visible text
+    Host->>Worker: Dispatch delegated work
+    Worker-->>Host: Results / activity
+    Host-->>Thread: Show curated updates
+    Host->>Coord: Optional final synthesis
+    Coord-->>Host: Final answer
+    Host-->>Thread: Show final answer
 ```
 
-### Interception boundary
+## 4.5 Coordinator
 
-The important interception points are:
+Each user-facing thread owns one coordinator session.
 
-- coordinator output -> host extracts `codealta_schedule`
-- worker output -> host extracts structured outcomes and activity
-- host decides what becomes:
-  - timeline activity
-  - new task state
-  - follow-up coordinator input
-  - final user-visible answer
+The coordinator is responsible for:
 
-This is how the system stays simple while still using only basic session primitives.
+- interpreting the prompt in the current thread scope
+- deciding whether work is direct or coordinated
+- producing the scheduling envelope when coordinated work is needed
+- optionally synthesizing final results
 
-### Sidebar and navigation model
+The coordinator is not responsible for:
 
-The sidebar should be **scope-first**, not a flat recent-chat list.
+- directly supervising workers
+- directly messaging other sessions
+- directly launching or aborting sessions
+
+## 5. Scope rules
+
+### 5.1 MVP scope model
+
+The MVP scope model should be:
+
+- `global`
+- `project`
+
+There is no mandatory workspace layer.
+
+### 5.2 Grouping model
+
+Project grouping should use lightweight metadata such as:
+
+- tags
+- labels
+- inferred categories
+
+Those groupings should remain optional and non-blocking.
+
+A project may belong to multiple groupings in the future without forcing a single rigid hierarchy.
+
+### 5.3 Why this scales better
+
+This model scales better because:
+
+- users already think in terms of projects on disk
+- projects can be discovered from actual use
+- threads stay simple and obvious
+- cross-project work is handled by global threads, not by forcing all projects into a workspace container
+- future grouping can remain flexible
+
+## 6. UI model
+
+The sidebar should be **project-first**.
 
 Recommended structure:
 
-- `Global Thread`
-- `Workspaces`
-  - workspace row
-  - project rows under the workspace
-  - thread/activity rows nested under the relevant workspace or project context
+- `Global Threads`
+- `Projects`
+  - project row
+  - thread rows under that project
 
-Thread display rules:
+Thread-opening rule:
 
-- every workspace thread shows:
-  - title
-  - workspace badge
-  - project badge(s) or `All Projects`
-  - status
-  - recent activity summary
-- a single-project thread should show that project prominently
-- a multi-project thread should show compact project badges or a count
-- an all-projects thread should show `All Projects`
+- selecting an existing thread from the sidebar should reopen that exact backend-owned conversation
+- reopening means CodeAlta should recover the thread identity, working directory, backend, and prior interaction history from the backend session/thread store
+- the user should continue the existing conversation, not start a synthetic replacement thread with only a summary
 
-This structure makes it obvious which discussion belongs to which workspace and project context.
+Project rows should show enough context to be useful:
 
----
+- display name
+- local path or shortened folder
+- optional tags later
+- recent activity marker
 
-## 5. Core durable entities
+Tabs are first-class thread views.
 
-The catalog should treat the following as first-class durable entities.
+Recommended behavior:
 
-## 5.1 Workspace
+- opening a thread should open it in a tab
+- multiple tabs may be open at once
+- each tab should include its own close affordance
+- closing a tab should close the UI view, not delete the underlying backend-owned thread
+- reopening the same thread later should restore the existing conversation history again
 
-A workspace is the durable scope of work across one or more projects.
+Working-directory rule:
 
-It should define:
+- global thread sessions should use `~/.codealta/` as their backend working directory
+- project thread sessions should use the owning project's local `path`
+- this gives global threads a stable cwd that can be rediscovered from Copilot/Codex session history
 
-- identity
-- purpose
-- project references
-- default agents
-- checkout policy
-- background routines
+Backend-immutability rule:
 
-## 5.2 Project
+- a thread keeps the backend it was created with
+- the backend for an existing thread should not be changed in place
+- if the user wants to continue the same logical work on another backend, CodeAlta should create a new thread or an explicit fork/clone of the existing one
 
-A project is a durable definition of a codebase or codebase root.
+The MVP should not expose project-management ceremony such as:
 
-It should define:
+- mandatory workspace creation
+- required manual project registration
 
-- repo identity and remote URL
-- default branch
-- checkout strategy
-- machine override support
-- project-specific notes and artifacts
+## 7. Durable restoration model
 
-## 5.3 Agent
+CodeAlta should restore:
 
-An agent is a durable role definition.
+- known projects
+- open project/global threads
+- selected thread
+- lightweight UI state that cannot be recovered from backend listings alone
+- enough tab state to reopen the same set of visible thread tabs after restart
 
-It should define:
+CodeAlta should not duplicate backend-owned thread transcripts or basic thread metadata by default.
 
-- role/purpose
-- prompt/instructions
-- preferred model/reasoning defaults
-- relevant tools
-- scope defaults
-- collaboration/review expectations
+Instead:
 
-Agents should be file-defined, including built-ins.
+- Copilot/Codex remain the owners of raw session/thread history
+- CodeAlta should prefer the backend session/thread id as the canonical thread id for project and global threads
+- backend identity can be inferred from which backend emitted the session listing
+- project/global scope can be inferred from cwd:
+  - `~/.codealta/` => global thread
+  - project `path` => project thread
+- a display title can be derived from backend summary when available, or from the first user prompt
 
-CodeAlta should support agents from both:
+When a user selects a previous thread under a project or under the global thread list, CodeAlta should:
 
-- the global catalog root under `~/.codealta/agents/`
-- project-local overlays under `{projectPath}/.codealta/agents/`
+- enumerate backend-owned sessions for that backend
+- match the selected backend session/thread id
+- reopen the full conversation history exposed by that backend
+- project the recovered history back into the CodeAlta thread view
 
-Global agents manage cross-workspace and cross-project concerns. Project-local agents are repository-specific specializations or overrides.
+The recovery target is the existing backend conversation, not a CodeAlta-authored replay transcript.
 
-Authoring and scaffold generation for these agent files should follow:
+CodeAlta should only persist additional thread metadata when it owns information the backend does not:
 
-- `doc/specs/template_system_spec.md`
+- parent/child relationships for delegated internal work
+- explicit UI grouping or pinned/open-tab state
+- host-authored orchestration notes that are not part of backend history
 
-## 5.4 Skill
+It should not need to replay every raw event to make the UI useful again.
 
-A skill is a reusable instruction or capability pack that can be loaded on demand.
+The durable source of truth should therefore be:
 
-CodeAlta should support skills from both:
+- project descriptors
+- backend session listings
+- minimal host-owned linkage/state when required
 
-- the global catalog root under `~/.codealta/skills/`
-- project-local overlays under `{projectPath}/.codealta/skills/`
+### Internal-thread caveat
 
-Project-local skills allow repository-specific behavior without polluting the global catalog.
+Internal delegated threads are the one place where CodeAlta may need lightweight host-owned metadata.
 
-Authoring and scaffold generation for these skill files should follow:
+Why:
 
-- `doc/specs/template_system_spec.md`
+- backend session/thread ids are only known after session creation
+- cwd must be chosen before the backend creates the session
+- therefore an internal-thread cwd cannot reliably include the backend-generated id at creation time
 
-## 5.5 User profile
+That means the following idea is attractive but not directly viable as the primary mechanism:
 
-CodeAlta should add a durable user-profile entity.
+- `~/.codealta/threads/{backend-guid}/`
 
-This profile should capture:
+The backend guid is not available early enough.
 
-- stable working preferences
-- common conventions and directives
-- recent focus areas
-- preferred work rhythm
-- prompting habits
-- recurring project/workspace patterns
+A practical rule is:
 
-This profile is essential for adaptive behavior such as:
+- project/global threads should use backend-owned identity with no duplicated manifest by default
+- internal delegated threads may use a host-chosen internal cwd marker under `~/.codealta/threads/` or `~/.codealta/internal/` when CodeAlta needs to classify and relate them
+- if CodeAlta introduces such an internal marker, it should be justified only by parent/child orchestration recovery, not by a desire to duplicate normal thread metadata
 
-- “Do you want to continue working on X?”
-- “You usually review PRs before continuing in this workspace.”
-- “This kind of task often benefits from your reviewer agent.”
+SQLite remains machine-local support state, not the durable owner of the model.
 
-## 5.6 Task and plan
+## 8. Role of tags and future grouping
 
-Tasks and plans are coordination records.
-
-Not all task state needs to be portable, but the durable plan/task picture should be restorable and inspectable.
-
-At minimum, CodeAlta should preserve:
-
-- active plan structure
-- unfinished tasks
-- task ownership
-- completion/blockage state
-- links to artifacts and activity
-
-## 5.7 Activity stream
-
-Activity should be durable and human-inspectable.
-
-Likely storage:
-
-- JSONL activity streams plus durable markdown summaries
-
-Activity should capture:
-
-- session starts/ends
-- route decisions
-- task transitions
-- approvals/interruptions
-- artifact production
-- review outcomes
-- candidate learnings
-- proactive suggestions made/accepted/rejected
-
-## 5.8 Artifact
-
-Artifacts are durable outputs such as:
-
-- summaries
-- plans
-- notes
-- reports
-- decision records
-- review findings
-- retrieval snapshots
-
-Artifacts should live near the entity that owns them:
-
-- workspace
-- project
-- occasionally global catalog
-
----
-
-## 6. Routing and execution model
-
-## 6.1 Route decisions are explicit objects
-
-CodeAlta should model routing as explicit data, not only as prompt text.
-
-A route decision should answer:
-
-- who should do the work
-- whether the work is direct or coordinated
-- whether it should run now or later
-- whether review/verification is required
-- why this route was chosen
-
-The orchestrator may ask a model to suggest this, but the result should be normalized into a typed structure before execution.
-
-The coordinator should not emit free-form scheduling prose as the primary contract. It should emit a structured scheduling envelope.
-
-## 6.2 Parsed-output orchestration is preferred over tool-driven orchestration
-
-The default orchestration strategy should be:
-
-1. ask the model/coordinator to propose a route or plan
-2. parse and validate that output
-3. execute the route in host code
-
-This is preferred because it gives CodeAlta control over:
-
-- actual parallelism
-- retry behavior
-- backpressure
-- timeouts
-- escalation
-- review/competition policies
-- recovery of unfinished work
-
-This is stronger than relying on backend-native subagent/tool orchestration to decide those behaviors.
-
-## 6.2.1 Coordinator output envelope
-
-The coordinator needs an output format that is:
-
-- easy to parse
-- easy to validate
-- easy to discard from the visible assistant transcript when needed
-- expressive enough for routing and scheduling
-
-Recommended v1 format:
-
-- a named Markdown fenced code block
-- YAML payload inside the fenced block
-- one top-level scheduling block per coordinator response
-- optional human-visible explanation outside the block
-
-Preferred shape:
-
-```codealta_schedule
-version: 1
-decision:
-  mode: parallel
-  scope: project
-summary: User-visible summary of what will happen
-dispatches:
-  - agent: planner
-    action: send
-    priority: normal
-    goal: Break the work into tasks
-  - agent: builder
-    action: enqueue
-    dependsOn: planner
-    goal: Implement approved task set
-  - agent: reviewer
-    action: enqueue
-    dependsOn: builder
-    goal: Review changes and challenge gaps
-checks:
-  - kind: unfinished_work
-  - kind: pr_review
-    project: tomlyn
-    optional: true
-notes:
-  - Continue previous work if matching task is still active.
-```
-
-### Why a fenced YAML block is a good fit
-
-- it is easy to delimit and strip from UI-visible assistant content
-- YAML is easier to read and author than XML-like tags
-- SharpYaml can deserialize it into typed records cleanly
-- the host can validate required fields before execution
-- coordinator prompts can explicitly demand “only one schedule block”
-
-### UI behavior
-
-The UI should not render the raw ```` ```codealta_schedule ```` block as a normal assistant message.
-
-Instead, the host should:
-
-1. parse the block
-2. validate it
-3. convert it into:
-   - route decision objects
-   - task/dispatch records
-   - user-visible timeline/status cards
-
-Any explanation outside the schedule block can still be shown as human-visible coordinator text if useful.
-
-### Host validation rules
-
-Before execution, the host should validate:
-
-- exactly one `codealta_schedule` fenced block
-- known version
-- valid dispatch agent keys
-- valid action kinds
-- valid dependency graph
-- scope consistency
-- policy compliance
-- successful YAML deserialization into the typed scheduling model
-
-If validation fails, the host should:
-
-- reject the schedule
-- optionally ask the coordinator for a corrected schedule
-- or fall back to a safer direct/single-agent route
-
-### Important boundary
-
-The coordinator proposes the schedule.
-
-The host executes the schedule.
-
-The coordinator does not directly launch agents.
-
-## 6.3 Direct send, steer, enqueue
-
-CodeAlta should support:
-
-- `send`: normal unit of work
-- `steer`: interruptive correction/redirection
-- `enqueue`: queued work managed by CodeAlta when a session becomes suitable/idle
-
-The important point is that `enqueue` belongs primarily to CodeAlta orchestration, not to backend-specific semantics.
-
-## 6.4 Parallelism is orchestrator-managed
-
-CodeAlta should decide how much parallelism to use.
+Tags should replace the MVP need for workspaces as the main grouping mechanism.
 
 Examples:
 
-- one planner + one implementer + one reviewer
-- two competing implementers for high-risk design work
-- background PR review while foreground coding continues
+- `dotnet`
+- `cli`
+- `xenoatom`
+- `infra`
+- `review-needed`
 
-This should not depend on whether Copilot or Codex happens to parallelize a particular tool internally.
+For the MVP:
 
-## 6.5 Review, challenge, and competition
+- CodeAlta may infer tags automatically
+- CodeAlta may persist tags in project metadata
+- the UI does not need to expose full tag management yet
 
-CodeAlta should support patterns such as:
+Future grouping ideas such as saved collections or optional workspaces can be added later if real usage shows they help.
 
-- mandatory reviewer after builder completion
-- challenger agent that tries to falsify a design/result
-- paired competing agents where CodeAlta compares outputs
-- verification agent for tests/builds/spec compliance
+## 9. What is deferred
 
-These are orchestration policies, not agent-specific hacks.
+The following remain later work:
 
-## 6.6 Unfinished work recovery
+- adaptive or proactive behavior
+- semantic search and indexing
+- MCP as a product feature
+- self-learning and background suggestion systems
+- rich project grouping UI
 
-One major requirement is preventing work from silently stopping mid-plan.
+These should not drive the MVP architecture.
 
-CodeAlta should track:
+## 10. Final position
 
-- tasks still in progress
-- tasks blocked on approvals or input
-- plans with incomplete items
-- stale work that has not advanced recently
+CodeAlta should evolve around:
 
-The orchestrator should then:
-
-- resume when appropriate
-- surface unfinished work clearly
-- propose continuation
-- create follow-up tasks/reviews automatically where policy allows
-
----
-
-## 7. Adaptive memory and proactive behavior
-
-This is a major addition beyond the current direction.
-
-## 7.1 What CodeAlta should learn
-
-From the developer:
-
-- style and conventions
-- recent focus
-- project cadence
-- review habits
-- tolerance for interruptions/background work
-- preferred agent patterns
-
-From the agents:
-
-- recurring problem domains
-- repeated need for new specialists
-- patterns in review failures
-- work that often gets left unfinished
-- good challenge/reviewer patterns
-
-From the workspace/project:
-
-- active branches/PRs/issues
-- recent activity timestamps
-- open review needs
-- stalled plans/tasks
-- recurring maintenance work
-
-## 7.2 What CodeAlta should do with that memory
-
-It should be able to react with suggestions such as:
-
-- “You worked on workspace X yesterday; continue that plan?”
-- “There is an open PR in project Y; review in background?”
-- “This workspace repeatedly needs security review; create a security agent?”
-- “The previous plan stopped after step 3; resume or close it?”
-
-## 7.3 Human-visible adaptive memory
-
-Adaptive memory should not be buried entirely in SQLite.
-
-There should be durable human-visible records for:
-
-- current focus
-- recent focus history
-- accepted/rejected suggestions
-- stable user preferences
-- inferred working patterns once confirmed
-
-This keeps the system inspectable and adaptable.
-
-## 7.4 Confirmation boundary
-
-CodeAlta should distinguish:
-
-- observed behavior
-- inferred behavior
-- confirmed durable preference
-
-Not every observation should become a stable rule automatically.
-
-Good model:
-
-- observe frequently
-- infer cautiously
-- persist confirmed preferences deliberately
-
----
-
-## 8. Portable checkout and multi-machine model
-
-CodeAlta should treat `~/.codealta/` as a portable catalog that can be cloned on another machine.
-
-That means checkout behavior must be first-class.
-
-## 8.1 Portable project definition
-
-Portable project metadata should define:
-
-- remote URL
-- branch defaults
-- preferred checkout template
-- workspace attachment
-
-## 8.2 Machine-local overrides
-
-Machine-local config should define:
-
-- base checkout roots per OS or machine
-- per-project override paths
-- opt-out rules for projects not present on this machine
-
-Examples:
-
-- Windows default root: `C:\code`
-- Linux/macOS default root: `~/code`
-- workspace `xyz` default path: `C:\code\xyz`
-
-## 8.3 Bootstrap behavior
-
-On a new machine, CodeAlta should be able to:
-
-1. clone or open `~/.codealta/`
-2. read machine-local overrides
-3. resolve project/workspace checkout paths
-4. clone/fetch repos
-5. rebuild machine-local indexes
-6. restore active durable context
-
-This should become a first-class product capability, not a manual setup detail.
-
----
-
-## 9. Role of MCP in the revised architecture
-
-MCP remains useful, but it is no longer the center of the design.
-
-## 9.1 What MCP should do
-
-MCP is good for:
-
-- external services
-- rich search or memory query surfaces
-- selected CodeAlta tools exposed uniformly to backends
-- integrations that are naturally tool-shaped
-
-## 9.2 What MCP should not own
-
-MCP should not be the primary owner of:
-
-- agent-to-agent routing
-- orchestration lifecycle
-- task scheduling
-- unfinished work recovery
-- adaptive behavior policy
-
-Those belong in CodeAlta host code.
-
----
-
-## 10. Near-term architectural priorities
-
-The next priority order should be:
-
-1. simplify and strengthen orchestration
-2. finalize the portable catalog and machine-state split
-3. add durable activity/focus/adaptive memory
-4. add workspace/project checkout logic
-5. improve proactive/background behavior
-6. only then deepen search and language specialization
-
-The .NET specialization should remain available but should not be the main design driver right now.
-
----
-
-## 11. Implications for the current codebase
-
-## 11.1 `CodeAlta.Agent`
-
-Should remain the shared backend/session abstraction, but should stay narrow and execution-focused.
-
-## 11.2 `CodeAlta.Orchestration`
-
-Should become the authoritative owner of:
-
-- route decisions
-- task/plan lifecycle
-- background work scheduling
-- review/challenge policies
-- unfinished work recovery
-- proactive suggestions
-
-## 11.3 `CodeAlta.Workspaces`
-
-Should own:
-
-- portable catalog loading
-- workspace/project descriptors
-- checkout resolution
-- machine overrides
-- bootstrap/sync planning
-
-## 11.4 `CodeAlta.Persistence`
-
-Should focus on:
-
-- indexes
-- embeddings
-- ephemeral runtime storage
-- durable activity caches where appropriate
-
-not as the source of truth for durable metadata.
-
-## 11.5 UI
-
-The UI should surface:
-
-- active scope
-- current and unfinished work
-- background activity
-- proactive suggestions
-- review/challenge flows
-- adaptive prompts such as continuation suggestions
-
-but should not own orchestration policy.
-
----
-
-## 12. Final position
-
-CodeAlta should evolve into a **portable, adaptive, host-orchestrated coding companion**.
-
-Its defining characteristics should be:
-
-- visible durable memory
-- portable filesystem catalog
-- orchestrator-owned routing and recovery
+- automatic project awareness
+- low setup friction
+- project/global thread ownership
+- host-owned orchestration
+- filesystem-first durable state
 - backend-agnostic execution
-- adaptive suggestions based on recent and historical work
-- strong workspace/project awareness
 
-This is the clearest path to a system that is more durable, more inspectable, and more capable than a thin wrapper around Copilot or Codex.
+That is the clearest path to a practical product that users can adopt without front-loaded setup.

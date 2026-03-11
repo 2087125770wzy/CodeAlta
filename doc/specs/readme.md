@@ -2,96 +2,107 @@
 
 Status: **Working index**
 
-This folder has grown organically. This file is the entry point for understanding what to build first and what to postpone.
+This folder is the entry point for understanding what CodeAlta should build next.
 
-The current priority is the **core coding-agent experience**, not advanced infrastructure.
+The current direction is a **project-first MVP**:
+
+- no mandatory workspace setup
+- automatic project discovery and upsert
+- user-facing threads scoped to either:
+  - a single project
+  - a global cross-project context
+- internal host-owned child threads for delegated work
+- Copilot and Codex used as execution backends behind a CodeAlta-owned orchestration layer
 
 ## 1. MVP goal
 
 The MVP should let a user:
 
-- create and configure workspaces
-- create and configure projects
-- start work in a selected workspace
-- create and manage multiple work threads/tabs
-- send prompts and steer work inside those threads
-- use Copilot or Codex as the execution backend
-- keep the experience understandable and close to a raw coding-agent CLI, while adding CodeAlta-owned thread/workspace structure
+- start CodeAlta in any project directory without prior setup
+- have that project discovered and added to the catalog automatically
+- see previously known projects and previously used threads
+- open a project thread and work on that project directly
+- open one or more global threads that can coordinate work across projects
+- keep multiple threads open at once
+- reopen previous threads with their full backend conversation history
+- restore those threads after restart
 
 The MVP should **not** depend on:
 
 - semantic search
-- MCP-first orchestration
-- adaptive behavior
-- background suggestions
-- .NET-specific intelligence
-
-Those areas are useful, but they are not the starting point.
+- MCP-first product flows
+- adaptive or proactive behavior
+- .NET-specific product intelligence
+- user-managed workspace structures
 
 ## 2. Start here
 
 Read these first, in order:
 
 1. `doc/specs/implementation_plan.md`
-   - the current MVP-first delivery plan
+   - the current MVP delivery plan
 2. `doc/specs/codealta_adaptive_orchestration_architecture.md`
-   - the core system model
-   - read it with an MVP lens; later/future sections are explicitly deferred
+   - the project-first system model
 3. `doc/specs/filesystem_metadata_catalog_spec.md`
-   - workspace/project/thread/catalog storage model
+   - durable project, thread, agent, and catalog storage
 4. `doc/specs/agent_api_specs.md`
-   - the backend/session abstraction used by Copilot and Codex
-5. `doc/specs/agent_configuration_spec.md`
-   - agent definition format
-6. `doc/specs/agent_instruction_templates_spec.md`
-   - coordinator/general-agent instruction composition
-
-These documents define the minimum product shape.
+   - backend/session abstraction for Copilot and Codex
+5. `doc/specs/agent_instruction_templates_spec.md`
+   - base instructions for coordinator, project, and internal agents
+6. `doc/specs/agent_configuration_spec.md`
+   - file format for agent definitions
+7. `doc/specs/template_system_spec.md`
+   - scaffold/enrichment model for catalog files
 
 ## 3. Implement first
 
-The current implementation order for the core experience is:
+The MVP implementation order is:
 
-1. workspace and project catalog/configuration
-2. durable work-thread model and tab model
-3. thread-scoped orchestration and coordinator flow
-4. minimal agent configuration and instruction loading
-5. restart/restoration of work threads and scope
-6. thread-first UI flows for starting, selecting, and steering work
+1. project discovery and durable project catalog
+2. durable thread model
+3. project and global thread orchestration
+4. file-based agent loading and instruction composition
+5. multi-thread UI and restart restoration
 
-If a proposed feature does not clearly help one of those six items, it is probably not MVP work.
+The main supporting code projects for that work should be understood as:
 
-## 4. Core specs
+- `CodeAlta.Catalog` for file-backed project/thread/agent catalog loading and discovery
+- `CodeAlta.Orchestration` for runtime routing and thread execution
+- `CodeAlta.Persistence` for SQLite/caches/file-store mechanics only
 
-These are active MVP-driving documents:
+During migration, the current project named `CodeAlta.Workspaces` should be treated as the temporary implementation location for the future `CodeAlta.Catalog` responsibilities.
+
+If a proposal does not materially improve one of those five items, it is probably not MVP work.
+
+## 4. Active specs
+
+These documents drive the active MVP:
 
 - `doc/specs/implementation_plan.md`
 - `doc/specs/codealta_adaptive_orchestration_architecture.md`
 - `doc/specs/filesystem_metadata_catalog_spec.md`
 - `doc/specs/agent_api_specs.md`
-- `doc/specs/agent_configuration_spec.md`
 - `doc/specs/agent_instruction_templates_spec.md`
+- `doc/specs/agent_configuration_spec.md`
 - `doc/specs/template_system_spec.md`
 
 ## 5. Deferred until after MVP
 
-These documents describe work that should remain disabled, postponed, or treated as follow-up:
+These documents remain useful, but they should not drive the first implementation pass:
 
+- `doc/specs/implementation_plan_adaptive_orchestration.md`
 - `doc/specs/implementation_plan_storage_search.md`
 - `doc/specs/implementation_plan_mcp_server.md`
 - `doc/specs/implementation_plan_dotnet.md`
-- `doc/specs/implementation_plan_adaptive_orchestration.md`
 - `doc/specs/implementation_plan_workspaces_bootstrap.md`
 - `doc/specs/implementation_plan_agent_orchestration.md`
 - `doc/specs/agent_event_abstraction_proposal.md`
 - `doc/specs/agent_event_stream_unification.md`
 - `doc/specs/blueprint_mcp_server_specs.md`
 
-They should not drive the first implementation passes.
+## 6. Historical and broad context
 
-## 6. Historical / broad context
-
-These are useful for background, but they are not the implementation entry point:
+Useful as background, not as the implementation entry point:
 
 - `doc/specs/blueprint_codealta_specs.md`
 - `doc/specs/blueprint_agentic_coding_specs.md`
@@ -101,7 +112,8 @@ These are useful for background, but they are not the implementation entry point
 If you are implementing the MVP:
 
 - start with `implementation_plan.md`
-- use `codealta_adaptive_orchestration_architecture.md` for the system model
+- use `codealta_adaptive_orchestration_architecture.md` for the runtime model
 - use `filesystem_metadata_catalog_spec.md` for durable state
 - use `agent_api_specs.md` for backend boundaries
-- only consult deferred specs if a current task explicitly depends on them
+- use `agent_instruction_templates_spec.md` for session instructions
+- consult deferred specs only when a current task explicitly depends on them
