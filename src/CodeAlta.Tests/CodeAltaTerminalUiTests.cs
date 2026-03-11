@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CodeAlta.Agent;
+using CodeAlta.Workspaces;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 
@@ -416,5 +417,106 @@ public sealed class CodeAltaTerminalUiTests
             adoptRequestedBackend: false);
 
         Assert.AreEqual(AgentBackendIds.Copilot, selected);
+    }
+
+    [TestMethod]
+    public void FilterThreadsForSidebar_FiltersByWorkspaceAndProject()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        var workspaceA = WorkspaceId.NewVersion7().ToString();
+        var workspaceB = WorkspaceId.NewVersion7().ToString();
+        var project1 = ProjectId.NewVersion7().ToString();
+        var project2 = ProjectId.NewVersion7().ToString();
+
+        WorkThreadDescriptor[] threads =
+        [
+            new WorkThreadDescriptor
+            {
+                ThreadId = "global",
+                Kind = WorkThreadKind.Global,
+                ScopeMode = WorkThreadScopeMode.AllProjects,
+                Title = "Global",
+                Status = WorkThreadStatus.Active,
+                CreatedAt = timestamp,
+                UpdatedAt = timestamp,
+                LastActiveAt = timestamp,
+            },
+            new WorkThreadDescriptor
+            {
+                ThreadId = "thread-a",
+                Kind = WorkThreadKind.WorkspaceThread,
+                WorkspaceRef = workspaceA,
+                ScopeMode = WorkThreadScopeMode.SingleProject,
+                ProjectRefs = [project1],
+                Title = "Workspace A · Project 1",
+                Status = WorkThreadStatus.Active,
+                CreatedAt = timestamp,
+                UpdatedAt = timestamp,
+                LastActiveAt = timestamp.AddMinutes(1),
+            },
+            new WorkThreadDescriptor
+            {
+                ThreadId = "thread-b",
+                Kind = WorkThreadKind.WorkspaceThread,
+                WorkspaceRef = workspaceA,
+                ScopeMode = WorkThreadScopeMode.AllProjects,
+                Title = "Workspace A · All Projects",
+                Status = WorkThreadStatus.Active,
+                CreatedAt = timestamp,
+                UpdatedAt = timestamp,
+                LastActiveAt = timestamp.AddMinutes(2),
+            },
+            new WorkThreadDescriptor
+            {
+                ThreadId = "thread-c",
+                Kind = WorkThreadKind.WorkspaceThread,
+                WorkspaceRef = workspaceB,
+                ScopeMode = WorkThreadScopeMode.SingleProject,
+                ProjectRefs = [project2],
+                Title = "Workspace B · Project 2",
+                Status = WorkThreadStatus.Active,
+                CreatedAt = timestamp,
+                UpdatedAt = timestamp,
+                LastActiveAt = timestamp.AddMinutes(3),
+            },
+        ];
+
+        var filtered = CodeAltaTerminalUi.FilterThreadsForSidebar(threads, workspaceA, project1);
+
+        CollectionAssert.AreEqual(new[] { "thread-b", "thread-a" }, filtered.Select(static thread => thread.ThreadId).ToArray());
+    }
+
+    [TestMethod]
+    public void BuildThreadScopeSummary_UsesWorkspaceDisplayNameAndScopeMode()
+    {
+        var workspaceId = WorkspaceId.NewVersion7().ToString();
+        WorkspaceDescriptor[] workspaces =
+        [
+            new WorkspaceDescriptor
+            {
+                Id = workspaceId,
+                Key = "codealta",
+                DisplayName = "CodeAlta",
+                DefaultCheckoutRoot = @"C:\code",
+            },
+        ];
+
+        var summary = CodeAltaTerminalUi.BuildThreadScopeSummary(
+            new WorkThreadDescriptor
+            {
+                ThreadId = "thread-1",
+                Kind = WorkThreadKind.WorkspaceThread,
+                WorkspaceRef = workspaceId,
+                ScopeMode = WorkThreadScopeMode.MultiProject,
+                ProjectRefs = [ProjectId.NewVersion7().ToString(), ProjectId.NewVersion7().ToString()],
+                Title = "Thread",
+                Status = WorkThreadStatus.Active,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+                LastActiveAt = DateTimeOffset.UtcNow,
+            },
+            workspaces);
+
+        Assert.AreEqual("CodeAlta · 2 Projects", summary);
     }
 }
