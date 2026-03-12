@@ -687,36 +687,8 @@ internal sealed partial class CodeAltaTerminalUi
         _viewModel.DraftThreadTitle = string.Empty;
     }
 
-    private void SubscribeChatBindingEvents()
-    {
-        if (_chatBindingEventsSubscribed)
-        {
-            return;
-        }
-
-        BindingManager.Current.ValueChanged += OnBindingValueChanged;
-        _chatBindingEventsSubscribed = true;
-    }
-
-    private void UnsubscribeChatBindingEvents()
-    {
-        if (!_chatBindingEventsSubscribed)
-        {
-            return;
-        }
-
-        BindingManager.Current.ValueChanged -= OnBindingValueChanged;
-        _chatBindingEventsSubscribed = false;
-    }
-
-    private void OnBindingValueChanged(Binding binding)
-    {
-        if (ReferenceEquals(binding.Owner, _viewModel) &&
-            string.Equals(binding.Accessor.Name, nameof(CodeAltaShellViewModel.AutoApproveEnabled), StringComparison.Ordinal))
-        {
-            _chatAutoApproveEnabled = _viewModel.AutoApproveEnabled;
-        }
-    }
+    private bool GetAutoApproveEnabled()
+        => ReadUiValue(() => _viewModel.AutoApproveEnabled);
 
     private async Task PersistViewStateAsync()
     {

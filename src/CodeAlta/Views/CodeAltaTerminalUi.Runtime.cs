@@ -563,12 +563,13 @@ internal sealed partial class CodeAltaTerminalUi
                 break;
 
             case AgentUserInputRequest userInputRequest:
+                var autoApproveEnabled = GetAutoApproveEnabled();
                 tab.UserInputRequests[userInputRequest.InteractionId] = userInputRequest;
                 UpsertThreadInteraction(
                     tab,
                     userInputRequest.InteractionId,
                     userInputRequest.Timestamp,
-                    FormatChatUserInputRequestMarkdown(userInputRequest, _chatAutoApproveEnabled),
+                    FormatChatUserInputRequestMarkdown(userInputRequest, autoApproveEnabled),
                     null,
                     ChatTimelineTone.Interaction,
                     "Action Required",
@@ -859,7 +860,8 @@ internal sealed partial class CodeAltaTerminalUi
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var decision = _chatAutoApproveEnabled
+        var autoApproveEnabled = GetAutoApproveEnabled();
+        var decision = autoApproveEnabled
             ? new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)
             : new AgentPermissionDecision(AgentPermissionDecisionKind.Deny);
 
@@ -874,7 +876,7 @@ internal sealed partial class CodeAltaTerminalUi
                         request.InteractionId,
                         request.Timestamp,
                         FormatChatPermissionRequestMarkdown(request),
-                        FormatChatImmediatePermissionDecisionMarkdown(decision, _chatAutoApproveEnabled),
+                        FormatChatImmediatePermissionDecisionMarkdown(decision, autoApproveEnabled),
                         ChatTimelineTone.Interaction,
                         "Action Required",
                         "Permission Request");
@@ -892,7 +894,8 @@ internal sealed partial class CodeAltaTerminalUi
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var response = CreateChatUserInputResponse(request, _chatAutoApproveEnabled);
+        var autoApproveEnabled = GetAutoApproveEnabled();
+        var response = CreateChatUserInputResponse(request, autoApproveEnabled);
         if (_threadTabs.TryGetValue(threadId, out var tab))
         {
             TryRenderThreadInteraction(
@@ -903,8 +906,8 @@ internal sealed partial class CodeAltaTerminalUi
                         tab,
                         request.InteractionId,
                         request.Timestamp,
-                        FormatChatUserInputRequestMarkdown(request, _chatAutoApproveEnabled),
-                        FormatChatImmediateUserInputResponseMarkdown(response, _chatAutoApproveEnabled),
+                        FormatChatUserInputRequestMarkdown(request, autoApproveEnabled),
+                        FormatChatImmediateUserInputResponseMarkdown(response, autoApproveEnabled),
                         ChatTimelineTone.Interaction,
                         "Action Required",
                         "User Input Request");

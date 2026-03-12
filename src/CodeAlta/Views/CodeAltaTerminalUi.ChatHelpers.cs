@@ -1007,14 +1007,6 @@ internal sealed partial class CodeAltaTerminalUi
         return builder.ToString();
     }
 
-    internal static bool IsChatAutoApproveBinding(Binding binding, State<bool> autoApproveState)
-    {
-        ArgumentNullException.ThrowIfNull(autoApproveState);
-
-        return ReferenceEquals(binding.Owner, autoApproveState) &&
-               string.Equals(binding.Accessor.Name, nameof(State<bool>.Value), StringComparison.Ordinal);
-    }
-
     private static T RunOnUiThread<T>(Func<T> action)
     {
         ArgumentNullException.ThrowIfNull(action);

@@ -295,16 +295,6 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
-    public void IsChatAutoApproveBinding_OnlyMatchesAutoApproveStateValueBinding()
-    {
-        var autoApproveState = new State<bool>(true);
-        var otherState = new State<bool>(false);
-
-        Assert.IsTrue(CodeAltaTerminalUi.IsChatAutoApproveBinding((Binding)autoApproveState, autoApproveState));
-        Assert.IsFalse(CodeAltaTerminalUi.IsChatAutoApproveBinding((Binding)otherState, autoApproveState));
-    }
-
-    [TestMethod]
     public void FormatChatPermissionRequestMarkdown_RendersTypedAndGenericDetails()
     {
         var typedMarkdown = CodeAltaTerminalUi.FormatChatPermissionRequestMarkdown(

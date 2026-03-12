@@ -52,8 +52,6 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private ComputedVisual? _threadHeaderVisual;
     private Task? _runtimeEventsTask;
     private bool _chatSelectorsRefreshing;
-    private bool _chatBindingEventsSubscribed;
-    private volatile bool _chatAutoApproveEnabled = true;
     private bool _statusBusy;
     private bool _terminalLoopStarted;
     private bool _globalScopeSelected = true;
@@ -92,7 +90,6 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         _dispatcher = Dispatcher.Current;
-        SubscribeChatBindingEvents();
 
         await LoadCatalogStateAsync(cancellationToken).ConfigureAwait(false);
         await InitializeChatBackendsAsync(cancellationToken).ConfigureAwait(false);
@@ -129,7 +126,6 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        UnsubscribeChatBindingEvents();
         _runtimeEventsCts.Cancel();
 
         if (_runtimeEventsTask is not null)
