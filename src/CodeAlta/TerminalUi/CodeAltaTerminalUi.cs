@@ -442,7 +442,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
             return markup;
         }
 
-        return markup.Tooltip(new Markup($"[code]{AnsiMarkup.Escape(tooltip)}[/]"));
+        return markup.Tooltip(tooltip);
     }
 
     private static Style ResolveSidebarThreadIconStyle(WorkThreadKind kind)
@@ -666,7 +666,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
             items.Add(
                 new HStack(
                     [
-                        openButton.Tooltip(new Markup($"[code]{AnsiMarkup.Escape(thread.Title)}[/]")),
+                        openButton.Tooltip(thread.Title),
                         new Button(new TextBlock($"{NerdFont.MdClose}")).Click(() => _ = CloseThreadAsync(thread.ThreadId)),
                     ])
                 {
@@ -2198,7 +2198,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
 
         if (!string.IsNullOrWhiteSpace(tooltip))
         {
-            header = header.Tooltip(new Markup($"[code]{AnsiMarkup.Escape(tooltip)}[/]"));
+            header = header.Tooltip(tooltip);
         }
 
         return header;
