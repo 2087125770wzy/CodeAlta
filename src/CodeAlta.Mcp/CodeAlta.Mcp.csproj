@@ -15,7 +15,7 @@
     <ProjectReference Include="..\CodeAlta.DotNet\CodeAlta.DotNet.csproj" />
     <ProjectReference Include="..\CodeAlta.Persistence\CodeAlta.Persistence.csproj" />
     <ProjectReference Include="..\CodeAlta.Search\CodeAlta.Search.csproj" />
-    <ProjectReference Include="..\CodeAlta.Workspaces\CodeAlta.Catalog.csproj" />
+    <ProjectReference Include="..\CodeAlta.Catalog\CodeAlta.Catalog.csproj" />
   </ItemGroup>
 
 </Project>
