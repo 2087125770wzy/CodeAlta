@@ -616,9 +616,8 @@ internal static class CopilotAgentMapper
     private static AgentContentKind GetAssistantMessageContentKind(string? phase)
         => phase switch
         {
-            "commentary" => AgentContentKind.Reasoning,
             "final_answer" => AgentContentKind.Assistant,
-            _ => AgentContentKind.Assistant,
+            _ => AgentContentKind.Reasoning,
         };
 
     private static PermissionRequestHandler CreatePermissionHandler(

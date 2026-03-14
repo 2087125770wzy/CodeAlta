@@ -20,6 +20,7 @@ public sealed class CodexAgentSession : ICodexAgentSession
     private AgentPermissionRequestHandler _permissionHandler;
     private AgentUserInputRequestHandler? _userInputHandler;
     private AgentRunId? _activeRunId;
+    private readonly Dictionary<string, AgentContentKind> _agentMessageKindsByItemId = new(StringComparer.Ordinal);
     private bool _disposed;
 
     internal CodexAgentSession(
@@ -226,8 +227,9 @@ public sealed class CodexAgentSession : ICodexAgentSession
 
     internal void HandleNotification(CodexNotification notification)
     {
+        TrackAgentMessageKind(notification);
         var timestamp = DateTimeOffset.UtcNow;
-        var eventData = CodexAgentMapper.ToAgentEvent(ThreadId, notification, timestamp);
+        var eventData = NormalizeNotificationEvent(CodexAgentMapper.ToAgentEvent(ThreadId, notification, timestamp), notification);
 
         switch (eventData)
         {
@@ -246,6 +248,44 @@ public sealed class CodexAgentSession : ICodexAgentSession
         }
 
         Publish(eventData);
+    }
+
+    private void TrackAgentMessageKind(CodexNotification notification)
+    {
+        lock (_handlerLock)
+        {
+            switch (notification)
+            {
+                case CodexNotification.ItemStarted { Data.Item: ThreadItem.AgentMessageThreadItem message }:
+                    _agentMessageKindsByItemId[message.Id] = CodexAgentMapper.ToAgentContentKind(message.Phase);
+                    break;
+
+                case CodexNotification.ItemCompleted { Data.Item: ThreadItem.AgentMessageThreadItem message }:
+                    _agentMessageKindsByItemId.Remove(message.Id, out _);
+                    break;
+            }
+        }
+    }
+
+    private AgentEvent NormalizeNotificationEvent(AgentEvent eventData, CodexNotification notification)
+    {
+        return notification switch
+        {
+            CodexNotification.AgentMessageDelta delta when eventData is AgentContentDeltaEvent contentDelta =>
+                contentDelta with { Kind = GetTrackedAgentMessageKind(delta.Data.ItemId) ?? contentDelta.Kind },
+
+            _ => eventData,
+        };
+    }
+
+    private AgentContentKind? GetTrackedAgentMessageKind(string itemId)
+    {
+        lock (_handlerLock)
+        {
+            return _agentMessageKindsByItemId.TryGetValue(itemId, out var kind)
+                ? kind
+                : null;
+        }
     }
 
     internal async Task HandleServerRequestAsync(ServerRequest request, CancellationToken cancellationToken)

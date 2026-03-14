@@ -341,7 +341,7 @@ public sealed class CopilotAgentMapperTests
         var mappedMessage = CopilotAgentMapper.ToAgentEvent("session-1", messageEvent);
         Assert.IsInstanceOfType<AgentContentCompletedEvent>(mappedMessage);
         var normalizedMessage = (AgentContentCompletedEvent)mappedMessage;
-        Assert.AreEqual(AgentContentKind.Assistant, normalizedMessage.Kind);
+        Assert.AreEqual(AgentContentKind.Reasoning, normalizedMessage.Kind);
         Assert.AreEqual("final message", normalizedMessage.Content);
         Assert.AreEqual("msg-2", normalizedMessage.RunId?.Value);
 
@@ -369,6 +369,27 @@ public sealed class CopilotAgentMapperTests
                 MessageId = "msg-1",
                 Content = "I’m doing one final status check before handing off.",
                 Phase = "commentary"
+            }
+        };
+
+        var mapped = CopilotAgentMapper.ToAgentEvent("session-1", messageEvent);
+
+        Assert.IsInstanceOfType<AgentContentCompletedEvent>(mapped);
+        Assert.AreEqual(AgentContentKind.Reasoning, ((AgentContentCompletedEvent)mapped).Kind);
+    }
+
+    [TestMethod]
+    public void ToAgentEvent_MapsAssistantMessagesWithoutPhaseToReasoning()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-03-14T13:02:45+00:00");
+        var messageEvent = new AssistantMessageEvent
+        {
+            Timestamp = timestamp,
+            Data = new AssistantMessageData
+            {
+                MessageId = "msg-3",
+                Content = "Perfect! Now I have enough information.",
+                Phase = null
             }
         };
 

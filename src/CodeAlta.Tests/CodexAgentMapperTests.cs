@@ -283,7 +283,8 @@ public sealed class CodexAgentMapperTests
                 Item = new ThreadItem.AgentMessageThreadItem
                 {
                     Id = "item-2",
-                    Text = "final answer"
+                    Text = "final answer",
+                    Phase = MessagePhase.FinalAnswer
                 }
             });
 
@@ -293,6 +294,23 @@ public sealed class CodexAgentMapperTests
         Assert.AreEqual(AgentContentKind.Assistant, mappedMessage.Kind);
         Assert.AreEqual("final answer", mappedMessage.Content);
         Assert.AreEqual("turn-2", mappedMessage.RunId?.Value);
+
+        var commentaryNotification = new CodexNotification.ItemCompleted(
+            new ItemCompletedNotification
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-2",
+                Item = new ThreadItem.AgentMessageThreadItem
+                {
+                    Id = "item-3",
+                    Text = "I’m checking one more file before finalizing.",
+                    Phase = MessagePhase.Commentary
+                }
+            });
+
+        var commentaryEvent = CodexAgentMapper.ToAgentEvent("thread-1", commentaryNotification, timestamp);
+        Assert.IsInstanceOfType<AgentContentCompletedEvent>(commentaryEvent);
+        Assert.AreEqual(AgentContentKind.Reasoning, ((AgentContentCompletedEvent)commentaryEvent).Kind);
 
         var errorNotification = new CodexNotification.Error(
             new ErrorNotification

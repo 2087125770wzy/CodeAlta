@@ -851,7 +851,7 @@ internal static class CodexAgentMapper
                 sessionId,
                 timestamp,
                 runId,
-                AgentContentKind.Assistant,
+                ToAgentContentKind(message.Phase),
                 message.Id,
                 notification.TurnId,
                 message.Text),
@@ -1010,7 +1010,7 @@ internal static class CodexAgentMapper
                 sessionId,
                 timestamp,
                 runId,
-                AgentContentKind.Assistant,
+                ToAgentContentKind(message.Phase),
                 message.Id ?? $"message:{notification.TurnId}",
                 notification.TurnId,
                 ExtractMessageResponseText(message)),
@@ -1734,7 +1734,7 @@ internal static class CodexAgentMapper
             ? string.Join(Environment.NewLine, content)
             : reasoning.Summary is { Count: > 0 } summary
                 ? string.Join(Environment.NewLine, summary)
-                : "_Reasoning content was not included in the thread payload._";
+                : string.Empty;
     }
 
     private static string ExtractMessageResponseText(ResponseItem.MessageResponseItem message)
@@ -1779,6 +1779,16 @@ internal static class CodexAgentMapper
         return !string.IsNullOrWhiteSpace(reasoning.EncryptedContent)
             ? "_Reasoning content is encrypted and unavailable in this stream._"
             : string.Empty;
+    }
+
+    internal static AgentContentKind ToAgentContentKind(MessagePhase? phase)
+    {
+        return phase switch
+        {
+            MessagePhase.Commentary => AgentContentKind.Reasoning,
+            MessagePhase.FinalAnswer => AgentContentKind.Assistant,
+            _ => AgentContentKind.Assistant,
+        };
     }
 
     private static string DescribeWebSearchAction(ResponsesApiWebSearchAction? action, string? fallbackQuery)

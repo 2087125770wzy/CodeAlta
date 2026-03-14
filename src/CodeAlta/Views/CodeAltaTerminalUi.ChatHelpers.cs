@@ -560,6 +560,17 @@ internal sealed partial class CodeAltaTerminalUi
         return false;
     }
 
+    internal static bool ShouldDisplayCompletedContent(AgentContentCompletedEvent completed)
+    {
+        ArgumentNullException.ThrowIfNull(completed);
+
+        return completed.Kind switch
+        {
+            AgentContentKind.Reasoning or AgentContentKind.ReasoningSummary => !string.IsNullOrWhiteSpace(completed.Content),
+            _ => true,
+        };
+    }
+
     internal static bool ShouldDisplaySessionUpdate(AgentSessionUpdateEvent update)
     {
         ArgumentNullException.ThrowIfNull(update);

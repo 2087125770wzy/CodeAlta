@@ -756,6 +756,22 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public void ShouldDisplayCompletedContent_HidesEmptyReasoning()
+    {
+        var completed = new AgentContentCompletedEvent(
+            AgentBackendIds.Codex,
+            "thread-1",
+            DateTimeOffset.Parse("2026-03-14T14:02:50+00:00"),
+            new AgentRunId("turn-1"),
+            AgentContentKind.Reasoning,
+            "reasoning-1",
+            null,
+            string.Empty);
+
+        Assert.IsFalse(CodeAltaTerminalUi.ShouldDisplayCompletedContent(completed));
+    }
+
+    [TestMethod]
     public void BuildChatBackendStatusMarkup_IncludesWarningsAndSelectedBackend()
     {
         var states = new[]

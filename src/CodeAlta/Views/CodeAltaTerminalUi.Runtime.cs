@@ -543,6 +543,11 @@ internal sealed partial class CodeAltaTerminalUi
                 break;
 
             case AgentContentCompletedEvent completed:
+                if (!ShouldDisplayCompletedContent(completed))
+                {
+                    break;
+                }
+
                 FinalizeThreadContent(tab, completed);
                 if (completed.Kind == AgentContentKind.Assistant && !string.IsNullOrWhiteSpace(completed.Content))
                 {
