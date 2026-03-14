@@ -292,7 +292,7 @@ internal sealed partial class CodeAltaTerminalUi
         var markdownControl = new MarkdownControl(markdown.Trim())
         {
             HorizontalAlignment = Align.Stretch,
-            VerticalAlignment = Align.Stretch,
+            VerticalAlignment = Align.Start,
             Options = MarkdownRenderOptions.Default with
             {
                 WrapCodeBlocks = true,
@@ -310,7 +310,7 @@ internal sealed partial class CodeAltaTerminalUi
             .BottomRightText(timestampText)
             .Style(CreateChatGroupStyle(tone))
             .HorizontalAlignment(Align.Stretch)
-            .VerticalAlignment(Align.Stretch);
+            .VerticalAlignment(Align.Start);
 
         return new ChatMarkdownEntry(
             new DocumentFlowItem

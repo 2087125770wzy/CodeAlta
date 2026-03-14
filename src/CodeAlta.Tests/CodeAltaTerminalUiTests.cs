@@ -4,6 +4,7 @@ using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Geometry;
 
 namespace CodeAlta.Tests;
 
@@ -17,6 +18,7 @@ public sealed class CodeAltaTerminalUiTests
 
         Assert.IsInstanceOfType<MarkdownControl>(pending.StreamingMarkdown);
         Assert.AreEqual(string.Empty, pending.StreamingMarkdown.Markdown);
+        Assert.AreEqual(Align.Start, pending.StreamingMarkdown.VerticalAlignment);
     }
 
     [TestMethod]
