@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using CodeAlta.CodexSdk;
@@ -651,6 +652,128 @@ internal static class CodexAgentMapper
                     runId,
                     AgentSessionUpdateKind.Idle,
                     null));
+            }
+        }
+
+        return events;
+    }
+
+    public static IReadOnlyList<AgentEvent> ToSessionLogHistoryEvents(string sessionId, string sessionLogPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionLogPath);
+
+        var events = new List<AgentEvent>();
+        string? activeTurnId = null;
+        var messageIndex = 0;
+
+        foreach (var line in File.ReadLines(sessionLogPath))
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("timestamp", out var timestampElement) ||
+                timestampElement.ValueKind != JsonValueKind.String ||
+                !DateTimeOffset.TryParse(timestampElement.GetString(), out var timestamp) ||
+                !root.TryGetProperty("type", out var typeElement) ||
+                typeElement.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            switch (typeElement.GetString())
+            {
+                case "event_msg":
+                    if (root.TryGetProperty("payload", out var eventPayload) &&
+                        eventPayload.ValueKind == JsonValueKind.Object &&
+                        eventPayload.TryGetProperty("type", out var eventTypeElement) &&
+                        eventTypeElement.ValueKind == JsonValueKind.String)
+                    {
+                        switch (eventTypeElement.GetString())
+                        {
+                            case "task_started" when eventPayload.TryGetProperty("turn_id", out var turnIdElement) &&
+                                                     turnIdElement.ValueKind == JsonValueKind.String:
+                                activeTurnId = turnIdElement.GetString();
+                                break;
+                            case "task_complete":
+                                if (!string.IsNullOrWhiteSpace(activeTurnId))
+                                {
+                                    events.Add(new AgentSessionUpdateEvent(
+                                        AgentBackendIds.Codex,
+                                        sessionId,
+                                        timestamp,
+                                        new AgentRunId(activeTurnId),
+                                        AgentSessionUpdateKind.Idle,
+                                        null));
+                                }
+
+                                break;
+                        }
+                    }
+
+                    break;
+
+                case "response_item":
+                    if (!root.TryGetProperty("payload", out var payload) ||
+                        payload.ValueKind != JsonValueKind.Object ||
+                        !payload.TryGetProperty("type", out var payloadTypeElement) ||
+                        payloadTypeElement.ValueKind != JsonValueKind.String)
+                    {
+                        break;
+                    }
+
+                    if (string.Equals(payloadTypeElement.GetString(), "message", StringComparison.Ordinal))
+                    {
+                        if (TryCreateSessionLogMessageEvent(sessionId, activeTurnId, timestamp, payload, messageIndex++, out var messageEvent))
+                        {
+                            events.Add(messageEvent!);
+                        }
+
+                        break;
+                    }
+
+                    if (string.Equals(payloadTypeElement.GetString(), "function_call", StringComparison.Ordinal))
+                    {
+                        if (TryCreateSessionLogFunctionCallEvent(sessionId, activeTurnId, timestamp, payload, out var functionCallEvent))
+                        {
+                            events.Add(functionCallEvent!);
+                        }
+
+                        break;
+                    }
+
+                    if (string.Equals(payloadTypeElement.GetString(), "function_call_output", StringComparison.Ordinal))
+                    {
+                        if (TryCreateSessionLogFunctionCallOutputEvent(sessionId, activeTurnId, timestamp, payload, out var functionCallOutputEvent))
+                        {
+                            events.Add(functionCallOutputEvent!);
+                        }
+
+                        break;
+                    }
+
+                    var responseItem = JsonSerializer.Deserialize(payload.GetRawText(), CodexJsonSerializerContext.Default.ResponseItem) as ResponseItem;
+                    if (responseItem is null)
+                    {
+                        break;
+                    }
+
+                    var turnId = activeTurnId ?? $"session-log:{sessionId}";
+                    events.Add(ToAgentEvent(
+                        sessionId,
+                        new CodexNotification.RawResponseItemCompleted(
+                            new RawResponseItemCompletedNotification
+                            {
+                                ThreadId = sessionId,
+                                TurnId = turnId,
+                                Item = responseItem
+                            }),
+                        timestamp));
+                    break;
             }
         }
 
@@ -1722,8 +1845,8 @@ internal static class CodexAgentMapper
                 static content => content switch
                 {
                     UserInput.TextUserInput text => text.Text,
-                    UserInput.ImageUserInput image => image.Url,
-                    UserInput.LocalImageUserInput localImage => localImage.Path,
+                    UserInput.ImageUserInput => "Inline Image",
+                    UserInput.LocalImageUserInput => "Inline Image",
                     UserInput.SkillUserInput skill => skill.Name,
                     UserInput.MentionUserInput mention => mention.Name,
                     _ => string.Empty
@@ -1748,8 +1871,265 @@ internal static class CodexAgentMapper
                 {
                     ContentItem.OutputTextContentItem text => text.Text,
                     ContentItem.InputTextContentItem input => input.Text,
+                    ContentItem.InputImageContentItem => "Inline Image",
                     _ => string.Empty
                 }).Where(static value => !string.IsNullOrWhiteSpace(value)));
+    }
+
+    private static bool TryCreateSessionLogMessageEvent(
+        string sessionId,
+        string? activeTurnId,
+        DateTimeOffset timestamp,
+        JsonElement payload,
+        int messageIndex,
+        out AgentEvent? @event)
+    {
+        @event = null;
+        if (!payload.TryGetProperty("role", out var roleElement) || roleElement.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        var role = roleElement.GetString();
+        if (!string.Equals(role, "user", StringComparison.Ordinal) &&
+            !string.Equals(role, "assistant", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        AgentRunId? runId = string.IsNullOrWhiteSpace(activeTurnId) ? null : new AgentRunId(activeTurnId);
+        var content = payload.TryGetProperty("content", out var contentElement)
+            ? ExtractSessionLogMessageText(contentElement)
+            : string.Empty;
+        var contentId = payload.TryGetProperty("id", out var idElement) && idElement.ValueKind == JsonValueKind.String
+            ? idElement.GetString()!
+            : $"message:{messageIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+        if (string.Equals(role, "user", StringComparison.Ordinal))
+        {
+            @event = new AgentContentCompletedEvent(
+                AgentBackendIds.Codex,
+                sessionId,
+                timestamp,
+                runId,
+                AgentContentKind.User,
+                contentId,
+                activeTurnId,
+                content);
+            return true;
+        }
+
+        var phase = payload.TryGetProperty("phase", out var phaseElement) && phaseElement.ValueKind == JsonValueKind.String
+            ? phaseElement.GetString()
+            : null;
+
+        @event = new AgentContentCompletedEvent(
+            AgentBackendIds.Codex,
+            sessionId,
+            timestamp,
+            runId,
+            string.Equals(phase, "commentary", StringComparison.OrdinalIgnoreCase)
+                ? AgentContentKind.Reasoning
+                : AgentContentKind.Assistant,
+            contentId,
+            activeTurnId,
+            content);
+        return true;
+    }
+
+    private static string ExtractSessionLogMessageText(JsonElement content)
+    {
+        if (content.ValueKind != JsonValueKind.Array)
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string>();
+        foreach (var item in content.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object ||
+                !item.TryGetProperty("type", out var typeElement) ||
+                typeElement.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            switch (typeElement.GetString())
+            {
+                case "input_text":
+                case "output_text":
+                    if (item.TryGetProperty("text", out var textElement) &&
+                        textElement.ValueKind == JsonValueKind.String)
+                    {
+                        var text = textElement.GetString();
+                        if (!string.IsNullOrWhiteSpace(text) &&
+                            !string.Equals(text.Trim(), "<image>", StringComparison.OrdinalIgnoreCase))
+                        {
+                            parts.Add(text);
+                        }
+                    }
+
+                    break;
+                case "input_image":
+                    parts.Add("Inline Image");
+                    break;
+            }
+        }
+
+        return string.Join(Environment.NewLine, parts.Where(static value => !string.IsNullOrWhiteSpace(value)));
+    }
+
+    private static bool TryCreateSessionLogFunctionCallEvent(
+        string sessionId,
+        string? activeTurnId,
+        DateTimeOffset timestamp,
+        JsonElement payload,
+        out AgentEvent? @event)
+    {
+        @event = null;
+        if (!payload.TryGetProperty("call_id", out var callIdElement) ||
+            callIdElement.ValueKind != JsonValueKind.String ||
+            !payload.TryGetProperty("name", out var nameElement) ||
+            nameElement.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        var callId = callIdElement.GetString();
+        var name = nameElement.GetString();
+        if (string.IsNullOrWhiteSpace(callId) || string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        AgentRunId? runId = string.IsNullOrWhiteSpace(activeTurnId) ? null : new AgentRunId(activeTurnId);
+        @event = CreateActivity(
+            sessionId,
+            timestamp,
+            runId,
+            AgentActivityKind.ToolCall,
+            AgentActivityPhase.Requested,
+            callId!,
+            activeTurnId,
+            name,
+            null,
+            CreateSessionLogFunctionCallDetails(payload));
+        return true;
+    }
+
+    private static bool TryCreateSessionLogFunctionCallOutputEvent(
+        string sessionId,
+        string? activeTurnId,
+        DateTimeOffset timestamp,
+        JsonElement payload,
+        out AgentEvent? @event)
+    {
+        @event = null;
+        if (!payload.TryGetProperty("call_id", out var callIdElement) ||
+            callIdElement.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        var callId = callIdElement.GetString();
+        if (string.IsNullOrWhiteSpace(callId))
+        {
+            return false;
+        }
+
+        var phase = AgentActivityPhase.Completed;
+        string? message = null;
+        if (payload.TryGetProperty("output", out var output))
+        {
+            if (output.ValueKind == JsonValueKind.Object &&
+                output.TryGetProperty("success", out var successElement) &&
+                successElement.ValueKind == JsonValueKind.False)
+            {
+                phase = AgentActivityPhase.Failed;
+            }
+
+            message = ExtractSessionLogFunctionCallOutputText(output);
+        }
+
+        AgentRunId? runId = string.IsNullOrWhiteSpace(activeTurnId) ? null : new AgentRunId(activeTurnId);
+        @event = CreateActivity(
+            sessionId,
+            timestamp,
+            runId,
+            AgentActivityKind.ToolCall,
+            phase,
+            callId!,
+            activeTurnId,
+            "function call output",
+            message,
+            CreateSessionLogFunctionCallOutputDetails(payload));
+        return true;
+    }
+
+    private static JsonElement CreateSessionLogFunctionCallDetails(JsonElement payload)
+    {
+        return CreateObjectElement(writer =>
+        {
+            if (payload.TryGetProperty("name", out var nameElement) && nameElement.ValueKind == JsonValueKind.String)
+            {
+                writer.WriteString("name", nameElement.GetString());
+            }
+
+            if (payload.TryGetProperty("call_id", out var callIdElement) && callIdElement.ValueKind == JsonValueKind.String)
+            {
+                writer.WriteString("callId", callIdElement.GetString());
+            }
+
+            if (payload.TryGetProperty("arguments", out var argumentsElement))
+            {
+                writer.WritePropertyName("arguments");
+                if (argumentsElement.ValueKind == JsonValueKind.String)
+                {
+                    WriteStringifiedJsonValue(writer, argumentsElement.GetString());
+                }
+                else
+                {
+                    argumentsElement.WriteTo(writer);
+                }
+            }
+        });
+    }
+
+    private static JsonElement CreateSessionLogFunctionCallOutputDetails(JsonElement payload)
+    {
+        return CreateObjectElement(writer =>
+        {
+            if (payload.TryGetProperty("call_id", out var callIdElement) && callIdElement.ValueKind == JsonValueKind.String)
+            {
+                writer.WriteString("callId", callIdElement.GetString());
+            }
+
+            if (payload.TryGetProperty("output", out var output))
+            {
+                writer.WritePropertyName("output");
+                if (output.ValueKind == JsonValueKind.String)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("body", output.GetString());
+                    writer.WriteEndObject();
+                }
+                else
+                {
+                    output.WriteTo(writer);
+                }
+            }
+        });
+    }
+
+    private static string? ExtractSessionLogFunctionCallOutputText(JsonElement output)
+    {
+        return output.ValueKind switch
+        {
+            JsonValueKind.String => output.GetString(),
+            JsonValueKind.Object when output.TryGetProperty("body", out var body) && body.ValueKind == JsonValueKind.String => body.GetString(),
+            JsonValueKind.Object or JsonValueKind.Array => output.GetRawText(),
+            _ => output.ToString()
+        };
     }
 
     private static string ExtractReasoningResponseText(ResponseItem.ReasoningResponseItem reasoning)

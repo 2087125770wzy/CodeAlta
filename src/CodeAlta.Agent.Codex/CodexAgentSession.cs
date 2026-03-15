@@ -1,3 +1,4 @@
+using System.IO;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using CodeAlta.CodexSdk;
@@ -195,6 +196,15 @@ public sealed class CodexAgentSession : ICodexAgentSession
         catch (JsonRpcException ex) when (IsHistoryUnavailableBeforeFirstMessage(ex))
         {
             return [];
+        }
+
+        if (!string.IsNullOrWhiteSpace(response.Thread.Path) && File.Exists(response.Thread.Path))
+        {
+            var sessionLogEvents = CodexAgentMapper.ToSessionLogHistoryEvents(ThreadId, response.Thread.Path);
+            if (sessionLogEvents.Count > 0)
+            {
+                return sessionLogEvents;
+            }
         }
 
         return CodexAgentMapper.ToHistoryEvents(ThreadId, response.Thread);

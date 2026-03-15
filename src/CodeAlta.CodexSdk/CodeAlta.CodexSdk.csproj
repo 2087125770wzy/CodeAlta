@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="CodeAlta.Agent.Codex" />
     <InternalsVisibleTo Include="CodeAlta.Tests" />
   </ItemGroup>
 

@@ -299,6 +299,7 @@ internal sealed partial class CodeAltaTerminalUi
     internal static string FormatChatContentMarkdown(AgentContentKind kind, string content)
     {
         ArgumentNullException.ThrowIfNull(content);
+        content = SanitizeInlineImageContent(content);
 
         return kind switch
         {
@@ -308,6 +309,40 @@ internal sealed partial class CodeAltaTerminalUi
             AgentContentKind.CommandOutput or AgentContentKind.FileChangeOutput or AgentContentKind.ToolOutput => FormatChatOutputMarkdown(content),
             _ => content,
         };
+    }
+
+    private static string SanitizeInlineImageContent(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return content;
+        }
+
+        var normalizedLines = content.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var lines = new List<string>(normalizedLines.Length);
+        var changed = false;
+
+        foreach (var line in normalizedLines)
+        {
+            var trimmed = line.Trim();
+            if (string.Equals(trimmed, "<image>", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+            {
+                if (lines.Count == 0 || !string.Equals(lines[^1], "Inline Image", StringComparison.Ordinal))
+                {
+                    lines.Add("Inline Image");
+                }
+
+                changed = true;
+                continue;
+            }
+
+            lines.Add(line);
+        }
+
+        return changed
+            ? string.Join(Environment.NewLine, lines)
+            : content;
     }
 
     internal static string? GetChatContentHeaderSecondary(AgentContentKind kind, string content)

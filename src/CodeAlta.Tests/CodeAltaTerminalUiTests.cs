@@ -415,6 +415,17 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public void FormatChatContentMarkdown_SanitizesInlineImagePayloads()
+    {
+        var markdown = CodeAltaTerminalUi.FormatChatContentMarkdown(
+            AgentContentKind.User,
+            $"Please inspect this.{Environment.NewLine}<image>{Environment.NewLine}data:image/png;base64,AAAA");
+
+        Assert.AreEqual($"Please inspect this.{Environment.NewLine}Inline Image", markdown);
+        Assert.IsFalse(markdown.Contains("data:image", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void FormatChatCardTimestamp_UsesInvariantReadableFormat()
     {
         var timestamp = new DateTimeOffset(2026, 03, 12, 14, 5, 6, TimeSpan.FromHours(1));

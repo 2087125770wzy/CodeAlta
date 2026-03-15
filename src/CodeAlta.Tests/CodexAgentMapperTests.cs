@@ -663,6 +663,41 @@ public sealed class CodexAgentMapperTests
     }
 
     [TestMethod]
+    public void ToSessionLogHistoryEvents_MapsToolCallsAndSanitizesInlineImages()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllLines(
+                path,
+                [
+                    """{"timestamp":"2026-03-15T14:39:32.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}""",
+                    """{"timestamp":"2026-03-15T14:39:32.100Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Please inspect this."},{"type":"input_text","text":"<image>"},{"type":"input_image","image_url":"data:image/png;base64,AAAA"}]}}""",
+                    """{"timestamp":"2026-03-15T14:39:33.000Z","type":"response_item","payload":{"type":"function_call","name":"shell_command","arguments":"{\"command\":\"Get-Content C:\\\\code\\\\Tomlyn\\\\readme.md -TotalCount 10\",\"timeout_ms\":20000}","call_id":"call-1"}}""",
+                    """{"timestamp":"2026-03-15T14:39:34.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call-1","output":"Exit code: 0\nOutput:\nTomlyn"}}""",
+                    """{"timestamp":"2026-03-15T14:39:35.000Z","type":"event_msg","payload":{"type":"task_complete"}}"""
+                ]);
+
+            var events = CodexAgentMapper.ToSessionLogHistoryEvents("thread-1", path);
+
+            var user = events.OfType<AgentContentCompletedEvent>().Single(x => x.Kind == AgentContentKind.User);
+            Assert.AreEqual($"Please inspect this.{Environment.NewLine}Inline Image", user.Content);
+            Assert.IsFalse(user.Content.Contains("data:image", StringComparison.OrdinalIgnoreCase));
+
+            var toolEvents = events.OfType<AgentActivityEvent>().Where(x => x.ActivityId == "call-1").ToArray();
+            Assert.AreEqual(2, toolEvents.Length);
+            Assert.AreEqual(AgentActivityPhase.Requested, toolEvents[0].Phase);
+            Assert.AreEqual(AgentActivityPhase.Completed, toolEvents[1].Phase);
+            Assert.AreEqual("shell_command", toolEvents[0].Name);
+            Assert.AreEqual("Get-Content C:\\code\\Tomlyn\\readme.md -TotalCount 10", toolEvents[0].Details!.Value.GetProperty("arguments").GetProperty("command").GetString());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
     public void ToAgentUserInputRequest_PreservesHeadersDescriptionsAndSecretFlags()
     {
         var request = new ToolRequestUserInputParams
