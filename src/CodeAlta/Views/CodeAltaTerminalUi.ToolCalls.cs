@@ -152,7 +152,7 @@ internal sealed partial class CodeAltaTerminalUi
                     VerticalAlignment = Align.Start,
                 };
                 var card = new Group(headerText, itemsHost)
-                    .BottomLeftText(summaryText)
+                    .TopRightText(summaryText)
                     .BottomRightText(timestampText)
                     .Style(UiPalette.GetToolCallGroupStyle())
                     .HorizontalAlignment(Align.Stretch)
@@ -332,9 +332,16 @@ internal sealed partial class CodeAltaTerminalUi
             var dialogHeight = Math.Max(16, (int)Math.Round(bounds.Height * 0.8, MidpointRounding.AwayFromZero));
 
             Dialog? dialog = null;
+            var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"))
+            {
+                HorizontalAlignment = Align.End,
+                VerticalAlignment = Align.Start,
+                Tone = ControlTone.Error,
+            };
+            closeButton.Click(() => CloseToolCallDialog(entry));
             dialog = new Dialog()
                 .Title($"{ResolveToolDisplayName(entry.ActivityKind, entry.DisplayName)}")
-                .TopRightText(new Markup("[dim]Esc Close[/]"))
+                .TopRightText(closeButton)
                 .BottomLeftText(statsText)
                 .BottomRightText(new Markup("[dim]Ctrl+F Search[/]"))
                 .IsModal(true)
@@ -728,6 +735,11 @@ internal sealed partial class CodeAltaTerminalUi
 
         var parts = new List<string>();
 
+        if (details.TryGetProperty("arguments", out var rawArguments))
+        {
+            parts.Add(FormatToolArguments(rawArguments));
+        }
+
         if (TryGetStringProperty(details, "cwd", out var cwd))
         {
             parts.Add($"cwd: {cwd}");
@@ -757,11 +769,6 @@ internal sealed partial class CodeAltaTerminalUi
         if (TryGetStringProperty(details, "agentDescription", out var agentDescription))
         {
             parts.Add(agentDescription!);
-        }
-
-        if (details.TryGetProperty("arguments", out var arguments))
-        {
-            parts.Add(FormatToolArguments(arguments));
         }
 
         if (TryResolveNestedString(details, out var detailedContent, "result", "detailedContent") &&
@@ -798,7 +805,11 @@ internal sealed partial class CodeAltaTerminalUi
 
         return parts.Count == 0
             ? null
-            : string.Join(Environment.NewLine, parts.Where(static part => !string.IsNullOrWhiteSpace(part)));
+            : string.Join(
+                $"{Environment.NewLine}{Environment.NewLine}",
+                parts
+                    .Where(static part => !string.IsNullOrWhiteSpace(part))
+                    .Distinct(StringComparer.Ordinal));
     }
 
     private static string? ResolveToolOutput(AgentActivityEvent activity)

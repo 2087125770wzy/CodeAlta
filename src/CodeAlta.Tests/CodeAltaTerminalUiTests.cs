@@ -301,6 +301,44 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public void ResolveToolArgumentText_FormatsCopilotArgumentsObject()
+    {
+        var method = typeof(CodeAltaTerminalUi).GetMethod("ResolveToolArgumentText", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.IsNotNull(method);
+
+        using var detailsJson = JsonDocument.Parse(
+            """
+            {
+              "toolCallId": "call-1",
+              "toolName": "glob",
+              "arguments": {
+                "path": "C:\\code\\Tomlyn",
+                "pattern": "**/*.csproj"
+              }
+            }
+            """);
+
+        var activity = new AgentActivityEvent(
+            AgentBackendIds.Copilot,
+            "session-1",
+            DateTimeOffset.UtcNow,
+            null,
+            AgentActivityKind.ToolCall,
+            AgentActivityPhase.Started,
+            "call-1",
+            null,
+            "glob",
+            null,
+            detailsJson.RootElement.Clone());
+
+        var arguments = (string?)method.Invoke(null, [activity]);
+
+        Assert.IsNotNull(arguments);
+        StringAssert.Contains(arguments, "\"path\": \"C:\\\\code\\\\Tomlyn\"");
+        StringAssert.Contains(arguments, "\"pattern\": \"**/*.csproj\"");
+    }
+
+    [TestMethod]
     public void FormatChatCardTimestamp_UsesInvariantReadableFormat()
     {
         var timestamp = new DateTimeOffset(2026, 03, 12, 14, 5, 6, TimeSpan.FromHours(1));
