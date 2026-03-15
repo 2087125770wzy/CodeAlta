@@ -719,6 +719,7 @@ internal sealed partial class CodeAltaTerminalUi
             .PromptMarkup("[primary]>[/] ")
             .ContinuationPromptMarkup("[muted]·[/] ")
             .Placeholder(_viewModel.Bind.PromptPlaceholder)
+            .EnterMode(PromptEditorEnterMode.EnterInsertsNewLine)
             .EnableWordHints(true)
             .Highlighter(HighlightMarkdown)
             .MinHeight(3)
@@ -732,7 +733,7 @@ internal sealed partial class CodeAltaTerminalUi
             Id = "CodeAlta.Thread.Steer",
             LabelMarkup = "Steer",
             DescriptionMarkup = "Send an immediate steering instruction to the selected thread.",
-            Gesture = new KeyGesture(TerminalKey.F6),
+            Gesture = new KeyGesture(TerminalKey.F5),
             Importance = CommandImportance.Primary,
             Presentation = CommandPresentation.CommandBar,
             Execute = _visual => { _ = SendSelectedThreadPromptAsync(steer: true); },
