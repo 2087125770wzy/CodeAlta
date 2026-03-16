@@ -21,6 +21,8 @@ internal sealed partial class CodeAltaTerminalUi
         _threadHeaderVisual ??= CreateComputedVisual(BuildSelectedThreadHeader);
         _threadInput ??= CreatePromptEditor();
         _threadInputView ??= _threadInput.Scrollable();
+        _sendPromptButton ??= new Button(new TextBlock($"{NerdFont.MdSend} Send"))
+            .Click(() => _ = SendSelectedThreadPromptAsync(steer: false));
         _threadCommandBar ??= new CommandBar
         {
             HorizontalAlignment = Align.Stretch,
@@ -57,7 +59,7 @@ internal sealed partial class CodeAltaTerminalUi
 
         var selectionLine = new HStack(
             [
-                new Button(new TextBlock($"{NerdFont.MdSend} Send")).Click(() => _ = SendSelectedThreadPromptAsync(steer: false)),
+                _sendPromptButton,
                 _chatBackendSelect,
                 _chatModelSelect,
                 _chatReasoningSelect,
@@ -114,11 +116,6 @@ internal sealed partial class CodeAltaTerminalUi
 
     private Visual BuildOpenTabsContent()
     {
-        if (_viewState.OpenThreadIds.Count == 0)
-        {
-            return new TextBlock("No open tabs.");
-        }
-
         var items = new List<Visual>();
         foreach (var threadId in _viewState.OpenThreadIds)
         {
@@ -140,6 +137,11 @@ internal sealed partial class CodeAltaTerminalUi
                 {
                     Spacing = 0,
                 });
+        }
+
+        if (items.Count == 0)
+        {
+            return new TextBlock(_pendingStartupThreadRestoreId is null ? "No open tabs." : "Restoring tabs...");
         }
 
         return new WrapHStack([.. items])
@@ -197,7 +199,7 @@ internal sealed partial class CodeAltaTerminalUi
         if (selectedThread is null)
         {
             RefreshChatSelectorsForDraftScope();
-            _viewModel.PromptPlaceholder = BuildPromptPlaceholder(null, GetSelectedProject(), _globalScopeSelected);
+            UpdatePromptAvailabilityUi();
             _threadBodySplitter.First = new TextBlock("No open tabs.");
             if (!_statusBusy)
             {
@@ -208,8 +210,8 @@ internal sealed partial class CodeAltaTerminalUi
         }
 
         var tab = EnsureThreadTab(selectedThread);
-        _viewModel.PromptPlaceholder = BuildPromptPlaceholder(selectedThread, GetSelectedProject(), _globalScopeSelected);
         RefreshChatSelectorsForThread(tab);
+        UpdatePromptAvailabilityUi();
         _threadBodySplitter.First = tab.Flow;
         if (!_statusBusy)
         {
@@ -240,6 +242,7 @@ internal sealed partial class CodeAltaTerminalUi
                 modelOptions.FindIndex(option => string.Equals(option.ModelId, backendState.SelectedModelId, StringComparison.Ordinal)),
                 0,
                 Math.Max(0, modelOptions.Count - 1));
+            modelSelect.IsEnabled = backendState.Availability == ChatBackendAvailability.Ready;
 
             var selectedModel = backendState.Models.FirstOrDefault(model => string.Equals(model.Id, backendState.SelectedModelId, StringComparison.Ordinal))
                 ?? GetSelectedModel(backendState);
@@ -249,6 +252,7 @@ internal sealed partial class CodeAltaTerminalUi
                 reasoningOptions.FindIndex(option => option.Effort == backendState.SelectedReasoningEffort),
                 0,
                 Math.Max(0, reasoningOptions.Count - 1));
+            reasoningSelect.IsEnabled = backendState.Availability == ChatBackendAvailability.Ready;
 
             _viewModel.BackendStatusMarkup = BuildChatBackendStatusMarkup(_chatBackendStates.Values, backendOptions[backendIndex].BackendId, isInitializing: false);
         }
@@ -263,7 +267,17 @@ internal sealed partial class CodeAltaTerminalUi
         if (_chatBackendSelect is not null &&
             (uint)_chatBackendSelect.SelectedIndex < (uint)backendOptions.Count)
         {
-            return backendOptions[_chatBackendSelect.SelectedIndex].BackendId;
+            var current = backendOptions[_chatBackendSelect.SelectedIndex].BackendId;
+            if (IsChatBackendReady(current))
+            {
+                return current;
+            }
+        }
+
+        var readyBackend = backendOptions.FirstOrDefault(option => IsChatBackendReady(option.BackendId));
+        if (readyBackend is not null)
+        {
+            return readyBackend.BackendId;
         }
 
         return backendOptions.FirstOrDefault()?.BackendId ?? AgentBackendIds.Codex;
@@ -297,6 +311,7 @@ internal sealed partial class CodeAltaTerminalUi
                 modelOptions.FindIndex(option => string.Equals(option.ModelId, tab.ModelId, StringComparison.Ordinal)),
                 0,
                 Math.Max(0, modelOptions.Count - 1));
+            modelSelect.IsEnabled = backendState.Availability == ChatBackendAvailability.Ready;
 
             var selectedModel = backendState.Models.FirstOrDefault(model =>
                 string.Equals(model.Id, tab.ModelId, StringComparison.Ordinal))
@@ -307,6 +322,7 @@ internal sealed partial class CodeAltaTerminalUi
                 reasoningOptions.FindIndex(option => option.Effort == tab.ReasoningEffort),
                 0,
                 Math.Max(0, reasoningOptions.Count - 1));
+            reasoningSelect.IsEnabled = backendState.Availability == ChatBackendAvailability.Ready;
 
             backendSelect.IsEnabled = false;
             _viewModel.BackendStatusMarkup = BuildChatBackendStatusMarkup(_chatBackendStates.Values, tab.BackendId, isInitializing: false);
@@ -426,6 +442,12 @@ internal sealed partial class CodeAltaTerminalUi
                     (uint)_chatBackendSelect.SelectedIndex < (uint)options.Count)
                 {
                     return options[_chatBackendSelect.SelectedIndex].BackendId;
+                }
+
+                var readyBackend = options.FirstOrDefault(option => IsChatBackendReady(option.BackendId));
+                if (readyBackend is not null)
+                {
+                    return readyBackend.BackendId;
                 }
 
                 return AgentBackendIds.Codex;
@@ -578,6 +600,52 @@ internal sealed partial class CodeAltaTerminalUi
             : $"Start a thread for {selectedProject.DisplayName}...";
     }
 
+    internal static string BuildPromptUnavailablePlaceholder(
+        WorkThreadDescriptor? thread,
+        string backendDisplayName,
+        ChatBackendAvailability availability,
+        bool anyBackendReady)
+    {
+        if (thread is not null)
+        {
+            return availability == ChatBackendAvailability.Connecting
+                ? $"Waiting for {backendDisplayName} to reconnect..."
+                : $"'{thread.Title}' is unavailable until {backendDisplayName} is connected.";
+        }
+
+        if (availability == ChatBackendAvailability.Connecting)
+        {
+            return $"Connecting to {backendDisplayName}...";
+        }
+
+        return anyBackendReady
+            ? "Select a connected backend to start a thread..."
+            : "Install or connect Codex/Copilot to start a thread...";
+    }
+
+    internal static string BuildPromptUnavailableStatusText(
+        WorkThreadDescriptor? thread,
+        string backendDisplayName,
+        ChatBackendAvailability availability,
+        bool anyBackendReady)
+    {
+        if (thread is not null)
+        {
+            return availability == ChatBackendAvailability.Connecting
+                ? $"Reconnecting '{thread.Title}' to {backendDisplayName}. Prompt sending is temporarily unavailable."
+                : $"'{thread.Title}' is unavailable because {backendDisplayName} is not connected.";
+        }
+
+        if (availability == ChatBackendAvailability.Connecting)
+        {
+            return $"Connecting to {backendDisplayName}. Prompt sending will be available once the backend is ready.";
+        }
+
+        return anyBackendReady
+            ? "Select a connected backend to send prompts."
+            : "No chat backend is connected. Browse threads and projects, but prompt sending is unavailable.";
+    }
+
     private static string CompactTabTitle(string title, bool isSelected)
     {
         var normalized = title.Trim();
@@ -604,6 +672,74 @@ internal sealed partial class CodeAltaTerminalUi
         return header;
     }
 
+    private bool IsChatBackendReady(AgentBackendId backendId)
+    {
+        return _chatBackendStates.TryGetValue(backendId.Value, out var state) &&
+               state.Availability == ChatBackendAvailability.Ready;
+    }
+
+    private bool HasAnyReadyChatBackend()
+        => _chatBackendStates.Values.Any(static state => state.Availability == ChatBackendAvailability.Ready);
+
+    private bool TryGetPromptUnavailableStatus(out string message, out StatusTone tone)
+    {
+        var selectedThread = GetSelectedThread();
+        var backendId = selectedThread is not null ? new AgentBackendId(selectedThread.BackendId) : GetPreferredBackendId();
+        if (!_chatBackendStates.TryGetValue(backendId.Value, out var backendState) ||
+            backendState.Availability == ChatBackendAvailability.Ready)
+        {
+            message = string.Empty;
+            tone = StatusTone.Ready;
+            return false;
+        }
+
+        message = BuildPromptUnavailableStatusText(
+            selectedThread,
+            backendState.DisplayName,
+            backendState.Availability,
+            HasAnyReadyChatBackend());
+        tone = backendState.Availability == ChatBackendAvailability.Connecting
+            ? StatusTone.Info
+            : StatusTone.Warning;
+        return true;
+    }
+
+    private bool TrySetPromptUnavailableStatus()
+    {
+        if (!TryGetPromptUnavailableStatus(out var message, out var tone))
+        {
+            return false;
+        }
+
+        SetStatus(message, tone: tone);
+        return true;
+    }
+
+    private void UpdatePromptAvailabilityUi()
+    {
+        var selectedThread = GetSelectedThread();
+        if (TryGetPromptUnavailableStatus(out _, out _) &&
+            _chatBackendStates.TryGetValue(
+                (selectedThread is not null ? new AgentBackendId(selectedThread.BackendId) : GetPreferredBackendId()).Value,
+                out var backendState))
+        {
+            _viewModel.PromptPlaceholder = BuildPromptUnavailablePlaceholder(
+                selectedThread,
+                backendState.DisplayName,
+                backendState.Availability,
+                HasAnyReadyChatBackend());
+        }
+        else
+        {
+            _viewModel.PromptPlaceholder = BuildPromptPlaceholder(selectedThread, GetSelectedProject(), _globalScopeSelected);
+        }
+
+        if (_sendPromptButton is not null)
+        {
+            _sendPromptButton.IsEnabled = !TryGetPromptUnavailableStatus(out _, out _);
+        }
+    }
+
     private void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info)
     {
         PostToUi(
@@ -618,9 +754,13 @@ internal sealed partial class CodeAltaTerminalUi
 
     private void SetReadyStatusForCurrentSelection()
     {
-        SetStatus(
-            BuildReadyStatusText(GetSelectedThread(), GetSelectedProject(), _globalScopeSelected),
-            tone: StatusTone.Ready);
+        if (TryGetPromptUnavailableStatus(out var message, out var tone))
+        {
+            SetStatus(message, tone: tone);
+            return;
+        }
+
+        SetStatus(BuildReadyStatusText(GetSelectedThread(), GetSelectedProject(), _globalScopeSelected), tone: StatusTone.Ready);
     }
 
     private void PostToUi(Action action)
@@ -737,7 +877,7 @@ internal sealed partial class CodeAltaTerminalUi
             Importance = CommandImportance.Primary,
             Presentation = CommandPresentation.CommandBar,
             Execute = _visual => { _ = SendSelectedThreadPromptAsync(steer: true); },
-            CanExecute = _visual => GetSelectedThread() is not null,
+            CanExecute = _visual => GetSelectedThread() is { } thread && IsChatBackendReady(new AgentBackendId(thread.BackendId)),
         });
 
         editor.AddCommand(new Command
@@ -748,7 +888,7 @@ internal sealed partial class CodeAltaTerminalUi
             Gesture = new KeyGesture(TerminalKey.F7),
             Presentation = CommandPresentation.CommandBar,
             Execute = _visual => { _ = DelegateSelectedThreadAsync(); },
-            CanExecute = _visual => GetSelectedThread() is not null,
+            CanExecute = _visual => GetSelectedThread() is { } thread && IsChatBackendReady(new AgentBackendId(thread.BackendId)),
         });
 
         editor.AddCommand(new Command

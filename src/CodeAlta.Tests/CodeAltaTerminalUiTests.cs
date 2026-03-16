@@ -259,6 +259,71 @@ public sealed class CodeAltaTerminalUiTests
     }
 
     [TestMethod]
+    public void BuildPromptUnavailablePlaceholder_UsesBackendStateAndSelection()
+    {
+        var thread = new WorkThreadDescriptor
+        {
+            ThreadId = "thread-1",
+            Kind = WorkThreadKind.ProjectThread,
+            BackendId = AgentBackendIds.Codex.Value,
+            BackendSessionId = "backend-thread-1",
+            ProjectRef = "project-1",
+            WorkingDirectory = @"C:\code\CodeAlta",
+            Title = "Review startup",
+            Status = WorkThreadStatus.Active,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            LastActiveAt = DateTimeOffset.UtcNow,
+        };
+
+        Assert.AreEqual(
+            "Waiting for Codex to reconnect...",
+            CodeAltaTerminalUi.BuildPromptUnavailablePlaceholder(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
+        Assert.AreEqual(
+            "Install or connect Codex/Copilot to start a thread...",
+            CodeAltaTerminalUi.BuildPromptUnavailablePlaceholder(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
+    }
+
+    [TestMethod]
+    public void BuildPromptUnavailableStatusText_DescribesConnectingAndMissingBackends()
+    {
+        var thread = new WorkThreadDescriptor
+        {
+            ThreadId = "thread-1",
+            Kind = WorkThreadKind.ProjectThread,
+            BackendId = AgentBackendIds.Codex.Value,
+            BackendSessionId = "backend-thread-1",
+            ProjectRef = "project-1",
+            WorkingDirectory = @"C:\code\CodeAlta",
+            Title = "Review startup",
+            Status = WorkThreadStatus.Active,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            LastActiveAt = DateTimeOffset.UtcNow,
+        };
+
+        Assert.AreEqual(
+            "Reconnecting 'Review startup' to Codex. Prompt sending is temporarily unavailable.",
+            CodeAltaTerminalUi.BuildPromptUnavailableStatusText(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
+        Assert.AreEqual(
+            "No chat backend is connected. Browse threads and projects, but prompt sending is unavailable.",
+            CodeAltaTerminalUi.BuildPromptUnavailableStatusText(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
+    }
+
+    [TestMethod]
+    public void ClassifyBackendInitializationFailure_TreatsMissingExecutableAsUnsupported()
+    {
+        var backendState = new ChatBackendState(AgentBackendIds.Codex, "Codex");
+
+        var result = CodeAltaTerminalUi.ClassifyBackendInitializationFailure(
+            backendState,
+            new FileNotFoundException("codex executable was not found"));
+
+        Assert.AreEqual(ChatBackendAvailability.Unsupported, result.Availability);
+        StringAssert.Contains(result.StatusMessage, "Codex is unavailable");
+    }
+
+    [TestMethod]
     public void BuildStatusIconMarkup_ReturnsColoredIconsPerTone()
     {
         StringAssert.Contains(CodeAltaTerminalUi.BuildStatusIconMarkup(CodeAltaTerminalUi.StatusTone.Ready), NerdFont.MdCheckCircleOutline.ToString());

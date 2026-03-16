@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.Orchestration.Runtime;
@@ -11,19 +12,14 @@ internal sealed partial class CodeAltaTerminalUi
     private async Task LoadCatalogStateAsync(CancellationToken cancellationToken)
     {
         _projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
-        _threads = await _runtimeService.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
+        _threads = await _threadCatalog.LoadInternalAsync(cancellationToken).ConfigureAwait(false);
         _viewState = await _threadCatalog.LoadViewStateAsync(cancellationToken).ConfigureAwait(false);
 
-        _viewState.OpenThreadIds.RemoveAll(id => _threads.All(thread => !string.Equals(thread.ThreadId, id, StringComparison.OrdinalIgnoreCase)));
-        if (!string.IsNullOrWhiteSpace(_viewState.SelectedThreadId) &&
-            _viewState.OpenThreadIds.All(id => !string.Equals(id, _viewState.SelectedThreadId, StringComparison.OrdinalIgnoreCase)))
-        {
-            _viewState.SelectedThreadId = null;
-        }
-
-        var selection = ResolveInitialSelection(_viewState, _threads);
-        _selectedThreadId = selection.SelectedThreadId;
-        _pendingStartupThreadRestoreId = selection.StartupThreadRestoreId;
+        var desiredThreadId = _viewState.SelectedThreadId ?? _viewState.OpenThreadIds.FirstOrDefault();
+        _selectedThreadId = string.IsNullOrWhiteSpace(desiredThreadId)
+            ? null
+            : _threads.FirstOrDefault(thread => string.Equals(thread.ThreadId, desiredThreadId, StringComparison.OrdinalIgnoreCase))?.ThreadId;
+        _pendingStartupThreadRestoreId = desiredThreadId;
         var selectedThread = GetSelectedThread();
         _selectedProjectId = selectedThread?.ProjectRef ?? _projects.FirstOrDefault()?.Id;
     }
@@ -45,31 +41,176 @@ internal sealed partial class CodeAltaTerminalUi
             selectedThread?.ThreadId);
     }
 
+    private void StartStartupRefresh(CancellationToken cancellationToken)
+    {
+        if (_startupRefreshTask is not null)
+        {
+            return;
+        }
+
+        _startupRefreshCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtimeEventsCts.Token);
+        _startupRefreshTask = Task.Run(
+            () => RunStartupRefreshAsync(_startupRefreshCts.Token),
+            CancellationToken.None);
+    }
+
+    private async Task RunStartupRefreshAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var modelsTask = InitializeChatBackendsAsync(cancellationToken);
+            var catalogTask = RefreshCatalogFromBackendsAsync(cancellationToken);
+            await Task.WhenAll(modelsTask, catalogTask).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            PostToUi(
+                () =>
+                {
+                    RefreshView();
+                    SetReadyStatusForCurrentSelection();
+                });
+
+            TrySchedulePendingStartupThreadRestore(CancellationToken.None);
+        }
+    }
+
     private async Task InitializeChatBackendsAsync(CancellationToken cancellationToken)
     {
-        foreach (var backendId in new[] { AgentBackendIds.Codex, AgentBackendIds.Copilot })
-        {
-            var state = _chatBackendStates[backendId.Value];
-            state.Availability = ChatBackendAvailability.Connecting;
-            state.StatusMessage = "Detecting backend...";
+        await Task.WhenAll(
+                RefreshChatBackendStateAsync(AgentBackendIds.Codex, cancellationToken),
+                RefreshChatBackendStateAsync(AgentBackendIds.Copilot, cancellationToken))
+            .ConfigureAwait(false);
+    }
 
-            try
+    private async Task RefreshChatBackendStateAsync(AgentBackendId backendId, CancellationToken cancellationToken)
+    {
+        var state = _chatBackendStates[backendId.Value];
+        PostToUi(
+            () =>
             {
-                var models = await _agentHub.ListModelsAsync(backendId, cancellationToken).ConfigureAwait(false);
-                state.Models.Clear();
-                state.Models.AddRange(models);
-                state.SelectedModelId = models.FirstOrDefault()?.Id;
-                state.Availability = ChatBackendAvailability.Ready;
-                state.StatusMessage = BuildReadyStatusMessage(state);
-            }
-            catch (Exception ex)
+                state.Availability = ChatBackendAvailability.Connecting;
+                state.StatusMessage = "Detecting backend...";
+                RefreshView();
+            });
+
+        try
+        {
+            var models = await _agentHub.ListModelsAsync(backendId, cancellationToken).ConfigureAwait(false);
+            PostToUi(
+                () =>
+                {
+                    state.Models.Clear();
+                    state.Models.AddRange(models);
+                    state.SelectedModelId = models.FirstOrDefault()?.Id;
+                    state.SelectedReasoningEffort = NormalizeReasoningEffort(state.SelectedReasoningEffort, GetSelectedModel(state));
+                    state.Availability = ChatBackendAvailability.Ready;
+                    state.StatusMessage = BuildReadyStatusMessage(state);
+                    RefreshView();
+                });
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            var (availability, statusMessage) = ClassifyBackendInitializationFailure(state, ex);
+            PostToUi(
+                () =>
+                {
+                    state.Models.Clear();
+                    state.SelectedModelId = null;
+                    state.SelectedReasoningEffort = null;
+                    state.Availability = availability;
+                    state.StatusMessage = statusMessage;
+                    RefreshView();
+                });
+        }
+    }
+
+    private async Task RefreshCatalogFromBackendsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await TerminalHost.ImportKnownProjectsFromBackendsAsync(_agentHub, _projectCatalog, cancellationToken).ConfigureAwait(false);
+            var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var threads = await _runtimeService.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
+            PostToUi(() => ApplyRecoveredCatalogState(projects, threads));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (LogManager.IsInitialized && UiLogger.IsEnabled(LogLevel.Error))
             {
-                state.Models.Clear();
-                state.SelectedModelId = null;
-                state.Availability = ChatBackendAvailability.Failed;
-                state.StatusMessage = BuildFailedBackendMessage(state, ex.Message);
+                UiLogger.Error(ex, "Failed to refresh backend startup state.");
             }
         }
+    }
+
+    private void ApplyRecoveredCatalogState(
+        IReadOnlyList<ProjectDescriptor> projects,
+        IReadOnlyList<WorkThreadDescriptor> threads)
+    {
+        ArgumentNullException.ThrowIfNull(projects);
+        ArgumentNullException.ThrowIfNull(threads);
+
+        _projects = projects;
+        _threads = threads;
+
+        _viewState.OpenThreadIds.RemoveAll(id => _threads.All(thread => !string.Equals(thread.ThreadId, id, StringComparison.OrdinalIgnoreCase)));
+        if (!string.IsNullOrWhiteSpace(_viewState.SelectedThreadId) &&
+            _viewState.OpenThreadIds.All(id => !string.Equals(id, _viewState.SelectedThreadId, StringComparison.OrdinalIgnoreCase)))
+        {
+            _viewState.SelectedThreadId = null;
+        }
+
+        if (string.IsNullOrWhiteSpace(_selectedThreadId) &&
+            !string.IsNullOrWhiteSpace(_pendingStartupThreadRestoreId) &&
+            FindThread(_pendingStartupThreadRestoreId) is { } restoredThread)
+        {
+            if (!_viewState.OpenThreadIds.Contains(restoredThread.ThreadId, StringComparer.OrdinalIgnoreCase))
+            {
+                _viewState.OpenThreadIds.Insert(0, restoredThread.ThreadId);
+            }
+
+            _viewState.SelectedThreadId = restoredThread.ThreadId;
+            _selectedThreadId = restoredThread.ThreadId;
+            _globalScopeSelected = restoredThread.Kind == WorkThreadKind.GlobalThread;
+            _selectedProjectId = restoredThread.ProjectRef ?? _selectedProjectId;
+        }
+
+        EnsureSelectionDefaults();
+        RefreshView();
+    }
+
+    internal static (ChatBackendAvailability Availability, string StatusMessage) ClassifyBackendInitializationFailure(
+        ChatBackendState state,
+        Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var root = exception.GetBaseException();
+        if (root is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return (ChatBackendAvailability.Unsupported, BuildUnsupportedBackendMessage(state, root.Message));
+        }
+
+        if (root is Win32Exception win32Exception && win32Exception.NativeErrorCode == 2)
+        {
+            return (ChatBackendAvailability.Unsupported, BuildUnsupportedBackendMessage(state, root.Message));
+        }
+
+        var message = root.Message.Trim();
+        if (message.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("No such file", StringComparison.OrdinalIgnoreCase))
+        {
+            return (ChatBackendAvailability.Unsupported, BuildUnsupportedBackendMessage(state, message));
+        }
+
+        return (ChatBackendAvailability.Failed, BuildFailedBackendMessage(state, message));
     }
 
     private async Task PumpRuntimeEventsAsync(CancellationToken cancellationToken)
@@ -89,6 +230,12 @@ internal sealed partial class CodeAltaTerminalUi
     private void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_pendingStartupThreadRestoreId))
+        {
+            return;
+        }
+
+        var thread = FindThread(_pendingStartupThreadRestoreId);
+        if (thread is null || !IsChatBackendReady(new AgentBackendId(thread.BackendId)))
         {
             return;
         }
@@ -114,11 +261,11 @@ internal sealed partial class CodeAltaTerminalUi
         try
         {
             SetStatus("Refreshing project and thread catalog...", showSpinner: true);
-            _projects = await _projectCatalog.LoadAsync().ConfigureAwait(false);
-            _threads = await _runtimeService.ListRecoverableThreadsAsync().ConfigureAwait(false);
-            EnsureSelectionDefaults();
-            RefreshView();
-            SetStatus("Catalog ready.", tone: StatusTone.Ready);
+            await TerminalHost.ImportKnownProjectsFromBackendsAsync(_agentHub, _projectCatalog, CancellationToken.None).ConfigureAwait(false);
+            var projects = await _projectCatalog.LoadAsync().ConfigureAwait(false);
+            var threads = await _runtimeService.ListRecoverableThreadsAsync().ConfigureAwait(false);
+            PostToUi(() => ApplyRecoveredCatalogState(projects, threads));
+            SetReadyStatusForCurrentSelection();
         }
         catch (Exception ex)
         {
@@ -212,6 +359,11 @@ internal sealed partial class CodeAltaTerminalUi
         _selectedThreadId = threadId;
         _globalScopeSelected = thread.Kind == WorkThreadKind.GlobalThread;
         _selectedProjectId = thread.ProjectRef ?? _selectedProjectId;
+        if (CanLoadThreadHistory(thread) && !IsChatBackendReady(new AgentBackendId(thread.BackendId)))
+        {
+            _pendingStartupThreadRestoreId = thread.ThreadId;
+        }
+
         _ = PersistViewStateAsync();
         RefreshView();
         _ = EnsureThreadHistoryLoadedAsync(thread);
@@ -244,7 +396,8 @@ internal sealed partial class CodeAltaTerminalUi
 
     private async Task EnsureThreadHistoryLoadedAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default)
     {
-        if (!CanLoadThreadHistory(thread))
+        if (!CanLoadThreadHistory(thread) ||
+            !IsChatBackendReady(new AgentBackendId(thread.BackendId)))
         {
             return;
         }
@@ -345,6 +498,11 @@ internal sealed partial class CodeAltaTerminalUi
                 return;
             }
 
+            if (TrySetPromptUnavailableStatus())
+            {
+                return;
+            }
+
             thread = _globalScopeSelected
                 ? await CreateGlobalThreadAsync().ConfigureAwait(false)
                 : await CreateProjectThreadAsync().ConfigureAwait(false);
@@ -352,6 +510,11 @@ internal sealed partial class CodeAltaTerminalUi
             {
                 return;
             }
+        }
+        else if (!IsChatBackendReady(new AgentBackendId(thread.BackendId)))
+        {
+            SetReadyStatusForCurrentSelection();
+            return;
         }
 
         var prompt = ReadUiValue(() => _threadInput?.Text?.Trim());
@@ -406,6 +569,12 @@ internal sealed partial class CodeAltaTerminalUi
         if (thread is null)
         {
             SetStatus("Open a thread before delegating work.", tone: StatusTone.Warning);
+            return;
+        }
+
+        if (!IsChatBackendReady(new AgentBackendId(thread.BackendId)))
+        {
+            SetReadyStatusForCurrentSelection();
             return;
         }
 

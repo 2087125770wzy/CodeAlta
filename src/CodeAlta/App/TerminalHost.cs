@@ -70,7 +70,6 @@ internal sealed class TerminalHost : IAsyncDisposable
         backendFactory.RegisterCopilot(new CopilotAgentBackendOptions());
 
         var agentHub = new AgentHub(backendFactory, agentRepository);
-        await ImportKnownProjectsFromBackendsAsync(agentHub, projectCatalog, cancellationToken).ConfigureAwait(false);
         var runtimeService = new WorkThreadRuntimeService(
             agentHub,
             projectCatalog,
@@ -114,7 +113,7 @@ internal sealed class TerminalHost : IAsyncDisposable
         }
     }
 
-    private static async Task ImportKnownProjectsFromBackendsAsync(
+    internal static async Task ImportKnownProjectsFromBackendsAsync(
         AgentHub agentHub,
         ProjectCatalog projectCatalog,
         CancellationToken cancellationToken)

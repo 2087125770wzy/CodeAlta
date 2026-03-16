@@ -43,6 +43,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private VSplitter? _threadBodySplitter;
     private ChatPromptEditor? _threadInput;
     private Visual? _threadInputView;
+    private Button? _sendPromptButton;
     private CommandBar? _threadCommandBar;
     private Select<ChatBackendOption>? _chatBackendSelect;
     private Select<ChatModelOption>? _chatModelSelect;
@@ -51,6 +52,8 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private ComputedVisual? _tabStripVisual;
     private ComputedVisual? _threadHeaderVisual;
     private Task? _runtimeEventsTask;
+    private Task? _startupRefreshTask;
+    private CancellationTokenSource? _startupRefreshCts;
     private bool _chatSelectorsRefreshing;
     private bool _statusBusy;
     private bool _terminalLoopStarted;
@@ -92,14 +95,13 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
         _dispatcher = Dispatcher.Current;
 
         await LoadCatalogStateAsync(cancellationToken).ConfigureAwait(false);
-        await InitializeChatBackendsAsync(cancellationToken).ConfigureAwait(false);
         _viewModel.HeaderText = BuildHeaderText();
 
         _statusSpinner = new Spinner();
         _statusSpinner.IsActive(() => _viewModel.StatusBusy);
         _statusSpinner.IsVisible(() => _viewModel.StatusBusy);
 
-        SetReadyStatusForCurrentSelection();
+        SetStatus("Connecting to available backends...", showSpinner: true);
 
         var root = new DockLayout(
             top: new TextBlock
@@ -115,6 +117,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
                 () =>
                 {
                     _terminalLoopStarted = true;
+                    StartStartupRefresh(cancellationToken);
                     TrySchedulePendingStartupThreadRestore(cancellationToken);
                     SyncSidebarSelection();
                     return TerminalLoopResult.Continue;
@@ -139,7 +142,20 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
             }
         }
 
+        _startupRefreshCts?.Cancel();
+        if (_startupRefreshTask is not null)
+        {
+            try
+            {
+                await _startupRefreshTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
         _runtimeEventsCts.Dispose();
+        _startupRefreshCts?.Dispose();
     }
 
     private sealed class ThreadTabState
