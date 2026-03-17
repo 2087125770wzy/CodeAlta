@@ -4,9 +4,12 @@ using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using XenoAtom.Ansi;
+using XenoAtom.Terminal;
+using XenoAtom.Terminal.Backends;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
+using XenoAtom.Terminal.UI.Hosting;
 
 namespace CodeAlta.Tests;
 
@@ -30,6 +33,48 @@ public sealed class CodeAltaTerminalUiTests
 
         Assert.IsInstanceOfType<MarkdownControl>(pending.StreamingMarkdown);
         Assert.AreEqual(string.Empty, pending.StreamingMarkdown.Markdown);
+    }
+
+    [TestMethod]
+    public void CopyButton_CopiesLatestStreamingMarkdown()
+    {
+        var pending = CodeAltaTerminalUi.CreatePendingChatMessage("hello");
+        var root = new DocumentFlow();
+        root.Items.Add(pending.AssistantItem);
+
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(80, 20)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var app = new TerminalApp(
+            root,
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+                EnableMouse = true,
+                MouseMode = TerminalMouseMode.Move,
+            });
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            TickTerminalApp(app);
+
+            pending.StreamingMarkdown.Markdown = "Updated assistant reply";
+            TickTerminalApp(app);
+
+            var group = Assert.IsInstanceOfType<Group>(pending.StreamingMarkdown.Parent);
+            var copyButton = Assert.IsInstanceOfType<Button>(group.TopRightText);
+            var backend = (InMemoryTerminalBackend)session.Instance.Backend;
+
+            backend.PushEvent(new TerminalMouseEvent { Kind = TerminalMouseKind.Down, Button = TerminalMouseButton.Left, X = copyButton.Bounds.X, Y = copyButton.Bounds.Y });
+            backend.PushEvent(new TerminalMouseEvent { Kind = TerminalMouseKind.Up, Button = TerminalMouseButton.Left, X = copyButton.Bounds.X, Y = copyButton.Bounds.Y });
+            TickTerminalApp(app);
+
+            Assert.AreEqual("Updated assistant reply", session.Instance.Clipboard.Text);
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
     }
 
     [TestMethod]
@@ -1443,6 +1488,20 @@ public sealed class CodeAltaTerminalUiTests
         Assert.AreEqual(@"Global thread · C:\Users\alexa\.codealta", globalSummary);
         Assert.AreEqual(@"CodeAlta · C:\code\CodeAlta", projectSummary);
         Assert.AreEqual("Internal · CodeAlta", internalSummary);
+    }
+
+    private static void TickTerminalApp(TerminalApp app)
+    {
+        var tickMethod = typeof(TerminalApp).GetMethod("Tick", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(tickMethod);
+        tickMethod.Invoke(app, [null]);
+    }
+
+    private static void InvokeTerminalApp(TerminalApp app, string methodName)
+    {
+        var method = typeof(TerminalApp).GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(method);
+        method.Invoke(app, null);
     }
 
 }

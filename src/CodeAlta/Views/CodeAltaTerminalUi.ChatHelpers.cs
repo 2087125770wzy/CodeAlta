@@ -289,7 +289,7 @@ internal sealed partial class CodeAltaTerminalUi
         };
 
         var copyButton = new Button(new TextBlock($"{NerdFont.MdContentCopy}"))
-            .Click(() => markdownControl.App?.Terminal.Clipboard.TrySetText(markdown));
+            .Click(() => markdownControl.App?.Terminal.Clipboard.TrySetText(markdownControl.Markdown ?? string.Empty));
 
         var timestampText = new Markup(string.Empty);
 
