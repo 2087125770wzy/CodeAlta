@@ -82,7 +82,6 @@ internal sealed partial class CodeAltaTerminalUi
             }
 
             SelectSidebarNodeForCurrentState();
-            _lastSidebarSelectedTarget = GetSelectedSidebarTarget(_sidebarTree.SelectedNode);
         }
         finally
         {
@@ -228,12 +227,30 @@ internal sealed partial class CodeAltaTerminalUi
             return;
         }
 
-        var selectedTarget = ResolveSidebarTargetForRebuild();
-        var selectedNode = FindSidebarNode(_sidebarTree.Roots, selectedTarget);
-        if (selectedNode is not null)
+        _pendingSidebarSelectionTarget = ResolveSidebarTargetForRebuild();
+    }
+
+    private void ApplyPendingSidebarSelection()
+    {
+        if (_sidebarTree is null || _pendingSidebarSelectionTarget is not { } target)
         {
-            _sidebarTree.TrySelectNode(selectedNode);
+            return;
         }
+
+        var selectedNode = FindSidebarNode(_sidebarTree.Roots, target);
+        if (selectedNode is null)
+        {
+            _pendingSidebarSelectionTarget = null;
+            return;
+        }
+
+        if (!_sidebarTree.TrySelectNode(selectedNode))
+        {
+            return;
+        }
+
+        _lastSidebarSelectedTarget = target;
+        _pendingSidebarSelectionTarget = null;
     }
 
     private SidebarSelectionTarget ResolveSidebarTargetForRebuild()
@@ -281,7 +298,7 @@ internal sealed partial class CodeAltaTerminalUi
 
     private void SyncSidebarSelection()
     {
-        if (!_sidebarSelectionSyncEnabled || _sidebarTree is null)
+        if (!_sidebarSelectionSyncEnabled || _sidebarTree is null || _pendingSidebarSelectionTarget is not null)
         {
             return;
         }

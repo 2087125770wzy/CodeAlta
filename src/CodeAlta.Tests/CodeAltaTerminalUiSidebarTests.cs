@@ -154,6 +154,57 @@ public sealed class CodeAltaTerminalUiSidebarTests
         }
     }
 
+    [TestMethod]
+    public async Task ApplyPendingSidebarSelection_SelectsQueuedProjectNodeAfterRebuild()
+    {
+        var rootPath = Path.Combine(Path.GetTempPath(), $"codealta-ui-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(rootPath);
+
+        try
+        {
+            var catalogOptions = new CatalogOptions { GlobalRoot = rootPath };
+            var projectCatalog = new ProjectCatalog(catalogOptions);
+            var threadCatalog = new WorkThreadCatalog(catalogOptions);
+            var db = await CreateTestDbAsync(rootPath);
+            await using var hub = new AgentHub(new AgentBackendFactory(), new AgentRepository(db));
+            await using var runtimeService = new WorkThreadRuntimeService(
+                hub,
+                projectCatalog,
+                threadCatalog,
+                new RoleProfileStore(),
+                new AgentInstructionTemplateProvider(),
+                catalogOptions);
+            var project = new ProjectDescriptor
+            {
+                Id = ProjectId.NewVersion7().ToString(),
+                Slug = "codealta",
+                DisplayName = "CodeAlta",
+                ProjectPath = Path.Combine(rootPath, "repo"),
+            };
+            Directory.CreateDirectory(project.ProjectPath);
+            await projectCatalog.SaveAsync(project);
+
+            var ui = new CodeAltaTerminalUi(projectCatalog, threadCatalog, runtimeService, catalogOptions, hub);
+            var sidebarTree = new TreeView();
+            SetPrivateField(ui, "_sidebarTree", sidebarTree);
+            SetPrivateField(ui, "_projects", (IReadOnlyList<ProjectDescriptor>)[project]);
+            SetPrivateField(ui, "_threads", Array.Empty<WorkThreadDescriptor>());
+            SetPrivateField(ui, "_viewState", new WorkThreadViewState());
+            SetPrivateField(ui, "_selectedProjectId", project.Id);
+            SetPrivateField(ui, "_globalScopeSelected", false);
+
+            InvokePrivate(ui, "RebuildSidebarTree");
+            InvokeNonPublic(typeof(TreeView), sidebarTree, "PrepareChildren");
+            InvokePrivate(ui, "ApplyPendingSidebarSelection");
+
+            Assert.AreEqual(sidebarTree.Roots[1].Children[0].Data, sidebarTree.SelectedNode?.Data);
+        }
+        finally
+        {
+            Directory.Delete(rootPath, recursive: true);
+        }
+    }
+
     private static async Task<CodeAltaDb> CreateTestDbAsync(string rootPath)
     {
         var dbPath = Path.Combine(rootPath, "state", "db", "codealta.db");
@@ -165,6 +216,13 @@ public sealed class CodeAltaTerminalUiSidebarTests
     private static object? InvokePrivate(object instance, string methodName)
     {
         var method = instance.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(method);
+        return method.Invoke(instance, null);
+    }
+
+    private static object? InvokeNonPublic(Type type, object instance, string methodName)
+    {
+        var method = type.GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.IsNotNull(method);
         return method.Invoke(instance, null);
     }

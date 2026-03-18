@@ -63,6 +63,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
     private bool _syncingThreadTabSelection;
     private bool _syncingThreadTabPages;
     private string? _pendingThreadTabSelectionThreadId;
+    private SidebarSelectionTarget? _pendingSidebarSelectionTarget;
     private bool _terminalLoopStarted;
     private bool _globalScopeSelected = true;
     private bool _sidebarSelectionSyncEnabled = true;
@@ -126,6 +127,7 @@ internal sealed partial class CodeAltaTerminalUi : IAsyncDisposable
                     _terminalLoopStarted = true;
                     StartStartupRefresh(cancellationToken);
                     TrySchedulePendingStartupThreadRestore(cancellationToken);
+                    ApplyPendingSidebarSelection();
                     SyncSidebarSelection();
                     return TerminalLoopResult.Continue;
                 },
