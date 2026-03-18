@@ -18,37 +18,6 @@ using XenoAtom.Terminal.UI.Threading;
 
 internal sealed partial class CodeAltaTerminalUi
 {
-    private Visual BuildTopBar()
-    {
-        var statusPrefix = new Center(
-            new ComputedVisual(
-                () => _viewModel.StatusBusy
-                    ? _statusSpinner!
-                    : _statusIconVisual ??= new Markup(() => _viewModel.StatusIconMarkup)
-                    {
-                        Wrap = false,
-                    }))
-        {
-            MinWidth = StatusPrefixWidth,
-            MaxWidth = StatusPrefixWidth,
-        };
-
-        return new HStack(
-            [
-                statusPrefix,
-                new TextBlock
-                {
-                    Wrap = true,
-                    IsSelectable = false,
-                }.Text(() => _viewModel.StatusText)
-                    .Style(() => BuildStatusTextStyle(_viewModel.StatusText, _viewModel.StatusBusy, _statusTone)),
-            ])
-        {
-            Spacing = 1,
-            HorizontalAlignment = Align.Stretch,
-        };
-    }
-
     private Visual BuildThreadPane()
     {
         _threadTabControl ??= CreateThreadTabControl();
@@ -68,6 +37,34 @@ internal sealed partial class CodeAltaTerminalUi
             .SelectionChanged((_, e) => OnChatReasoningSelectionChanged(e.NewIndex))
             .MinWidth(12)
             .MaxWidth(22);
+        var statusPrefix = new Center(
+            new ComputedVisual(
+                () => _viewModel.StatusBusy
+                    ? _statusSpinner!
+                    : _statusIconVisual ??= new Markup(() => _viewModel.StatusIconMarkup)
+                    {
+                        Wrap = false,
+                    }))
+        {
+            MinWidth = StatusPrefixWidth,
+            MaxWidth = StatusPrefixWidth,
+        };
+
+        var statusLine = new HStack(
+            [
+                statusPrefix,
+                new TextBlock
+                {
+                    Wrap = true,
+                    IsSelectable = false,
+                }.Text(() => _viewModel.StatusText)
+                    .Style(() => BuildStatusTextStyle(_viewModel.StatusText, _viewModel.StatusBusy, _statusTone)),
+            ])
+        {
+            Spacing = 1,
+            HorizontalAlignment = Align.Stretch,
+        };
+
         var selectionLine = new HStack(
             [
                 _sendPromptButton,
@@ -85,7 +82,7 @@ internal sealed partial class CodeAltaTerminalUi
         };
 
         _threadBottomPanel = new DockLayout(
-            top: null,
+            top: statusLine,
             content: _threadInputView,
             bottom: selectionLine)
         {

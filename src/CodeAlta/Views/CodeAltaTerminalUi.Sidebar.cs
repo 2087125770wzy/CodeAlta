@@ -17,7 +17,7 @@ internal sealed partial class CodeAltaTerminalUi
         };
 
         return new DockLayout(
-            top: BuildTopBar(),
+            top: null,
             content: new HSplitter(BuildSidebar(), BuildThreadPane())
             {
                 Ratio = 0.26,
