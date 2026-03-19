@@ -103,7 +103,7 @@ This document is the implementation checklist companion to the architecture prop
 
 ## Final cleanup
 
-- [ ] Verify `CodeAltaApp` is no longer a large partial class spanning unrelated concerns.
+- [x] Verify `CodeAltaApp` is no longer a large partial class spanning unrelated concerns.
 - [x] Verify `CodeAltaApp` owns lifecycle only and does not hold many concrete controls.
 - [x] Verify there is one explicit UI dispatcher contract in active use.
 - [x] Verify runtime events are applied through one shell/controller path on the UI thread.
@@ -121,5 +121,5 @@ This document is the implementation checklist companion to the architecture prop
 - [x] Extract shell text, welcome-pane, status, and tab-header helpers out of `CodeAltaApp.Presentation.cs`.
 - [x] Extract selector and prompt-availability coordination out of `CodeAltaApp.Presentation.cs`.
 - [x] Extract tab-strip and workspace sync coordination out of `CodeAltaApp.Presentation.cs`.
-- [ ] Replace `CodeAltaApp.Runtime.cs` with named runtime/lifecycle helpers or controller-owned collaborators.
-- [ ] Add guardrails that fail if `CodeAltaApp` remains a partial type outside generated code.
+- [x] Replace `CodeAltaApp.Runtime.cs` with named runtime/lifecycle helpers or controller-owned collaborators.
+- [x] Add guardrails that fail if `CodeAltaApp` remains a partial type outside generated code.

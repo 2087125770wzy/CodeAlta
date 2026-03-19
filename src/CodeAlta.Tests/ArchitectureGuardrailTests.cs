@@ -78,13 +78,10 @@ public sealed class ArchitectureGuardrailTests
     [TestMethod]
     public void RuntimeLayer_UsesBindableReadHelperForViewModelReads()
     {
-        var runtimeSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Runtime.cs"));
+        var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));
 
-        Assert.IsTrue(runtimeSource.Contains("ReadBindableState(() => _sidebarViewModel.DraftThreadTitle?.Trim())", StringComparison.Ordinal));
-        Assert.IsFalse(runtimeSource.Contains("_shellViewModel.", StringComparison.Ordinal));
-        Assert.IsFalse(runtimeSource.Contains("_threadWorkspaceViewModel.", StringComparison.Ordinal));
-        Assert.IsFalse(runtimeSource.Contains("_promptComposerViewModel.", StringComparison.Ordinal));
-        Assert.IsFalse(runtimeSource.Contains("_sessionUsageViewModel.", StringComparison.Ordinal));
+        Assert.IsTrue(appSource.Contains("ReadBindableState(() => _sidebarViewModel.DraftThreadTitle?.Trim())", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("var title = _sidebarViewModel.DraftThreadTitle?.Trim()", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -143,7 +140,7 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
-    public void CodeAltaApp_PartialFilesRemainFocusedAndLimited()
+    public void CodeAltaApp_IsNoLongerPartial()
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();
         var partialFiles = Directory
@@ -154,7 +151,7 @@ public sealed class ArchitectureGuardrailTests
             .ToArray();
 
         Assert.AreEqual(
-            "Views/CodeAltaApp.Runtime.cs|Views/CodeAltaApp.cs",
+            string.Empty,
             string.Join("|", partialFiles));
     }
 
