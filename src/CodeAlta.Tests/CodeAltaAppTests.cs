@@ -276,14 +276,14 @@ public sealed class CodeAltaAppTests
             MarkdownBody = "# CodeAlta",
         };
 
-        var globalHeader = CodeAltaApp.BuildHeaderText(
+        var globalHeader = ShellTextFormatter.BuildHeaderText(
             thread: null,
             selectedProject: null,
             globalRoot: @"C:\Users\alexa\.codealta",
             preferredBackendId: AgentBackendIds.Codex.Value,
             globalScopeSelected: true);
 
-        var projectHeader = CodeAltaApp.BuildHeaderText(
+        var projectHeader = ShellTextFormatter.BuildHeaderText(
             thread: null,
             selectedProject: project,
             globalRoot: @"C:\Users\alexa\.codealta",
@@ -297,8 +297,8 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildDraftPromptMessage_ReflectsSelectedScope()
     {
-        Assert.AreEqual("Send the first prompt to start a global thread.", CodeAltaApp.BuildDraftPromptMessage(globalScopeSelected: true));
-        Assert.AreEqual("Send the first prompt to start a thread for the selected project.", CodeAltaApp.BuildDraftPromptMessage(globalScopeSelected: false));
+        Assert.AreEqual("Send the first prompt to start a global thread.", ShellTextFormatter.BuildDraftPromptMessage(globalScopeSelected: true));
+        Assert.AreEqual("Send the first prompt to start a thread for the selected project.", ShellTextFormatter.BuildDraftPromptMessage(globalScopeSelected: false));
     }
 
     [TestMethod]
@@ -309,9 +309,9 @@ public sealed class CodeAltaAppTests
             DisplayName = "CodeAlta",
         };
 
-        Assert.AreEqual("Global workspace ready for a new thread.", CodeAltaApp.BuildWelcomeSubtitle(null, globalScopeSelected: true));
-        Assert.AreEqual("Project draft selected. Choose a project or start typing below.", CodeAltaApp.BuildWelcomeSubtitle(null, globalScopeSelected: false));
-        Assert.AreEqual("Next thread will start in CodeAlta.", CodeAltaApp.BuildWelcomeSubtitle(project, globalScopeSelected: false));
+        Assert.AreEqual("Global workspace ready for a new thread.", ShellTextFormatter.BuildWelcomeSubtitle(null, globalScopeSelected: true));
+        Assert.AreEqual("Project draft selected. Choose a project or start typing below.", ShellTextFormatter.BuildWelcomeSubtitle(null, globalScopeSelected: false));
+        Assert.AreEqual("Next thread will start in CodeAlta.", ShellTextFormatter.BuildWelcomeSubtitle(project, globalScopeSelected: false));
     }
 
     [TestMethod]
@@ -329,7 +329,7 @@ public sealed class CodeAltaAppTests
                 "Pick a project in the sidebar before sending if you want repository context.",
                 "Reopen any thread tab to continue previous work.",
             },
-            CodeAltaApp.BuildWelcomeGuidanceLines(null, globalScopeSelected: true).ToArray());
+            ShellTextFormatter.BuildWelcomeGuidanceLines(null, globalScopeSelected: true).ToArray());
 
         CollectionAssert.AreEqual(
             new[]
@@ -338,14 +338,14 @@ public sealed class CodeAltaAppTests
                 "Switch projects in the sidebar before sending if you want a different scope.",
                 "Reopen any thread tab to continue previous work.",
             },
-            CodeAltaApp.BuildWelcomeGuidanceLines(project, globalScopeSelected: false).ToArray());
+            ShellTextFormatter.BuildWelcomeGuidanceLines(project, globalScopeSelected: false).ToArray());
     }
 
     [TestMethod]
     public void GetWelcomeFigletFont_LoadsEmbeddedAssetAndCachesInstance()
     {
-        var first = CodeAltaApp.GetWelcomeFigletFont();
-        var second = CodeAltaApp.GetWelcomeFigletFont();
+        var first = WelcomePaneFactory.GetWelcomeFigletFont();
+        var second = WelcomePaneFactory.GetWelcomeFigletFont();
         var lines = first.RenderLines("CodeAlta", new FigletRenderOptions { LetterSpacing = 1, TrimTrailingSpaces = true });
 
         Assert.AreSame(first, second);
@@ -371,9 +371,9 @@ public sealed class CodeAltaAppTests
     {
         const long cycleTicks = TimeSpan.TicksPerSecond * 5L;
 
-        var start = CodeAltaApp.ComputeLoopAnimationPhase(0, cycleTicks);
-        var midpoint = CodeAltaApp.ComputeLoopAnimationPhase(cycleTicks / 2, cycleTicks);
-        var end = CodeAltaApp.ComputeLoopAnimationPhase(cycleTicks, cycleTicks);
+        var start = WelcomePaneFactory.ComputeLoopAnimationPhase(0, cycleTicks);
+        var midpoint = WelcomePaneFactory.ComputeLoopAnimationPhase(cycleTicks / 2, cycleTicks);
+        var end = WelcomePaneFactory.ComputeLoopAnimationPhase(cycleTicks, cycleTicks);
 
         Assert.AreEqual(0f, start, 0.0001f);
         Assert.AreEqual(0.5f, midpoint, 0.0001f);
@@ -383,7 +383,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildThinkingGradientStops_UseMultipleHighlightsAndLoopableEdges()
     {
-        var stops = CodeAltaApp.BuildThinkingGradientStops();
+        var stops = StatusVisualFormatter.BuildThinkingGradientStops();
 
         Assert.AreEqual(9, stops.Length);
         Assert.AreEqual(0.00f, stops[0].Offset);
@@ -491,7 +491,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildWelcomePane_CreatesCenteredFigletLogo()
     {
-        var welcome = CodeAltaApp.BuildWelcomePane(null, globalScopeSelected: true);
+        var welcome = WelcomePaneFactory.Build(null, globalScopeSelected: true);
 
         var center = Assert.IsInstanceOfType<Center>(welcome);
         var stack = Assert.IsInstanceOfType<VStack>(center.Content);
@@ -611,9 +611,9 @@ public sealed class CodeAltaAppTests
             LastActiveAt = DateTimeOffset.UtcNow,
         };
 
-        Assert.AreEqual("Prompt ready", CodeAltaApp.BuildReadyStatusText(null, null, globalScopeSelected: true));
-        Assert.AreEqual("Prompt ready", CodeAltaApp.BuildReadyStatusText(null, project, globalScopeSelected: false));
-        Assert.AreEqual("Prompt ready", CodeAltaApp.BuildReadyStatusText(thread, project, globalScopeSelected: false));
+        Assert.AreEqual("Prompt ready", ShellTextFormatter.BuildReadyStatusText(null, null, globalScopeSelected: true));
+        Assert.AreEqual("Prompt ready", ShellTextFormatter.BuildReadyStatusText(null, project, globalScopeSelected: false));
+        Assert.AreEqual("Prompt ready", ShellTextFormatter.BuildReadyStatusText(thread, project, globalScopeSelected: false));
     }
 
     [TestMethod]
@@ -636,10 +636,10 @@ public sealed class CodeAltaAppTests
 
         Assert.AreEqual(
             "Waiting for Codex to reconnect...",
-            CodeAltaApp.BuildPromptUnavailablePlaceholder(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
         Assert.AreEqual(
             "Install or connect Codex/Copilot to start a thread...",
-            CodeAltaApp.BuildPromptUnavailablePlaceholder(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
     }
 
     [TestMethod]
@@ -662,10 +662,10 @@ public sealed class CodeAltaAppTests
 
         Assert.AreEqual(
             "Reconnecting 'Review startup' to Codex. Prompt sending is temporarily unavailable.",
-            CodeAltaApp.BuildPromptUnavailableStatusText(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(thread, "Codex", ChatBackendAvailability.Connecting, anyBackendReady: false));
         Assert.AreEqual(
             "No chat backend is connected. Browse threads and projects, but prompt sending is unavailable.",
-            CodeAltaApp.BuildPromptUnavailableStatusText(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
+            PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(null, "Codex", ChatBackendAvailability.Unsupported, anyBackendReady: false));
     }
 
     [TestMethod]
@@ -684,10 +684,10 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildStatusIconMarkup_ReturnsColoredIconsPerTone()
     {
-        StringAssert.Contains(CodeAltaApp.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Ready), NerdFont.MdCheckCircleOutline.ToString());
-        StringAssert.Contains(CodeAltaApp.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Warning), NerdFont.MdAlertOutline.ToString());
-        StringAssert.Contains(CodeAltaApp.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Error), NerdFont.MdAlertCircleOutline.ToString());
-        StringAssert.Contains(CodeAltaApp.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Info), NerdFont.OctInfo.ToString());
+        StringAssert.Contains(StatusVisualFormatter.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Ready), NerdFont.MdCheckCircleOutline.ToString());
+        StringAssert.Contains(StatusVisualFormatter.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Warning), NerdFont.MdAlertOutline.ToString());
+        StringAssert.Contains(StatusVisualFormatter.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Error), NerdFont.MdAlertCircleOutline.ToString());
+        StringAssert.Contains(StatusVisualFormatter.BuildStatusIconMarkup(CodeAltaApp.StatusTone.Info), NerdFont.OctInfo.ToString());
     }
 
     [TestMethod]

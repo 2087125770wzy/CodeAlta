@@ -62,8 +62,8 @@ public sealed class CodeAltaAppStatusTests
     [TestMethod]
     public void BuildStatusTextStyle_UsesGradientBrushForThinking()
     {
-        var style = CodeAltaApp.BuildStatusTextStyle(
-            CodeAltaApp.BuildThinkingStatusText(),
+        var style = StatusVisualFormatter.BuildStatusTextStyle(
+            StatusVisualFormatter.BuildThinkingStatusText(),
             busy: true,
             CodeAltaApp.StatusTone.Info);
 
@@ -74,7 +74,7 @@ public sealed class CodeAltaAppStatusTests
     [TestMethod]
     public void BuildStatusTextStyle_UsesSolidToneColorWhenIdle()
     {
-        var style = CodeAltaApp.BuildStatusTextStyle(
+        var style = StatusVisualFormatter.BuildStatusTextStyle(
             "Prompt ready",
             busy: false,
             CodeAltaApp.StatusTone.Ready);

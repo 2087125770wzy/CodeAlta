@@ -20,13 +20,8 @@ using XenoAtom.Terminal.UI.Threading;
 internal sealed partial class CodeAltaApp : IAsyncDisposable
 {
     internal static readonly Logger UiLogger = LogManager.GetLogger("CodeAlta.UI");
-    private static readonly Lazy<FigletFont> WelcomeFigletFont = new(LoadWelcomeFigletFont);
     private const int MaxRecentThreadsPerProject = 3;
-    private const int MaxTabTitleLength = 18;
-    private const int StatusPrefixWidth = 2;
     internal const string DraftTabId = "__draft__";
-    private const string ReadyStatusMessage = "Prompt ready";
-    private const string ThinkingStatusMessage = "Thinking...";
     private const bool DefaultAutoApproveEnabled = true;
 
     private readonly ProjectCatalog _projectCatalog;

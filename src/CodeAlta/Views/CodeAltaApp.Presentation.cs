@@ -162,8 +162,8 @@ internal sealed partial class CodeAltaApp
                 var current = tab.Thread;
                 return new HStack(
                     [
-                        CreateOpenTabIndicator(tab.ViewModel.StatusBusy, tab.ViewModel.StatusTone),
-                        CreateOpenTabTitle(CompactTabTitle(tab.ViewModel.Title)),
+                        ThreadTabVisualFactory.CreateIndicator(tab.ViewModel.StatusBusy, tab.ViewModel.StatusTone),
+                        ThreadTabVisualFactory.CreateTitle(ThreadTabVisualFactory.CompactTitle(tab.ViewModel.Title)),
                     ])
                 {
                     Spacing = 1,
@@ -202,8 +202,8 @@ internal sealed partial class CodeAltaApp
         var header = CreateComputedVisual(
             () => new HStack(
                 [
-                    CreateOpenTabIndicator(isBusy: false, StatusTone.Info),
-                    CreateOpenTabTitle(BuildDraftTabTitle(GetSelectedProject(), _globalScopeSelected)),
+                    ThreadTabVisualFactory.CreateIndicator(isBusy: false, StatusTone.Info),
+                    ThreadTabVisualFactory.CreateTitle(ShellTextFormatter.BuildDraftTabTitle(GetSelectedProject(), _globalScopeSelected)),
                 ])
             {
                 Spacing = 1,
@@ -403,7 +403,7 @@ internal sealed partial class CodeAltaApp
         {
             RefreshChatSelectorsForDraftScope();
             UpdatePromptAvailabilityUi();
-            ThreadBodySplitter.First = BuildWelcomePane(GetSelectedProject(), _globalScopeSelected);
+            ThreadBodySplitter.First = WelcomePaneFactory.Build(GetSelectedProject(), _globalScopeSelected);
             SetReadyStatusForCurrentSelection();
 
             return;
@@ -753,358 +753,12 @@ internal sealed partial class CodeAltaApp
 
     private string BuildHeaderText()
     {
-        return BuildHeaderText(
+        return ShellTextFormatter.BuildHeaderText(
             GetSelectedThread(),
             GetSelectedProject(),
             _catalogOptions.GlobalRoot,
             GetPreferredBackendId().Value,
             _globalScopeSelected);
-    }
-
-    internal static string BuildHeaderText(
-        WorkThreadDescriptor? thread,
-        ProjectDescriptor? selectedProject,
-        string globalRoot,
-        string preferredBackendId,
-        bool globalScopeSelected)
-    {
-        if (thread is null)
-        {
-            if (globalScopeSelected)
-            {
-                return $"CodeAlta | {preferredBackendId} | global draft";
-            }
-
-            if (selectedProject is not null)
-            {
-                return $"CodeAlta | {preferredBackendId} | {selectedProject.Slug} draft";
-            }
-
-            return "CodeAlta | no thread selected";
-        }
-
-        return thread.Kind switch
-        {
-            WorkThreadKind.GlobalThread => $"CodeAlta | {thread.BackendId} | {CompactTabTitle(thread.Title)} | global",
-            WorkThreadKind.ProjectThread => $"CodeAlta | {thread.BackendId} | {selectedProject?.Slug ?? "?"} | {CompactTabTitle(thread.Title)}",
-            WorkThreadKind.InternalThread => $"CodeAlta | {thread.BackendId} | internal | {CompactTabTitle(thread.Title)}",
-            _ => $"CodeAlta | thread={thread.Title}",
-        };
-    }
-
-    internal static string BuildDraftPromptMessage(bool globalScopeSelected)
-        => globalScopeSelected
-            ? "Send the first prompt to start a global thread."
-            : "Send the first prompt to start a thread for the selected project.";
-
-    internal static string BuildDraftTabTitle(
-        ProjectDescriptor? selectedProject,
-        bool globalScopeSelected)
-    {
-        if (globalScopeSelected)
-        {
-            return "Global draft";
-        }
-
-        return selectedProject is null
-            ? "Project draft"
-            : $"{CompactTabTitle(selectedProject.DisplayName)} draft";
-    }
-
-    internal static string BuildDraftTabBodyText(
-        ProjectDescriptor? selectedProject,
-        bool globalScopeSelected)
-    {
-        if (globalScopeSelected)
-        {
-            return "Draft scope selected. Send a prompt to start a global thread.";
-        }
-
-        return selectedProject is null
-            ? "Draft scope selected. Choose a project or send a prompt to start a thread."
-            : $"Draft scope selected for '{selectedProject.DisplayName}'. Send a prompt to start a thread.";
-    }
-
-    internal static string BuildWelcomeSubtitle(ProjectDescriptor? selectedProject, bool globalScopeSelected)
-    {
-        if (globalScopeSelected)
-        {
-            return "Global workspace ready for a new thread.";
-        }
-
-        return selectedProject is null
-            ? "Project draft selected. Choose a project or start typing below."
-            : $"Next thread will start in {selectedProject.DisplayName}.";
-    }
-
-    internal static IReadOnlyList<string> BuildWelcomeGuidanceLines(
-        ProjectDescriptor? selectedProject,
-        bool globalScopeSelected)
-    {
-        if (globalScopeSelected)
-        {
-            return
-            [
-                "Use the prompt below to start a new global thread.",
-                "Pick a project in the sidebar before sending if you want repository context.",
-                "Reopen any thread tab to continue previous work.",
-            ];
-        }
-
-        if (selectedProject is null)
-        {
-            return
-            [
-                "Choose a project in the sidebar or keep typing below to prepare the next thread.",
-                "Your first prompt will create the draft once a scope is selected.",
-                "Reopen any thread tab to continue previous work.",
-            ];
-        }
-
-        return
-        [
-            $"Use the prompt below to start a new thread for {selectedProject.DisplayName}.",
-            "Switch projects in the sidebar before sending if you want a different scope.",
-            "Reopen any thread tab to continue previous work.",
-        ];
-    }
-
-    internal static Visual BuildWelcomePane(ProjectDescriptor? selectedProject, bool globalScopeSelected)
-    {
-        var guidanceLines = BuildWelcomeGuidanceLines(selectedProject, globalScopeSelected);
-        return new Center(
-            new VStack(
-                [
-                    BuildWelcomeLogo(),
-                    new TextBlock(BuildWelcomeSubtitle(selectedProject, globalScopeSelected))
-                    {
-                        Wrap = true,
-                        IsSelectable = false,
-                        TextAlignment = TextAlignment.Center,
-                        HorizontalAlignment = Align.Stretch,
-                    }
-                        .Style(TextBlockStyle.Default with
-                        {
-                            Foreground = UiPalette.WelcomeSubtitleColor,
-                            TextStyle = TextStyle.Bold,
-                        }),
-                    new TextBlock(guidanceLines[0])
-                    {
-                        Wrap = true,
-                        IsSelectable = false,
-                        TextAlignment = TextAlignment.Center,
-                        HorizontalAlignment = Align.Stretch,
-                    }
-                        .Style(TextBlockStyle.Default with
-                        {
-                            Foreground = UiPalette.WelcomeGuidanceColor,
-                        }),
-                    new TextBlock($"{NerdFont.MdArrowRightThinCircleOutline} {guidanceLines[1]}\n{NerdFont.MdTabPlus} {guidanceLines[2]}")
-                    {
-                        Wrap = true,
-                        IsSelectable = false,
-                        TextAlignment = TextAlignment.Center,
-                        HorizontalAlignment = Align.Stretch,
-                    }
-                        .Style(TextBlockStyle.Default with
-                        {
-                            Foreground = UiPalette.WelcomeGuidanceColor,
-                        }),
-                ])
-            {
-                Spacing = 1,
-                HorizontalAlignment = Align.Center,
-                VerticalAlignment = Align.Center,
-                MaxWidth = 76,
-            });
-    }
-
-    internal static FigletFont GetWelcomeFigletFont()
-        => WelcomeFigletFont.Value;
-
-    private static FigletFont LoadWelcomeFigletFont()
-    {
-        using var stream = typeof(CodeAltaApp).Assembly.GetManifestResourceStream("CodeAlta.Assets.3d.flf");
-        if (stream is null)
-        {
-            throw new InvalidOperationException("Unable to load embedded welcome FIGlet font 'CodeAlta.Assets.3d.flf'.");
-        }
-
-        using var reader = new StreamReader(stream);
-        return FigletFont.Parse(reader.ReadToEnd(), new FigletFontInfo("3-D", "Daniel Henninger"));
-    }
-
-    private static Visual BuildWelcomeLogo()
-    {
-        var font = GetWelcomeFigletFont();
-        return new Center(
-            new HStack(
-                [
-                    new TextFiglet("Code")
-                        .Font(font)
-                        .LetterSpacing(1)
-                        .TrimTrailingSpaces(true)
-                        .TextAlignment(TextAlignment.Left),
-                    new TextFiglet("Alta")
-                        .Font(font)
-                        .LetterSpacing(1)
-                        .TrimTrailingSpaces(true)
-                        .TextAlignment(TextAlignment.Left)
-                        .Style(() => BuildWelcomeAltaFigletStyle()),
-                ])
-            {
-                Spacing = 2,
-                HorizontalAlignment = Align.Center,
-            });
-    }
-
-    private static TextFigletStyle BuildWelcomeAltaFigletStyle()
-    {
-        var phase = ComputeLoopAnimationPhase(DateTime.UtcNow.Ticks, TimeSpan.TicksPerSecond * 6L);
-        return TextFigletStyle.Default with
-        {
-            ForegroundBrush = UiPalette.BuildWelcomeAltaBrush(phase),
-        };
-    }
-
-    internal static float ComputeLoopAnimationPhase(long ticks, long cycleTicks)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cycleTicks);
-
-        var normalizedTicks = ((ticks % cycleTicks) + cycleTicks) % cycleTicks;
-        return (float)(normalizedTicks / (double)cycleTicks);
-    }
-
-    internal static string BuildReadyStatusText(
-        WorkThreadDescriptor? thread,
-        ProjectDescriptor? selectedProject,
-        bool globalScopeSelected)
-    {
-        _ = thread;
-        _ = selectedProject;
-        _ = globalScopeSelected;
-        return ReadyStatusMessage;
-    }
-
-    internal static string BuildThinkingStatusText() => ThinkingStatusMessage;
-
-    internal static string BuildStatusIconMarkup(StatusTone tone)
-    {
-        return tone switch
-        {
-            StatusTone.Ready => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Ready)}]{NerdFont.MdCheckCircleOutline}[/]",
-            StatusTone.Warning => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Warning)}]{NerdFont.MdAlertOutline}[/]",
-            StatusTone.Error => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Error)}]{NerdFont.MdAlertCircleOutline}[/]",
-            _ => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Info)}]{NerdFont.OctInfo}[/]",
-        };
-    }
-
-    internal static TextBlockStyle BuildStatusTextStyle(string message, bool busy, StatusTone tone)
-    {
-        ArgumentNullException.ThrowIfNull(message);
-
-        if (busy && string.Equals(message, ThinkingStatusMessage, StringComparison.Ordinal))
-        {
-            var phase = ComputeLoopAnimationPhase(DateTime.UtcNow.Ticks, TimeSpan.TicksPerSecond * 5L);
-            var sweepBrush = Brush.LinearGradient(
-                new GradientPoint(-0.55f + (0.75f * phase), 0f),
-                new GradientPoint(0.20f + (0.75f * phase), 0f),
-                BuildThinkingGradientStops(),
-                tileMode: BrushTileMode.Repeat,
-                mixSpaceOverride: ColorMixSpace.Oklab);
-            return TextBlockStyle.Default with { ForegroundBrush = sweepBrush };
-        }
-
-        return TextBlockStyle.Default with { Foreground = UiPalette.GetStatusToneColor(tone) };
-    }
-
-    internal static GradientStop[] BuildThinkingGradientStops()
-    {
-        var baseColor = UiPalette.GetStatusToneColor(StatusTone.Info);
-        var glowColor = Color.Mix(baseColor, Colors.White, 0.26f, ColorMixSpace.Oklab);
-        var highlightColor = Color.Mix(baseColor, Colors.White, 0.52f, ColorMixSpace.Oklab);
-        return
-        [
-            new GradientStop(0.00f, baseColor.WithOpacity(0.50f)),
-            new GradientStop(0.12f, glowColor.WithOpacity(0.62f)),
-            new GradientStop(0.22f, highlightColor),
-            new GradientStop(0.34f, glowColor.WithOpacity(0.66f)),
-            new GradientStop(0.48f, baseColor.WithOpacity(0.56f)),
-            new GradientStop(0.62f, glowColor.WithOpacity(0.64f)),
-            new GradientStop(0.74f, Colors.White),
-            new GradientStop(0.86f, glowColor.WithOpacity(0.68f)),
-            new GradientStop(1.00f, baseColor.WithOpacity(0.50f)),
-        ];
-    }
-
-    internal static string BuildPromptUnavailablePlaceholder(
-        WorkThreadDescriptor? thread,
-        string backendDisplayName,
-        ChatBackendAvailability availability,
-        bool anyBackendReady)
-        => PromptComposerProjectionBuilder.BuildPromptUnavailablePlaceholder(thread, backendDisplayName, availability, anyBackendReady);
-
-    internal static string BuildPromptUnavailableStatusText(
-        WorkThreadDescriptor? thread,
-        string backendDisplayName,
-        ChatBackendAvailability availability,
-        bool anyBackendReady)
-        => PromptComposerProjectionBuilder.BuildPromptUnavailableStatusText(thread, backendDisplayName, availability, anyBackendReady);
-
-    internal static string CompactTabTitle(string title)
-    {
-        var normalized = title.Trim();
-        return normalized.Length <= MaxTabTitleLength
-            ? normalized
-            : normalized[..Math.Max(1, MaxTabTitleLength - 1)].TrimEnd() + "…";
-    }
-
-    internal static OpenTabIndicatorKind ResolveOpenTabIndicatorKind(bool isBusy, StatusTone tone)
-    {
-        if (isBusy)
-        {
-            return OpenTabIndicatorKind.Running;
-        }
-
-        return tone switch
-        {
-            StatusTone.Warning => OpenTabIndicatorKind.Warning,
-            StatusTone.Error => OpenTabIndicatorKind.Error,
-            StatusTone.Info => OpenTabIndicatorKind.Info,
-            _ => OpenTabIndicatorKind.Ready,
-        };
-    }
-
-    private static Visual CreateOpenTabIndicator(bool isBusy, StatusTone tone)
-    {
-        var kind = ResolveOpenTabIndicatorKind(isBusy, tone);
-        if (kind == OpenTabIndicatorKind.Running)
-        {
-            var spinner = new Spinner().Style(SpinnerStyles.Arc);
-            spinner.IsActive(() => true);
-            spinner.IsVisible(() => true);
-            return spinner;
-        }
-
-        var statusTone = kind switch
-        {
-            OpenTabIndicatorKind.Warning => StatusTone.Warning,
-            OpenTabIndicatorKind.Error => StatusTone.Error,
-            OpenTabIndicatorKind.Info => StatusTone.Info,
-            _ => StatusTone.Ready,
-        };
-        return new Markup(BuildStatusIconMarkup(statusTone))
-        {
-            Wrap = false,
-        };
-    }
-
-    private static Visual CreateOpenTabTitle(string title)
-    {
-        return new Markup(AnsiMarkup.Escape(title))
-        {
-            Wrap = false,
-        };
     }
 
     private bool IsChatBackendReady(AgentBackendId backendId)
@@ -1185,7 +839,7 @@ internal sealed partial class CodeAltaApp
                 _shellViewModel.StatusText = message;
                 _shellViewModel.StatusBusy = showSpinner;
                 _shellViewModel.StatusTone = tone;
-                _shellViewModel.StatusIconMarkup = BuildStatusIconMarkup(tone);
+                _shellViewModel.StatusIconMarkup = StatusVisualFormatter.BuildStatusIconMarkup(tone);
             });
     }
 
@@ -1249,7 +903,7 @@ internal sealed partial class CodeAltaApp
         ArgumentNullException.ThrowIfNull(tab);
         SetThreadStatus(
             tab,
-            BuildReadyStatusText(tab.Thread, GetSelectedProject(), globalScopeSelected: false),
+            ShellTextFormatter.BuildReadyStatusText(tab.Thread, GetSelectedProject(), globalScopeSelected: false),
             tone: StatusTone.Ready,
             hasCustomStatus: false);
     }
@@ -1276,7 +930,7 @@ internal sealed partial class CodeAltaApp
     internal void SetReadyStatusForCurrentSelection()
     {
         var selectedThread = GetSelectedThread();
-        var readyMessage = BuildReadyStatusText(selectedThread, GetSelectedProject(), _globalScopeSelected);
+        var readyMessage = ShellTextFormatter.BuildReadyStatusText(selectedThread, GetSelectedProject(), _globalScopeSelected);
         var promptUnavailable = TryGetPromptUnavailableStatus(out var promptUnavailableMessage, out var promptUnavailableTone);
         if (selectedThread is not null &&
             _threadTabs.TryGetValue(selectedThread.ThreadId, out var selectedTab))

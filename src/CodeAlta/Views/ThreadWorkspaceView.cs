@@ -99,7 +99,7 @@ internal sealed class ThreadWorkspaceView
                     Wrap = true,
                     IsSelectable = false,
                 }.Text(() => shellViewModel.StatusText)
-                    .Style(() => CodeAltaApp.BuildStatusTextStyle(shellViewModel.StatusText, shellViewModel.StatusBusy, shellViewModel.StatusTone)),
+                    .Style(() => StatusVisualFormatter.BuildStatusTextStyle(shellViewModel.StatusText, shellViewModel.StatusBusy, shellViewModel.StatusTone)),
             ])
         {
             Spacing = 1,

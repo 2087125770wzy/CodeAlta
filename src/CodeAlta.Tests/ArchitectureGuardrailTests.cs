@@ -98,6 +98,25 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void CodeAltaAppPresentation_DoesNotRegrowStaticShellHelperBuckets()
+    {
+        var presentationSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Presentation.cs"));
+
+        Assert.IsFalse(presentationSource.Contains("internal static string BuildHeaderText(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("internal static string BuildDraftPromptMessage(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("internal static string BuildDraftTabTitle(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("internal static string BuildWelcomeSubtitle(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("internal static IReadOnlyList<string> BuildWelcomeGuidanceLines(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("internal static Visual BuildWelcomePane(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("internal static string BuildReadyStatusText(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("internal static string BuildThinkingStatusText(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("internal static string BuildStatusIconMarkup(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("internal static TextBlockStyle BuildStatusTextStyle(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("internal static string CompactTabTitle(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("internal static OpenTabIndicatorKind ResolveOpenTabIndicatorKind(", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void CodeAltaApp_PartialFilesRemainFocusedAndLimited()
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();

@@ -11,22 +11,22 @@ public sealed class CodeAltaAppTabStripTests
     {
         Assert.AreEqual(
             CodeAltaApp.OpenTabIndicatorKind.Running,
-            CodeAltaApp.ResolveOpenTabIndicatorKind(isBusy: true, CodeAltaApp.StatusTone.Ready));
+            ThreadTabVisualFactory.ResolveIndicatorKind(isBusy: true, CodeAltaApp.StatusTone.Ready));
         Assert.AreEqual(
             CodeAltaApp.OpenTabIndicatorKind.Ready,
-            CodeAltaApp.ResolveOpenTabIndicatorKind(isBusy: false, CodeAltaApp.StatusTone.Ready));
+            ThreadTabVisualFactory.ResolveIndicatorKind(isBusy: false, CodeAltaApp.StatusTone.Ready));
         Assert.AreEqual(
             CodeAltaApp.OpenTabIndicatorKind.Warning,
-            CodeAltaApp.ResolveOpenTabIndicatorKind(isBusy: false, CodeAltaApp.StatusTone.Warning));
+            ThreadTabVisualFactory.ResolveIndicatorKind(isBusy: false, CodeAltaApp.StatusTone.Warning));
         Assert.AreEqual(
             CodeAltaApp.OpenTabIndicatorKind.Error,
-            CodeAltaApp.ResolveOpenTabIndicatorKind(isBusy: false, CodeAltaApp.StatusTone.Error));
+            ThreadTabVisualFactory.ResolveIndicatorKind(isBusy: false, CodeAltaApp.StatusTone.Error));
     }
 
     [TestMethod]
     public void CompactTabTitle_DoesNotChangeForSelectionState()
     {
-        Assert.AreEqual("Review startup", CodeAltaApp.CompactTabTitle("Review startup"));
+        Assert.AreEqual("Review startup", ThreadTabVisualFactory.CompactTitle("Review startup"));
     }
 
     [TestMethod]
@@ -47,10 +47,10 @@ public sealed class CodeAltaAppTabStripTests
     [TestMethod]
     public void BuildDraftTabTitle_ReflectsScope()
     {
-        Assert.AreEqual("Global draft", CodeAltaApp.BuildDraftTabTitle(selectedProject: null, globalScopeSelected: true));
+        Assert.AreEqual("Global draft", ShellTextFormatter.BuildDraftTabTitle(selectedProject: null, globalScopeSelected: true));
         Assert.AreEqual(
             "CodeAlta draft",
-            CodeAltaApp.BuildDraftTabTitle(
+            ShellTextFormatter.BuildDraftTabTitle(
                 new ProjectDescriptor { DisplayName = "CodeAlta" },
                 globalScopeSelected: false));
     }

@@ -203,7 +203,7 @@ internal sealed partial class CodeAltaApp
             RememberThreadPreference(thread.ThreadId, executionOptions.Model, executionOptions.ReasoningEffort, autoScroll: true, persistNow: false);
             await RegisterCreatedThreadAsync(thread).ConfigureAwait(false);
             ClearThreadTitleDraft();
-            SetStatus(BuildReadyStatusText(thread, GetSelectedProject(), _globalScopeSelected), tone: StatusTone.Ready);
+            SetStatus(ShellTextFormatter.BuildReadyStatusText(thread, GetSelectedProject(), _globalScopeSelected), tone: StatusTone.Ready);
             return thread;
         }
         catch (Exception ex)
@@ -234,7 +234,7 @@ internal sealed partial class CodeAltaApp
             RememberThreadPreference(thread.ThreadId, executionOptions.Model, executionOptions.ReasoningEffort, autoScroll: true, persistNow: false);
             await RegisterCreatedThreadAsync(thread).ConfigureAwait(false);
             ClearThreadTitleDraft();
-            SetStatus(BuildReadyStatusText(thread, GetSelectedProject(), _globalScopeSelected), tone: StatusTone.Ready);
+            SetStatus(ShellTextFormatter.BuildReadyStatusText(thread, GetSelectedProject(), _globalScopeSelected), tone: StatusTone.Ready);
             return thread;
         }
         catch (Exception ex)
@@ -505,7 +505,7 @@ internal sealed partial class CodeAltaApp
         ClearThreadInput();
         try
         {
-            SetThreadStatus(tab, BuildThinkingStatusText(), showSpinner: true);
+            SetThreadStatus(tab, StatusVisualFormatter.BuildThinkingStatusText(), showSpinner: true);
             var executionOptions = BuildExecutionOptions(thread, tab);
             if (steer)
             {
@@ -712,7 +712,7 @@ internal sealed partial class CodeAltaApp
     {
         if (!tab.HistoryLoading && ShouldPromoteAgentEventToThinking(@event))
         {
-            SetThreadStatus(tab, BuildThinkingStatusText(), showSpinner: true);
+            SetThreadStatus(tab, StatusVisualFormatter.BuildThinkingStatusText(), showSpinner: true);
         }
 
         switch (@event)
@@ -1330,7 +1330,7 @@ internal sealed partial class CodeAltaApp
         state = new OpenThreadState(thread, timeline);
         state.BackendId = new AgentBackendId(thread.BackendId);
         state.ViewModel.Title = thread.Title;
-        state.StatusMessage = BuildReadyStatusText(thread, GetSelectedProject(), globalScopeSelected: false);
+        state.StatusMessage = ShellTextFormatter.BuildReadyStatusText(thread, GetSelectedProject(), globalScopeSelected: false);
 
         ApplyThreadPreference(state);
         RememberThreadPreference(thread.ThreadId, state.ModelId, state.ReasoningEffort, state.AutoScroll, persistNow: false);
