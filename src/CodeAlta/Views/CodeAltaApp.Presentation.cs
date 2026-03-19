@@ -287,7 +287,7 @@ internal sealed partial class CodeAltaApp
                 }
 
                 _pendingThreadTabSelectionThreadId = null;
-                OpenThread(threadId);
+                _ = _shellController.OpenThreadAsync(threadId, CancellationToken.None);
             });
     }
 

@@ -18,4 +18,10 @@ internal interface ICodeAltaShell
     void RefreshCatalogAndThreadWorkspace();
 
     void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken);
+
+    void SelectGlobalScope();
+
+    void SelectProjectScope(string projectId);
+
+    void OpenThread(string threadId);
 }

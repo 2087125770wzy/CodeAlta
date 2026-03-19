@@ -25,4 +25,13 @@ internal sealed partial class CodeAltaApp : ICodeAltaShell
 
     void ICodeAltaShell.TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken)
         => TrySchedulePendingStartupThreadRestore(cancellationToken);
+
+    void ICodeAltaShell.SelectGlobalScope()
+        => SelectGlobalScope();
+
+    void ICodeAltaShell.SelectProjectScope(string projectId)
+        => SelectProjectScope(projectId);
+
+    void ICodeAltaShell.OpenThread(string threadId)
+        => OpenThread(threadId);
 }

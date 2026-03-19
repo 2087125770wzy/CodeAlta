@@ -87,6 +87,26 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
         return UiDispatcher.InvokeAsync(() => _shell.HandleRuntimeEvent(runtimeEvent));
     }
 
+    public Task SelectGlobalScopeAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return UiDispatcher.InvokeAsync(_shell.SelectGlobalScope);
+    }
+
+    public Task SelectProjectScopeAsync(string projectId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        cancellationToken.ThrowIfCancellationRequested();
+        return UiDispatcher.InvokeAsync(() => _shell.SelectProjectScope(projectId));
+    }
+
+    public Task OpenThreadAsync(string threadId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        cancellationToken.ThrowIfCancellationRequested();
+        return UiDispatcher.InvokeAsync(() => _shell.OpenThread(threadId));
+    }
+
     public async ValueTask DisposeAsync()
     {
         _disposeCts.Cancel();

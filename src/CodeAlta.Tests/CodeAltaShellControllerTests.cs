@@ -117,6 +117,63 @@ public sealed class CodeAltaShellControllerTests
             log);
     }
 
+    [TestMethod]
+    public async Task SelectGlobalScopeAsync_RoutesSelectionThroughDispatcher()
+    {
+        var log = new List<string>();
+        var shell = new FakeShell(log);
+        var dispatcher = new FakeUiDispatcher();
+        var controller = new CodeAltaShellController(
+            shell,
+            new FakeImporter(log),
+            new FakeProjectCatalogLoader(log, []),
+            new FakeRecoverableThreadSource(log, []));
+        controller.AttachUiDispatcher(dispatcher);
+
+        await controller.SelectGlobalScopeAsync(CancellationToken.None);
+
+        Assert.AreEqual(1, dispatcher.InvokeCallCount);
+        CollectionAssert.AreEqual(new[] { "Shell.SelectGlobalScope" }, log);
+    }
+
+    [TestMethod]
+    public async Task SelectProjectScopeAsync_RoutesProjectScopeThroughDispatcher()
+    {
+        var log = new List<string>();
+        var shell = new FakeShell(log);
+        var dispatcher = new FakeUiDispatcher();
+        var controller = new CodeAltaShellController(
+            shell,
+            new FakeImporter(log),
+            new FakeProjectCatalogLoader(log, []),
+            new FakeRecoverableThreadSource(log, []));
+        controller.AttachUiDispatcher(dispatcher);
+
+        await controller.SelectProjectScopeAsync("project-1", CancellationToken.None);
+
+        Assert.AreEqual(1, dispatcher.InvokeCallCount);
+        CollectionAssert.AreEqual(new[] { "Shell.SelectProjectScope:project-1" }, log);
+    }
+
+    [TestMethod]
+    public async Task OpenThreadAsync_RoutesThreadSelectionThroughDispatcher()
+    {
+        var log = new List<string>();
+        var shell = new FakeShell(log);
+        var dispatcher = new FakeUiDispatcher();
+        var controller = new CodeAltaShellController(
+            shell,
+            new FakeImporter(log),
+            new FakeProjectCatalogLoader(log, []),
+            new FakeRecoverableThreadSource(log, []));
+        controller.AttachUiDispatcher(dispatcher);
+
+        await controller.OpenThreadAsync("thread-1", CancellationToken.None);
+
+        Assert.AreEqual(1, dispatcher.InvokeCallCount);
+        CollectionAssert.AreEqual(new[] { "Shell.OpenThread:thread-1" }, log);
+    }
+
     private static WorkThreadHostEvent CreateHostEvent(string threadId)
         => new(threadId, DateTimeOffset.UtcNow, AgentSessionUpdateKind.Info, "Updated");
 
@@ -168,6 +225,15 @@ public sealed class CodeAltaShellControllerTests
 
         public void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken)
             => log.Add("Shell.TrySchedulePendingStartupThreadRestore");
+
+        public void SelectGlobalScope()
+            => log.Add("Shell.SelectGlobalScope");
+
+        public void SelectProjectScope(string projectId)
+            => log.Add($"Shell.SelectProjectScope:{projectId}");
+
+        public void OpenThread(string threadId)
+            => log.Add($"Shell.OpenThread:{threadId}");
     }
 
     private sealed class FakeImporter(List<string> log) : IKnownProjectImporter

@@ -179,13 +179,13 @@ internal sealed partial class CodeAltaApp
         switch (target.Kind)
         {
             case SidebarSelectionKind.GlobalScope:
-                SelectGlobalScope();
+                _ = _shellController.SelectGlobalScopeAsync(CancellationToken.None);
                 break;
             case SidebarSelectionKind.ProjectScope when target.ProjectId is not null:
-                SelectProjectScope(target.ProjectId);
+                _ = _shellController.SelectProjectScopeAsync(target.ProjectId, CancellationToken.None);
                 break;
             case SidebarSelectionKind.Thread when target.ThreadId is not null:
-                OpenThread(target.ThreadId);
+                _ = _shellController.OpenThreadAsync(target.ThreadId, CancellationToken.None);
                 break;
         }
     }
