@@ -152,6 +152,7 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
                     {
                             _shell.RefreshCatalogAndThreadWorkspace();
                             _shell.SetReadyStatusForCurrentSelection();
+                            _shell.SetInitialized(true);
                             _shell.TrySchedulePendingStartupThreadRestore(CancellationToken.None);
                         })
                     .ConfigureAwait(false);

@@ -24,4 +24,6 @@ internal interface ICodeAltaShell
     void SelectProjectScope(string projectId);
 
     void OpenThread(string threadId);
+
+    void SetInitialized(bool isInitialized);
 }

@@ -10,6 +10,7 @@ internal sealed partial class CodeAltaShellViewModel
         StatusText = "Prompt ready";
         StatusIconMarkup = string.Empty;
         StatusTone = CodeAltaApp.StatusTone.Ready;
+        IsInitialized = false;
     }
 
     [Bindable]
@@ -26,4 +27,7 @@ internal sealed partial class CodeAltaShellViewModel
 
     [Bindable]
     public partial CodeAltaApp.StatusTone StatusTone { get; set; }
+
+    [Bindable]
+    public partial bool IsInitialized { get; set; }
 }

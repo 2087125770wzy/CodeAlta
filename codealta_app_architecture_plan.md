@@ -37,7 +37,7 @@ This document is the implementation checklist companion to the architecture prop
 
 ## Phase 4: Introduce focused bindable view models
 
-- [ ] Expand `CodeAltaShellViewModel`.
+- [x] Expand `CodeAltaShellViewModel`.
 - [x] Add `SidebarViewModel`.
 - [x] Add `ThreadWorkspaceViewModel`.
 - [x] Add `ThreadTabViewModel`.

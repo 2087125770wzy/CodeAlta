@@ -86,6 +86,7 @@ public sealed class CodeAltaShellControllerTests
                 "Shell.ApplyRecoveredCatalogState:1:1",
                 "Shell.RefreshCatalogAndThreadWorkspace",
                 "Shell.SetReadyStatus",
+                "Shell.SetInitialized:True",
                 "Shell.TrySchedulePendingStartupThreadRestore",
             },
             log);
@@ -234,6 +235,9 @@ public sealed class CodeAltaShellControllerTests
 
         public void OpenThread(string threadId)
             => log.Add($"Shell.OpenThread:{threadId}");
+
+        public void SetInitialized(bool isInitialized)
+            => log.Add($"Shell.SetInitialized:{isInitialized}");
     }
 
     private sealed class FakeImporter(List<string> log) : IKnownProjectImporter
