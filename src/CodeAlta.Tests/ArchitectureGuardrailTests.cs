@@ -183,6 +183,20 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void CodeAltaApp_DelegatesThreadStateWorkflow()
+    {
+        var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));
+
+        Assert.IsTrue(appSource.Contains("_threadStateCoordinator.LoadCatalogStateAsync", StringComparison.Ordinal));
+        Assert.IsTrue(appSource.Contains("_threadStateCoordinator.ApplyRecoveredCatalogState", StringComparison.Ordinal));
+        Assert.IsTrue(appSource.Contains("_threadStateCoordinator.EnsureThreadTab", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("private readonly Dictionary<string, OpenThreadState>", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("private readonly ShellSelectionState", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("private IReadOnlyList<ProjectDescriptor>", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("private IReadOnlyList<WorkThreadDescriptor>", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void CodeAltaApp_IsNoLongerPartial()
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();
