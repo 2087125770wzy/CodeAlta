@@ -509,7 +509,7 @@ public sealed class CodeAltaAppTests
         var timestamp = DateTimeOffset.UtcNow;
 
         Assert.IsTrue(
-            CodeAltaApp.ShouldPromoteAgentEventToThinking(
+            ThreadRuntimeEventCoordinator.ShouldPromoteAgentEventToThinking(
                 new AgentContentDeltaEvent(
                     AgentBackendIds.Copilot,
                     "session-1",
@@ -521,7 +521,7 @@ public sealed class CodeAltaAppTests
                     "Inspecting reconnect state...")));
 
         Assert.IsTrue(
-            CodeAltaApp.ShouldPromoteAgentEventToThinking(
+            ThreadRuntimeEventCoordinator.ShouldPromoteAgentEventToThinking(
                 new AgentActivityEvent(
                     AgentBackendIds.Copilot,
                     "session-1",
@@ -535,7 +535,7 @@ public sealed class CodeAltaAppTests
                     "Searching...")));
 
         Assert.IsFalse(
-            CodeAltaApp.ShouldPromoteAgentEventToThinking(
+            ThreadRuntimeEventCoordinator.ShouldPromoteAgentEventToThinking(
                 new AgentSessionUpdateEvent(
                     AgentBackendIds.Copilot,
                     "session-1",
@@ -545,7 +545,7 @@ public sealed class CodeAltaAppTests
                     "Idle")));
 
         Assert.IsFalse(
-            CodeAltaApp.ShouldPromoteAgentEventToThinking(
+            ThreadRuntimeEventCoordinator.ShouldPromoteAgentEventToThinking(
                 new AgentErrorEvent(
                     AgentBackendIds.Copilot,
                     "session-1",
@@ -566,7 +566,7 @@ public sealed class CodeAltaAppTests
                 AgentSessionUpdateKind.UsageUpdated,
                 "usage updated"));
 
-        Assert.IsFalse(CodeAltaApp.ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent));
+        Assert.IsFalse(ThreadRuntimeEventCoordinator.ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent));
     }
 
     [TestMethod]
@@ -582,7 +582,7 @@ public sealed class CodeAltaAppTests
                 AgentSessionUpdateKind.Warning,
                 "warning"));
 
-        Assert.IsTrue(CodeAltaApp.ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent));
+        Assert.IsTrue(ThreadRuntimeEventCoordinator.ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent));
     }
 
     [TestMethod]

@@ -152,6 +152,20 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void CodeAltaApp_DelegatesRuntimeEventWorkflow()
+    {
+        var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));
+
+        Assert.IsTrue(appSource.Contains("_threadRuntimeEventCoordinator.ApplyRuntimeEvent", StringComparison.Ordinal));
+        Assert.IsTrue(appSource.Contains("_threadRuntimeEventCoordinator.TryRenderInteraction", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("internal static bool ShouldPromoteAgentEventToThinking(", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("internal static bool ShouldRefreshShellChromeAfterRuntimeEvent(", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("private void UpdateThreadFromAgentEvent(", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("private void UpdateThreadSummary(", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("private static string SummarizeThreadContent(", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void CodeAltaApp_IsNoLongerPartial()
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();

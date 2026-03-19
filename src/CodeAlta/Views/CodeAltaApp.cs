@@ -36,6 +36,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private readonly CodeAltaShellController _shellController;
     private readonly RuntimeEventPump _runtimeEventPump;
     private readonly ThreadHistoryCoordinator _threadHistoryCoordinator;
+    private readonly ThreadRuntimeEventCoordinator _threadRuntimeEventCoordinator;
     private readonly CodeAltaShellViewModel _shellViewModel = new();
     private readonly SidebarViewModel _sidebarViewModel = new();
     private readonly ThreadWorkspaceViewModel _threadWorkspaceViewModel = new();
@@ -217,6 +218,16 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             threadId => _ = CloseThreadAsync(threadId),
             () => _ = CloseDraftTabAsync(),
             threadId => _ = _shellController.OpenThreadAsync(threadId, CancellationToken.None));
+        _threadRuntimeEventCoordinator = new ThreadRuntimeEventCoordinator(
+            threadId => FindThread(threadId),
+            threadId => _threadTabs.GetValueOrDefault(threadId),
+            GetAutoApproveEnabled,
+            IsSelectedThread,
+            InvalidateSelectedSessionUsage,
+            RefreshShellChrome,
+            SetStatus,
+            (tab, message, showSpinner, tone) => SetThreadStatus(tab, message, showSpinner, tone),
+            ClearThreadStatus);
         _threadHistoryCoordinator = new ThreadHistoryCoordinator(
             _runtimeService,
             EnsureThreadTab,
@@ -227,7 +238,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             (tab, message, showSpinner, tone) => SetThreadStatus(tab, message, showSpinner, tone),
             ClearThreadStatus,
             ResetThreadTab,
-            HandleAgentEvent);
+            _threadRuntimeEventCoordinator.HandleAgentEvent);
     }
 
     /// <summary>
@@ -1458,7 +1469,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 thread,
                 targetProject,
                 executionOptions,
-                title: SummarizeThreadContent(prompt),
+                title: ThreadRuntimeEventCoordinator.SummarizeContent(prompt),
                 cancellationToken: CancellationToken.None).ConfigureAwait(false);
             RememberThreadPreference(child.ThreadId, executionOptions.Model, executionOptions.ReasoningEffort, tab.AutoScroll, persistNow: false);
 
@@ -1535,278 +1546,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     }
 
     internal void HandleRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent)
-    {
-        var thread = FindThread(runtimeEvent.ThreadId);
-        if (thread is null)
-        {
-            return;
-        }
-
-        switch (runtimeEvent)
-        {
-            case WorkThreadAgentEvent agentEvent:
-                UpdateThreadFromAgentEvent(thread, agentEvent.Event);
-                if (_threadTabs.TryGetValue(thread.ThreadId, out var tab))
-                {
-                    tab.HistoryEvents?.Add(agentEvent.Event);
-                    TryRenderThreadInteraction(tab, () => HandleAgentEvent(thread, tab, agentEvent.Event), "agent event");
-                }
-
-                break;
-
-            case WorkThreadHostEvent hostEvent:
-                UpdateThreadSummary(thread, hostEvent.Message, hostEvent.Timestamp);
-                if (_threadTabs.TryGetValue(thread.ThreadId, out var hostTab))
-                {
-                    TryRenderThreadInteraction(
-                        hostTab,
-                        () => hostTab.Timeline.AddStatus(
-                            hostEvent.Timestamp,
-                            markdown: hostEvent.Message,
-                            tone: ChatTimelineTone.Notice,
-                            headerOverride: "Notice",
-                            headerSecondary: ChatMarkdownFormatter.GetSessionUpdateHeader(hostEvent.Kind)),
-                        "host event");
-                }
-
-                break;
-        }
-
-        if (ShouldRefreshShellChromeAfterRuntimeEvent(runtimeEvent))
-        {
-            RefreshShellChrome();
-        }
-    }
-
-    private void HandleAgentEvent(WorkThreadDescriptor thread, OpenThreadState tab, AgentEvent @event)
-    {
-        if (!tab.HistoryLoading && ShouldPromoteAgentEventToThinking(@event))
-        {
-            SetThreadStatus(tab, StatusVisualFormatter.BuildThinkingStatusText(), showSpinner: true);
-        }
-
-        switch (@event)
-        {
-            case AgentContentDeltaEvent delta:
-                if (tab.Timeline.ToolCalls.TryHandleContent(delta))
-                {
-                    break;
-                }
-
-                if (!ChatMarkdownFormatter.ShouldDisplayContentDelta(delta))
-                {
-                    break;
-                }
-
-                tab.Timeline.AppendContent(delta);
-                break;
-
-            case AgentContentCompletedEvent completed:
-                if (tab.Timeline.ToolCalls.TryHandleContent(completed))
-                {
-                    break;
-                }
-
-                if (tab.Timeline.ShouldSkipEmptyAssistantCompletion(completed))
-                {
-                    break;
-                }
-
-                if (!ChatMarkdownFormatter.ShouldDisplayCompletedContent(completed))
-                {
-                    break;
-                }
-
-                tab.Timeline.FinalizeContent(completed);
-                if (completed.Kind == AgentContentKind.Assistant && !string.IsNullOrWhiteSpace(completed.Content))
-                {
-                    thread.LatestSummary = SummarizeThreadContent(completed.Content);
-                }
-
-                break;
-
-            case AgentPlanSnapshotEvent planEvent:
-                tab.Timeline.UpsertPlanStatus(
-                    "plan",
-                    planEvent.Timestamp,
-                    ChatMarkdownFormatter.FormatChatPlanMarkdown(planEvent.Snapshot),
-                    ChatTimelineTone.Notice,
-                    headerOverride: "Plan");
-                break;
-
-            case AgentActivityEvent activity:
-                if (tab.Timeline.ToolCalls.TryHandleActivity(activity))
-                {
-                    break;
-                }
-
-                if (!ChatMarkdownFormatter.ShouldDisplayActivity(activity))
-                {
-                    break;
-                }
-
-                tab.Timeline.UpsertActivityStatus(
-                    activity.ActivityId,
-                    activity.Timestamp,
-                    ChatMarkdownFormatter.FormatChatActivityMarkdown(activity),
-                    ChatTimelineTone.Activity,
-                    headerOverride: ChatMarkdownFormatter.GetActivityHeadline(activity.Kind, activity.Phase));
-                break;
-
-            case AgentRawEvent raw:
-                if (!ChatMarkdownFormatter.ShouldDisplayRawEvent(raw))
-                {
-                    break;
-                }
-
-                tab.Timeline.AddStatus(
-                    raw.Timestamp,
-                    ChatMarkdownFormatter.FormatChatRawEventMarkdown(raw),
-                    ChatTimelineTone.Activity,
-                    headerOverride: "Raw Event");
-                break;
-
-            case AgentPermissionRequest permissionRequest:
-                if (!ChatMarkdownFormatter.ShouldDisplayPermissionRequest(GetAutoApproveEnabled()))
-                {
-                    break;
-                }
-
-                tab.PermissionRequests[permissionRequest.InteractionId] = permissionRequest;
-                tab.Timeline.UpsertInteraction(
-                    permissionRequest.InteractionId,
-                    permissionRequest.Timestamp,
-                    ChatMarkdownFormatter.FormatChatPermissionRequestMarkdown(permissionRequest),
-                    null,
-                    ChatTimelineTone.Interaction,
-                    "Action Required",
-                    "Permission Request");
-                break;
-
-            case AgentUserInputRequest userInputRequest:
-                var autoApproveEnabled = GetAutoApproveEnabled();
-                tab.UserInputRequests[userInputRequest.InteractionId] = userInputRequest;
-                tab.Timeline.UpsertInteraction(
-                    userInputRequest.InteractionId,
-                    userInputRequest.Timestamp,
-                    ChatMarkdownFormatter.FormatChatUserInputRequestMarkdown(userInputRequest, autoApproveEnabled),
-                    null,
-                    ChatTimelineTone.Interaction,
-                    "Action Required",
-                    "User Input Request");
-                break;
-
-            case AgentInteractionEvent interaction:
-                if (!ChatMarkdownFormatter.ShouldDisplayInteraction(interaction, GetAutoApproveEnabled()))
-                {
-                    tab.PermissionRequests.Remove(interaction.InteractionId);
-                    tab.UserInputRequests.Remove(interaction.InteractionId);
-                    break;
-                }
-
-                tab.Timeline.UpsertInteraction(
-                    interaction.InteractionId,
-                    interaction.Timestamp,
-                    null,
-                    ChatMarkdownFormatter.FormatChatInteractionResolutionMarkdown(interaction, includeHeading: false),
-                    ChatTimelineTone.Interaction);
-                tab.PermissionRequests.Remove(interaction.InteractionId);
-                tab.UserInputRequests.Remove(interaction.InteractionId);
-                break;
-
-            case AgentSessionUpdateEvent update:
-                if (update.Usage is { } usage)
-                {
-                    tab.Usage = SessionUsageAggregator.Merge(tab.Usage, usage);
-                    if (IsSelectedThread(thread.ThreadId))
-                    {
-                        InvalidateSelectedSessionUsage();
-                    }
-                }
-
-                if (update.Kind == AgentSessionUpdateKind.Idle)
-                {
-                    ClearThreadStatus(tab);
-                    break;
-                }
-
-                if (!ChatMarkdownFormatter.ShouldDisplaySessionUpdate(update))
-                {
-                    break;
-                }
-
-                tab.Timeline.AddStatus(
-                    update.Timestamp,
-                    ChatMarkdownFormatter.FormatChatSessionUpdateMarkdown(update),
-                    update.Kind == AgentSessionUpdateKind.Warning ? ChatTimelineTone.Interaction : ChatTimelineTone.Notice,
-                    headerOverride: "Notice",
-                    headerSecondary: ChatMarkdownFormatter.GetSessionUpdateHeader(update.Kind));
-                if (!string.IsNullOrWhiteSpace(update.Message))
-                {
-                    thread.LatestSummary = SummarizeThreadContent(update.Message);
-                }
-
-                break;
-
-            case AgentErrorEvent error:
-                tab.Timeline.RenderError(error.Message, error.Timestamp);
-                thread.LatestSummary = SummarizeThreadContent(error.Message);
-                SetThreadStatus(tab, error.Message, tone: StatusTone.Error);
-                break;
-        }
-    }
-
-    internal static bool ShouldPromoteAgentEventToThinking(AgentEvent @event)
-    {
-        ArgumentNullException.ThrowIfNull(@event);
-
-        return @event switch
-        {
-            AgentContentDeltaEvent { Delta.Length: > 0 } => true,
-            AgentContentCompletedEvent completed when !string.IsNullOrWhiteSpace(completed.Content) => true,
-            AgentPlanSnapshotEvent => true,
-            AgentActivityEvent { Phase: AgentActivityPhase.Requested or AgentActivityPhase.Started or AgentActivityPhase.Progressed or AgentActivityPhase.Completed } => true,
-            AgentSessionUpdateEvent
-            {
-                Kind: AgentSessionUpdateKind.Started
-                    or AgentSessionUpdateKind.Resumed
-                    or AgentSessionUpdateKind.PlanUpdated
-                    or AgentSessionUpdateKind.CompactionStarted
-            } => true,
-            _ => false,
-        };
-    }
-
-    internal static bool ShouldRefreshShellChromeAfterRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent)
-    {
-        ArgumentNullException.ThrowIfNull(runtimeEvent);
-
-        return runtimeEvent is not WorkThreadAgentEvent
-        {
-            Event: AgentSessionUpdateEvent
-            {
-                Kind: AgentSessionUpdateKind.UsageUpdated
-            }
-        };
-    }
-
-    private void TryRenderThreadInteraction(OpenThreadState tab, Action action, string context)
-    {
-        try
-        {
-            action();
-        }
-        catch (Exception ex)
-        {
-            if (LogManager.IsInitialized && UiLogger.IsEnabled(LogLevel.Error))
-            {
-                UiLogger.Error(ex, $"Failed to render thread {context}");
-            }
-
-            SetStatus($"Failed to render thread {context}: {ex.Message}", tone: StatusTone.Error);
-            tab.Timeline.ClearPendingAssistant();
-        }
-    }
+        => _threadRuntimeEventCoordinator.ApplyRuntimeEvent(runtimeEvent);
 
     private async Task<AgentPermissionDecision> HandleThreadPermissionRequestAsync(
         string threadId,
@@ -1822,7 +1562,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
         if (ChatMarkdownFormatter.ShouldDisplayPermissionRequest(autoApproveEnabled) && _threadTabs.TryGetValue(threadId, out var tab))
         {
-            TryRenderThreadInteraction(
+            _threadRuntimeEventCoordinator.TryRenderInteraction(
                 tab,
                 () =>
                 {
@@ -1852,7 +1592,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         var response = ChatPromptResponseBuilder.CreateResponse(request, autoApproveEnabled);
         if (_threadTabs.TryGetValue(threadId, out var tab))
         {
-            TryRenderThreadInteraction(
+            _threadRuntimeEventCoordinator.TryRenderInteraction(
                 tab,
                 () =>
                 {
@@ -1973,48 +1713,6 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         }
 
         return [];
-    }
-
-    private void UpdateThreadFromAgentEvent(WorkThreadDescriptor thread, AgentEvent @event)
-    {
-        thread.UpdatedAt = @event.Timestamp;
-        thread.LastActiveAt = @event.Timestamp;
-
-        switch (@event)
-        {
-            case AgentContentCompletedEvent { Kind: AgentContentKind.Assistant } completed when !string.IsNullOrWhiteSpace(completed.Content):
-                thread.LatestSummary = SummarizeThreadContent(completed.Content);
-                break;
-            case AgentSessionUpdateEvent update when !string.IsNullOrWhiteSpace(update.Message):
-                if (update.Kind == AgentSessionUpdateKind.UsageUpdated)
-                {
-                    break;
-                }
-
-                thread.LatestSummary = SummarizeThreadContent(update.Message);
-                break;
-            case AgentErrorEvent error when !string.IsNullOrWhiteSpace(error.Message):
-                thread.LatestSummary = SummarizeThreadContent(error.Message);
-                break;
-        }
-    }
-
-    private void UpdateThreadSummary(WorkThreadDescriptor thread, string message, DateTimeOffset timestamp)
-    {
-        thread.UpdatedAt = timestamp;
-        thread.LastActiveAt = timestamp;
-        thread.LatestSummary = SummarizeThreadContent(message);
-    }
-
-    private static string SummarizeThreadContent(string content)
-    {
-        var normalized = content.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
-        if (normalized.Length <= 120)
-        {
-            return normalized;
-        }
-
-        return normalized[..117].TrimEnd() + "...";
     }
 
     private OpenThreadState EnsureThreadTab(WorkThreadDescriptor thread)
