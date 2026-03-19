@@ -45,6 +45,7 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private readonly State<int> _usageRefreshState = new(0);
     private readonly ShellSelectionState _selection = new();
     private readonly SidebarCoordinator _sidebarCoordinator;
+    private readonly ChatSelectorCoordinator _chatSelectorCoordinator;
 
     private IReadOnlyList<ProjectDescriptor> _projects = [];
     private IReadOnlyList<WorkThreadDescriptor> _threads = [];
@@ -52,7 +53,6 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private ThreadWorkspaceView? _threadWorkspaceView;
     private SessionUsagePresenter? _sessionUsagePresenter;
     private IUiDispatcher? _uiDispatcher;
-    private bool _chatSelectorsRefreshing;
     private bool _syncingThreadTabSelection;
     private bool _syncingThreadTabPages;
     private string? _pendingThreadTabSelectionThreadId;
@@ -179,6 +179,28 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
             _catalogOptions,
             _shellController,
             MaxRecentThreadsPerProject);
+        _chatSelectorCoordinator = new ChatSelectorCoordinator(
+            _threadWorkspaceViewModel,
+            _promptComposerViewModel,
+            _chatBackendStates,
+            () => ChatBackendSelect,
+            () => ChatModelSelect,
+            () => ChatReasoningSelect,
+            () => ChatAutoScrollCheckBox,
+            GetSelectedThread,
+            GetSelectedProject,
+            thread => EnsureThreadTab(thread),
+            () => _globalScopeSelected,
+            () => _draftTabOpen,
+            () => _selectedThreadId,
+            ApplyDraftBackendPreference,
+            ApplyThreadPreference,
+            RememberGlobalBackendPreference,
+            RememberThreadPreference,
+            InvalidateSelectedSessionUsage,
+            RefreshHeaderAndThreadWorkspace,
+            VerifyBindableAccess,
+            GetUiDispatcher);
     }
 
     /// <summary>
@@ -321,5 +343,66 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
             () => _ = _shellController.SelectGlobalScopeAsync(CancellationToken.None),
             projectId => _ = _shellController.SelectProjectScopeAsync(projectId, CancellationToken.None),
             threadId => _ = _shellController.OpenThreadAsync(threadId, CancellationToken.None));
+    }
+
+    private void RefreshChatSelectorsForDraftScope(AgentBackendId? preferredBackendId = null)
+    {
+        _chatSelectorCoordinator.RefreshForDraftScope(preferredBackendId);
+    }
+
+    private void RefreshChatSelectorsForThread(OpenThreadState tab)
+    {
+        _chatSelectorCoordinator.RefreshForThread(tab);
+    }
+
+    private void OnChatBackendSelectionChanged(int newIndex)
+    {
+        _chatSelectorCoordinator.OnBackendSelectionChanged(newIndex);
+    }
+
+    private void OnChatModelSelectionChanged(int newIndex)
+    {
+        _chatSelectorCoordinator.OnModelSelectionChanged(newIndex);
+    }
+
+    private void OnChatReasoningSelectionChanged(int newIndex)
+    {
+        _chatSelectorCoordinator.OnReasoningSelectionChanged(newIndex);
+    }
+
+    private void OnChatAutoScrollChanged()
+    {
+        _chatSelectorCoordinator.OnAutoScrollChanged();
+    }
+
+    private AgentBackendId GetPreferredBackendId()
+    {
+        return _chatSelectorCoordinator.GetPreferredBackendId();
+    }
+
+    private bool IsChatBackendReady(AgentBackendId backendId)
+    {
+        return _chatSelectorCoordinator.IsChatBackendReady(backendId);
+    }
+
+    private bool TryGetPromptUnavailableStatus(out string message, out StatusTone tone)
+    {
+        return _chatSelectorCoordinator.TryGetPromptUnavailableStatus(out message, out tone);
+    }
+
+    private bool TrySetPromptUnavailableStatus()
+    {
+        if (!TryGetPromptUnavailableStatus(out var message, out var tone))
+        {
+            return false;
+        }
+
+        SetStatus(message, tone: tone);
+        return true;
+    }
+
+    private void UpdatePromptAvailabilityUi()
+    {
+        _chatSelectorCoordinator.UpdatePromptAvailabilityUi();
     }
 }

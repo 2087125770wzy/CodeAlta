@@ -117,6 +117,25 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void CodeAltaAppPresentation_DoesNotOwnSelectorAndPromptAvailabilityWorkflow()
+    {
+        var presentationSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Presentation.cs"));
+
+        Assert.IsFalse(presentationSource.Contains("private void RefreshChatSelectorsForDraftScope(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private void RefreshChatSelectorsForThread(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private void OnChatBackendSelectionChanged(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private void OnChatModelSelectionChanged(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private void OnChatReasoningSelectionChanged(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private void OnChatAutoScrollChanged(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private AgentBackendId GetPreferredBackendId(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private bool IsChatBackendReady(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private PromptComposerProjection BuildPromptComposerProjection(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private bool TryGetPromptUnavailableStatus(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private bool TrySetPromptUnavailableStatus(", StringComparison.Ordinal));
+        Assert.IsFalse(presentationSource.Contains("private void UpdatePromptAvailabilityUi(", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void CodeAltaApp_PartialFilesRemainFocusedAndLimited()
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();

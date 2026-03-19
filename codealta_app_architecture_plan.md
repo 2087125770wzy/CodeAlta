@@ -119,5 +119,6 @@ This document is the implementation checklist companion to the architecture prop
 - [x] Replace `CodeAltaApp.Sidebar.cs` with a named sidebar coordinator/home.
 - [ ] Replace `CodeAltaApp.Presentation.cs` with named presentation/view helpers.
 - [x] Extract shell text, welcome-pane, status, and tab-header helpers out of `CodeAltaApp.Presentation.cs`.
+- [x] Extract selector and prompt-availability coordination out of `CodeAltaApp.Presentation.cs`.
 - [ ] Replace `CodeAltaApp.Runtime.cs` with named runtime/lifecycle helpers or controller-owned collaborators.
 - [ ] Add guardrails that fail if `CodeAltaApp` remains a partial type outside generated code.
