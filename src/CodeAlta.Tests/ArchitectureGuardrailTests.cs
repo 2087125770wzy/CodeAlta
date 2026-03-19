@@ -90,10 +90,10 @@ public sealed class ArchitectureGuardrailTests
     [TestMethod]
     public void UiProjectionAndUsageFiles_KeepExplicitBindableAccessGuards()
     {
-        var sidebarSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Sidebar.cs"));
+        var sidebarSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "SidebarCoordinator.cs"));
         var presentationSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.Presentation.cs"));
 
-        Assert.IsTrue(sidebarSource.Contains("VerifyBindableAccess();", StringComparison.Ordinal));
+        Assert.IsTrue(sidebarSource.Contains("verifyBindableAccess();", StringComparison.Ordinal));
         Assert.IsTrue(presentationSource.Contains("private T ReadBindableState<T>(Func<T> read)", StringComparison.Ordinal));
     }
 
@@ -109,7 +109,7 @@ public sealed class ArchitectureGuardrailTests
             .ToArray();
 
         Assert.AreEqual(
-            "Views/CodeAltaApp.Presentation.cs|Views/CodeAltaApp.Runtime.cs|Views/CodeAltaApp.Sidebar.cs|Views/CodeAltaApp.cs",
+            "Views/CodeAltaApp.Presentation.cs|Views/CodeAltaApp.Runtime.cs|Views/CodeAltaApp.cs",
             string.Join("|", partialFiles));
     }
 

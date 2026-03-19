@@ -49,11 +49,11 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private readonly State<int> _viewRefreshState = new(0);
     private readonly State<int> _usageRefreshState = new(0);
     private readonly ShellSelectionState _selection = new();
+    private readonly SidebarCoordinator _sidebarCoordinator;
 
     private IReadOnlyList<ProjectDescriptor> _projects = [];
     private IReadOnlyList<WorkThreadDescriptor> _threads = [];
     private CodeAltaShellView? _shellView;
-    private SidebarView? _sidebarView;
     private ThreadWorkspaceView? _threadWorkspaceView;
     private SessionUsagePresenter? _sessionUsagePresenter;
     private IUiDispatcher? _uiDispatcher;
@@ -61,11 +61,7 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private bool _syncingThreadTabSelection;
     private bool _syncingThreadTabPages;
     private string? _pendingThreadTabSelectionThreadId;
-    private SidebarSelectionTarget? _pendingSidebarSelectionTarget;
     private bool _terminalLoopStarted;
-    private bool _sidebarSelectionSyncEnabled = true;
-    private SidebarTreeProjection? _sidebarProjection;
-    private SidebarSelectionTarget? _lastSidebarSelectedTarget;
 
     private WorkThreadViewState _viewState
     {
@@ -183,6 +179,11 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
             new ProjectCatalogLoader(_projectCatalog),
             new RecoverableThreadSource(_runtimeService));
         _runtimeEventPump = new RuntimeEventPump(_runtimeService, _shellController);
+        _sidebarCoordinator = new SidebarCoordinator(
+            _sidebarViewModel,
+            _catalogOptions,
+            _shellController,
+            MaxRecentThreadsPerProject);
     }
 
     /// <summary>
@@ -284,5 +285,46 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
         {
             _ = PersistViewStateAsync();
         }
+    }
+
+    private string? GetExpandedSidebarProjectId()
+    {
+        return GetSelectedThread()?.ProjectRef ?? _selectedProjectId;
+    }
+
+    private SidebarSelectionTarget ResolveSidebarTargetForCurrentState()
+    {
+        return SidebarSelectionResolver.ResolveCurrentTarget(
+            _selectedThreadId,
+            _selectedProjectId,
+            _globalScopeSelected);
+    }
+
+    private void RefreshSidebarProjection()
+    {
+        _sidebarCoordinator.RefreshProjection(
+            _projects,
+            _threads,
+            GetExpandedSidebarProjectId(),
+            ResolveSidebarTargetForCurrentState(),
+            VerifyBindableAccess);
+    }
+
+    private void SyncSidebarSelectionToCurrentState()
+    {
+        _sidebarCoordinator.SyncSelectionToCurrentState(ResolveSidebarTargetForCurrentState());
+    }
+
+    private void ApplyPendingSidebarSelection()
+    {
+        _sidebarCoordinator.ApplyPendingSelection();
+    }
+
+    private void SyncSidebarSelection()
+    {
+        _sidebarCoordinator.SyncSelection(
+            () => _ = _shellController.SelectGlobalScopeAsync(CancellationToken.None),
+            projectId => _ = _shellController.SelectProjectScopeAsync(projectId, CancellationToken.None),
+            threadId => _ = _shellController.OpenThreadAsync(threadId, CancellationToken.None));
     }
 }

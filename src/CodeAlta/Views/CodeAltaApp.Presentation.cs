@@ -18,6 +18,32 @@ using XenoAtom.Terminal.UI.Threading;
 
 internal sealed partial class CodeAltaApp
 {
+    private CodeAltaShellView EnsureShellView()
+    {
+        _threadWorkspaceView ??= new ThreadWorkspaceView(
+            _shellViewModel,
+            _threadWorkspaceViewModel,
+            _promptComposerViewModel,
+            () => CreateUsageComputedVisual(EnsureSessionUsagePresenter().BuildIndicatorVisual),
+            CreatePromptEditor,
+            () => _ = SendSelectedThreadPromptAsync(steer: false),
+            OnThreadTabControlSelectionChanged,
+            OnChatBackendSelectionChanged,
+            OnChatModelSelectionChanged,
+            OnChatReasoningSelectionChanged,
+            OnChatAutoScrollChanged);
+
+        RefreshSidebarProjection();
+        RefreshThreadPaneContent();
+
+        _shellView ??= new CodeAltaShellView(
+            _shellViewModel,
+            _sidebarCoordinator.View.Root,
+            _threadWorkspaceView.Root,
+            ThreadCommandBar!);
+        return _shellView;
+    }
+
     private TabControl CreateThreadTabControl()
     {
         var control = new TabControl()

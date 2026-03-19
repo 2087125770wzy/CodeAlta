@@ -1007,7 +1007,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void CompactSidebarThreadTitle_TrimsLongTitlesToSingleLineLength()
     {
-        var compact = CodeAltaApp.CompactSidebarThreadTitle("The lunet-build action in this repository is used like this:");
+        var compact = SidebarThreadPresentation.CompactThreadTitle("The lunet-build action in this repository is used like this:");
 
         Assert.AreEqual("The lunet-build action in this re…", compact);
         Assert.IsFalse(compact.Contains('\n'));
@@ -1032,7 +1032,7 @@ public sealed class CodeAltaAppTests
             LastActiveAt = DateTimeOffset.UtcNow,
         };
 
-        var tooltip = CodeAltaApp.BuildThreadSidebarTooltip(thread);
+        var tooltip = SidebarThreadPresentation.BuildThreadTooltip(thread);
 
         StringAssert.Contains(tooltip, "Review Tomlyn update");
         StringAssert.Contains(tooltip, "Check the parser changes and resulting tests.");
@@ -2096,7 +2096,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void ResolveSidebarThreadAccent_UsesCopilotAccentForCopilotThreads()
     {
-        var accent = CodeAltaApp.ResolveSidebarThreadAccent(AgentBackendIds.Copilot.Value, WorkThreadKind.ProjectThread);
+        var accent = SidebarThreadPresentation.ResolveThreadAccent(AgentBackendIds.Copilot.Value, WorkThreadKind.ProjectThread);
 
         Assert.AreEqual(SidebarAccent.CopilotThread, accent);
     }
@@ -2104,7 +2104,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void ResolveSidebarThreadAccent_UsesKindAccentForCodexThreads()
     {
-        var accent = CodeAltaApp.ResolveSidebarThreadAccent(AgentBackendIds.Codex.Value, WorkThreadKind.ProjectThread);
+        var accent = SidebarThreadPresentation.ResolveThreadAccent(AgentBackendIds.Codex.Value, WorkThreadKind.ProjectThread);
 
         Assert.AreEqual(SidebarAccent.ProjectThread, accent);
     }

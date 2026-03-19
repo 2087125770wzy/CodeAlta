@@ -116,7 +116,7 @@ This document is the implementation checklist companion to the architecture prop
 ## Phase 10: Remove remaining `CodeAltaApp` partial slices
 
 - [x] Move `CreateAsync(...)` out of `CodeAltaApp.Bootstrap.cs` so `CodeAltaApp` no longer has an app-layer partial bootstrap slice.
-- [ ] Replace `CodeAltaApp.Sidebar.cs` with a named sidebar coordinator/home.
+- [x] Replace `CodeAltaApp.Sidebar.cs` with a named sidebar coordinator/home.
 - [ ] Replace `CodeAltaApp.Presentation.cs` with named presentation/view helpers.
 - [ ] Replace `CodeAltaApp.Runtime.cs` with named runtime/lifecycle helpers or controller-owned collaborators.
 - [ ] Add guardrails that fail if `CodeAltaApp` remains a partial type outside generated code.

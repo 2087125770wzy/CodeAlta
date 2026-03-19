@@ -98,10 +98,10 @@ internal static class SidebarTreeProjectionBuilder
         };
 
         return new SidebarTreeNodeProjection(
-            Title: CodeAltaApp.CompactSidebarThreadTitle(thread.Title),
-            Tooltip: CodeAltaApp.BuildThreadSidebarTooltip(thread),
+            Title: SidebarThreadPresentation.CompactThreadTitle(thread.Title),
+            Tooltip: SidebarThreadPresentation.BuildThreadTooltip(thread),
             Icon: icon,
-            Accent: CodeAltaApp.ResolveSidebarThreadAccent(thread.BackendId, thread.Kind),
+            Accent: SidebarThreadPresentation.ResolveThreadAccent(thread.BackendId, thread.Kind),
             SelectionTarget: SidebarSelectionTarget.Thread(thread.ThreadId),
             IsExpanded: false,
             Children: []);
