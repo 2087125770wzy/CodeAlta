@@ -9,7 +9,6 @@ using XenoAtom.Terminal.UI.Styling;
 
 internal sealed class ThreadWorkspaceView
 {
-    private readonly Func<CodeAltaApp.StatusTone> _getStatusTone;
     private Markup? _statusIconVisual;
 
     public ThreadWorkspaceView(
@@ -18,7 +17,6 @@ internal sealed class ThreadWorkspaceView
         PromptComposerViewModel promptComposerViewModel,
         Spinner statusSpinner,
         Func<Visual> buildSessionUsageIndicatorVisual,
-        Func<CodeAltaApp.StatusTone> getStatusTone,
         Func<ChatPromptEditor> createPromptEditor,
         Action sendPrompt,
         Action<int> onThreadTabSelectionChanged,
@@ -32,7 +30,6 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
         ArgumentNullException.ThrowIfNull(statusSpinner);
         ArgumentNullException.ThrowIfNull(buildSessionUsageIndicatorVisual);
-        ArgumentNullException.ThrowIfNull(getStatusTone);
         ArgumentNullException.ThrowIfNull(createPromptEditor);
         ArgumentNullException.ThrowIfNull(sendPrompt);
         ArgumentNullException.ThrowIfNull(onThreadTabSelectionChanged);
@@ -41,7 +38,6 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(onChatReasoningSelectionChanged);
         ArgumentNullException.ThrowIfNull(onAutoScrollChanged);
 
-        _getStatusTone = getStatusTone;
         ThreadCommandBar = new CommandBar
         {
             HorizontalAlignment = Align.Stretch,
@@ -99,7 +95,7 @@ internal sealed class ThreadWorkspaceView
                     Wrap = true,
                     IsSelectable = false,
                 }.Text(() => shellViewModel.StatusText)
-                    .Style(() => CodeAltaApp.BuildStatusTextStyle(shellViewModel.StatusText, shellViewModel.StatusBusy, _getStatusTone())),
+                    .Style(() => CodeAltaApp.BuildStatusTextStyle(shellViewModel.StatusText, shellViewModel.StatusBusy, shellViewModel.StatusTone)),
             ])
         {
             Spacing = 1,

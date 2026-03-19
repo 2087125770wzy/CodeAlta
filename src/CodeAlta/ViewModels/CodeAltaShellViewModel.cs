@@ -2,13 +2,14 @@ using XenoAtom.Terminal.UI;
 
 namespace CodeAlta.ViewModels;
 
-public sealed partial class CodeAltaShellViewModel
+internal sealed partial class CodeAltaShellViewModel
 {
     public CodeAltaShellViewModel()
     {
         HeaderText = "CodeAlta";
         StatusText = "Prompt ready";
         StatusIconMarkup = string.Empty;
+        StatusTone = CodeAltaApp.StatusTone.Ready;
     }
 
     [Bindable]
@@ -22,4 +23,7 @@ public sealed partial class CodeAltaShellViewModel
 
     [Bindable]
     public partial bool StatusBusy { get; set; }
+
+    [Bindable]
+    public partial CodeAltaApp.StatusTone StatusTone { get; set; }
 }

@@ -1186,10 +1186,9 @@ internal sealed partial class CodeAltaApp
         PostToUi(
             () =>
             {
-                _statusBusy = showSpinner;
-                _statusTone = tone;
                 _shellViewModel.StatusText = message;
                 _shellViewModel.StatusBusy = showSpinner;
+                _shellViewModel.StatusTone = tone;
                 _shellViewModel.StatusIconMarkup = BuildStatusIconMarkup(tone);
             });
     }

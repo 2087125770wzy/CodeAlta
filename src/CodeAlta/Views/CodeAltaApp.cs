@@ -74,8 +74,6 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private TabControl? _threadTabControl;
     private TabPage? _draftTabPage;
     private bool _chatSelectorsRefreshing;
-    private bool _statusBusy;
-    private StatusTone _statusTone = StatusTone.Ready;
     private bool _syncingThreadTabSelection;
     private bool _syncingThreadTabPages;
     private string? _pendingThreadTabSelectionThreadId;
