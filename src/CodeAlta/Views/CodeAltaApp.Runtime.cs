@@ -301,7 +301,7 @@ internal sealed partial class CodeAltaApp
     {
         _pendingThreadTabSelectionThreadId = null;
         _viewState.OpenThreadIds.RemoveAll(id => string.Equals(id, threadId, StringComparison.OrdinalIgnoreCase));
-        _threadTabPages.Remove(threadId);
+        _threadWorkspaceView?.RemoveTabPage(threadId);
         _threadTabs.Remove(threadId);
         if (string.Equals(_selectedThreadId, threadId, StringComparison.OrdinalIgnoreCase))
         {

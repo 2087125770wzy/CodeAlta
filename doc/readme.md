@@ -91,11 +91,11 @@ Current `.NET` infrastructure (`CodeAlta.DotNet`) includes:
   - symbol context source-link generation
   - refresh-index and diagnostics artifact persistence.
 
-## Terminal Host
+## Terminal Shell
 
-The `CodeAlta` executable now runs as an interactive terminal host instead of a playground script.
+The `CodeAlta` executable now runs as an interactive terminal shell instead of a playground script. Internally, the shell is organized around an explicit controller, UI dispatcher, focused views, and presenter seams rather than one monolithic host bucket.
 
-Current terminal host capabilities:
+Current terminal shell capabilities:
 
 - Chat (global agent) operations:
   - Chat screen powered by `PromptEditor` (input) and `DocumentFlow` + `MarkdownControl` (rendered conversation history).
@@ -109,7 +109,7 @@ Current terminal host capabilities:
   - Copilot sessions are started with `codealta.*` MCP tools bridged into the backend via `McpToolBridge` (tool calls execute against the in-process MCP server, with MCP tool ids normalized to Copilot-compatible function names).
   - CodeAlta now auto-approves backend permission requests and auto-resolves `ask_user` prompts by preferring continue/inspect-style choices (or a neutral fallback for freeform prompts).
   - Sequential Codex/Copilot tool activity is grouped into compact "Tool Calls" timeline cards so verbose command/tool logs stay out of the main document flow; each chip shows a live status icon, inferred tool/command label, compact context, and an expandable `LogControl` detail dialog with full output, wrapping toggle, and compact execution stats.
-  - The terminal host writes a persistent diagnostic log to `~/.codealta/logs/codealta.log`, including chat prompt submission, selected backend/model/tool set, normalized agent events, and Copilot permission/user-input callback traffic.
+  - The terminal shell writes a persistent diagnostic log to `~/.codealta/logs/codealta.log`, including chat prompt submission, selected backend/model/tool set, normalized agent events, and Copilot permission/user-input callback traffic.
 - Workspace operations:
   - list discovered workspaces
   - resolve global/workspace/project scopes.

@@ -38,6 +38,7 @@ This document is the implementation checklist companion to the architecture prop
 - [x] Move remaining draft-tab and status-spinner presentation ownership out of `CodeAltaApp`.
 - [x] Move the shell/controller bridge out of `CodeAltaApp` partials.
 - [x] Move backend preference/config coordination out of `CodeAltaApp` partials.
+- [x] Move tab-page cache ownership into `ThreadWorkspaceView`.
 - [ ] Keep `CodeAltaApp` focused on app lifecycle only.
 
 ## Phase 4: Introduce focused bindable view models
@@ -102,11 +103,11 @@ This document is the implementation checklist companion to the architecture prop
 ## Final cleanup
 
 - [ ] Verify `CodeAltaApp` is no longer a large partial class spanning unrelated concerns.
-- [ ] Verify `CodeAltaApp` owns lifecycle only and does not hold many concrete controls.
+- [x] Verify `CodeAltaApp` owns lifecycle only and does not hold many concrete controls.
 - [x] Verify there is one explicit UI dispatcher contract in active use.
 - [x] Verify runtime events are applied through one shell/controller path on the UI thread.
 - [ ] Verify bindable view models are only accessed on the UI thread.
 - [x] Verify timeline/tool-call/dialog logic lives outside the shell controller.
 - [x] Verify `ThreadTabState` is gone or reduced to one focused responsibility.
 - [x] Verify `RefreshView()` no longer exists as a broad shell refresh primitive.
-- [ ] Update docs if the implementation materially changes structure or terminology.
+- [x] Update docs if the implementation materially changes structure or terminology.

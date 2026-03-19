@@ -46,7 +46,6 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private readonly SessionUsageViewModel _sessionUsageViewModel = new();
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates = ChatBackendPresentation.CreateBackendStates();
     private readonly Dictionary<string, OpenThreadState> _threadTabs = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, TabPage> _threadTabPages = new(StringComparer.OrdinalIgnoreCase);
     private readonly State<int> _viewRefreshState = new(0);
     private readonly State<int> _usageRefreshState = new(0);
     private readonly ShellSelectionState _selection = new();

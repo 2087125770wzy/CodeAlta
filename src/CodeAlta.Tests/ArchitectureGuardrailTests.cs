@@ -59,6 +59,21 @@ public sealed class ArchitectureGuardrailTests
         Assert.IsFalse(File.Exists(Path.Combine(viewsRoot, "CodeAltaApp.Settings.cs")));
     }
 
+    [TestMethod]
+    public void CodeAltaApp_DoesNotOwnDirectTabOrCommandControlFields()
+    {
+        var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));
+
+        Assert.IsFalse(appSource.Contains("Dictionary<string, TabPage>", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("_threadTabControl", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("_sendPromptButton", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("_chatAutoScrollCheckBox", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("_chatBackendSelect", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("_chatModelSelect", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("_chatReasoningSelect", StringComparison.Ordinal));
+        Assert.IsFalse(appSource.Contains("_statusSpinner", StringComparison.Ordinal));
+    }
+
     private static void AssertSourceDoesNotContain(IEnumerable<string> sourceFiles, string pattern)
     {
         ArgumentNullException.ThrowIfNull(sourceFiles);

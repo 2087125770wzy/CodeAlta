@@ -114,8 +114,9 @@ internal sealed partial class CodeAltaApp
     private TabPage EnsureThreadTabPage(string threadId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        var workspaceView = _threadWorkspaceView ?? throw new InvalidOperationException("Thread workspace view is not initialized.");
 
-        if (_threadTabPages.TryGetValue(threadId, out var existingPage))
+        if (workspaceView.TryGetTabPage(threadId, out var existingPage))
         {
             existingPage.Data = threadId;
             return existingPage;
@@ -159,13 +160,14 @@ internal sealed partial class CodeAltaApp
             _ = CloseThreadAsync(threadId);
         };
 
-        _threadTabPages[thread.ThreadId] = page;
+        workspaceView.RememberTabPage(thread.ThreadId, page);
         return page;
     }
 
     private TabPage EnsureDraftTabPage()
     {
-        if (_threadTabPages.TryGetValue(DraftTabId, out var existingPage))
+        var workspaceView = _threadWorkspaceView ?? throw new InvalidOperationException("Thread workspace view is not initialized.");
+        if (workspaceView.TryGetTabPage(DraftTabId, out var existingPage))
         {
             existingPage.Data = DraftTabId;
             return existingPage;
@@ -197,7 +199,7 @@ internal sealed partial class CodeAltaApp
             _ = CloseDraftTabAsync();
         };
 
-        _threadTabPages[DraftTabId] = page;
+        workspaceView.RememberTabPage(DraftTabId, page);
         return page;
     }
 

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using CodeAlta.ViewModels;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal.UI;
@@ -10,6 +11,7 @@ using XenoAtom.Terminal.UI.Styling;
 internal sealed class ThreadWorkspaceView
 {
     private Markup? _statusIconVisual;
+    private readonly Dictionary<string, TabPage> _tabPages = new(StringComparer.OrdinalIgnoreCase);
 
     public ThreadWorkspaceView(
         CodeAltaShellViewModel shellViewModel,
@@ -190,4 +192,23 @@ internal sealed class ThreadWorkspaceView
     public CheckBox ChatAutoScrollCheckBox { get; }
 
     public TabControl ThreadTabControl { get; }
+
+    public bool TryGetTabPage(string tabId, [NotNullWhen(true)] out TabPage? page)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tabId);
+        return _tabPages.TryGetValue(tabId, out page);
+    }
+
+    public void RememberTabPage(string tabId, TabPage page)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tabId);
+        ArgumentNullException.ThrowIfNull(page);
+        _tabPages[tabId] = page;
+    }
+
+    public bool RemoveTabPage(string tabId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tabId);
+        return _tabPages.Remove(tabId);
+    }
 }

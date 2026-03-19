@@ -14,7 +14,7 @@ An agentic AI coding CLI assistant developed in .NET.
 - In-process MCP server surface with tools for tasks, artifacts, search, workspaces, and agents (`CodeAlta.Mcp`)
 - Agent orchestration services for role profiles, context packs, and planner/builder durable workflows (`CodeAlta.Orchestration`)
 - .NET first-class services for workspace discovery, symbol indexing, context snippets, diagnostics, and index refresh (`CodeAlta.DotNet`)
-- Interactive terminal host wired to workspace/task/search/.NET/MCP services, including rich agent timelines plus chat backend/model/reasoning selectors, a live `ctx --` / `ctx NN%` context-window indicator with normalized usage popup sections and backend-specific detail, and asynchronous Codex/Copilot probing so the TUI starts immediately even when a backend is missing (`CodeAlta`)
+- Interactive terminal shell wired to workspace/task/search/.NET/MCP services, with explicit shell-controller/UI-dispatcher/view-presenter seams, rich agent timelines, chat backend/model/reasoning selectors, a live `ctx --` / `ctx NN%` context-window indicator with normalized usage popup sections and backend-specific detail, and asynchronous Codex/Copilot probing so the TUI starts immediately even when a backend is missing (`CodeAlta`)
 - Codex backend sessions default to no sandbox in CodeAlta, so prompts can inspect sibling projects outside the current working directory without requiring the session cwd to be moved first
 - CodeAlta writes a persistent diagnostic log to `~/.codealta/logs/codealta.log` for chat/backend troubleshooting
 - In-memory MCP transport tests for tool discovery and roundtrip tool calls
