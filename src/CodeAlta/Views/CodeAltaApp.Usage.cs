@@ -34,7 +34,7 @@ internal sealed partial class CodeAltaApp
 
     private void ToggleSessionUsagePopup(Visual anchor)
     {
-        if (_sessionUsagePopupOpen)
+        if (_sessionUsagePopupView?.IsOpen == true)
         {
             CloseSessionUsagePopup();
             return;
@@ -45,29 +45,13 @@ internal sealed partial class CodeAltaApp
 
     private void ShowSessionUsagePopup(Visual anchor)
     {
-        _sessionUsagePopup ??= CreateSessionUsagePopup();
-        _sessionUsagePopup.Anchor = anchor;
-        _sessionUsagePopup.Placement = PopupPlacement.Above;
-        _sessionUsagePopup.OffsetY = 0;
-        _sessionUsagePopup.Content = CreateComputedVisual(BuildSessionUsagePopupContent);
-        _sessionUsagePopup.Show();
-        _sessionUsagePopupOpen = true;
+        _sessionUsagePopupView ??= new SessionUsagePopupView(() => CreateComputedVisual(BuildSessionUsagePopupContent));
+        _sessionUsagePopupView.Show(anchor);
     }
 
     private void CloseSessionUsagePopup()
     {
-        _sessionUsagePopup?.Close();
-    }
-
-    private Popup CreateSessionUsagePopup()
-    {
-        var popup = new Popup
-        {
-            MatchAnchorWidth = false,
-            CloseOnTab = false,
-        };
-        popup.Closed((_, _) => _sessionUsagePopupOpen = false);
-        return popup;
+        _sessionUsagePopupView?.Close();
     }
 
     private Visual BuildSessionUsagePopupContent()
@@ -80,7 +64,7 @@ internal sealed partial class CodeAltaApp
     {
         var (backendName, modelName) = GetUsageSelectionContext();
         var markdown = BuildSessionUsageMarkdown(GetSelectedSessionUsage(), backendName, modelName);
-        (_sessionUsagePopup?.App ?? _threadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown);
+        (_sessionUsagePopupView?.Popup.App ?? _threadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown);
     }
 
     private AgentSessionUsage? GetSelectedSessionUsage()

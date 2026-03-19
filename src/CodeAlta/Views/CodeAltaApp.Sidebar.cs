@@ -9,82 +9,47 @@ using XenoAtom.Terminal.UI.Styling;
 
 internal sealed partial class CodeAltaApp
 {
-    private Visual BuildMainView()
+    private CodeAltaShellView EnsureShellView()
     {
-        _threadCommandBar ??= new CommandBar
-        {
-            HorizontalAlignment = Align.Stretch,
-        };
+        _sidebarView ??= new SidebarView(
+            _viewModel,
+            () => _ = _shellController.ReloadCatalogAsync(CancellationToken.None));
+        _sidebarTree ??= _sidebarView.Tree;
 
-        var layout = new Grid
-        {
-            HorizontalAlignment = Align.Stretch,
-            VerticalAlignment = Align.Stretch,
-        }
-        .Rows(
-            new RowDefinition { Height = GridLength.Star(1) },
-            new RowDefinition { Height = GridLength.Auto })
-        .Columns(
-            new ColumnDefinition { Width = GridLength.Star(1) });
-
-        layout.Cell(
-            new HSplitter(BuildSidebar(), BuildThreadPane())
-            {
-                Ratio = 0.26,
-                MinFirst = 24,
-                MinSecond = 40,
-            },
-            0,
-            0);
-        layout.Cell(_threadCommandBar, 1, 0);
-        return layout;
-    }
-
-    private Visual BuildSidebar()
-    {
-        var newThreadTitleInput = new TextBox().Text(_viewModel.Bind.DraftThreadTitle);
-        _sidebarTree ??= new TreeView
-        {
-            HorizontalAlignment = Align.Stretch,
-            VerticalAlignment = Align.Stretch,
-        };
+        _threadWorkspaceView ??= new ThreadWorkspaceView(
+            _viewModel,
+            _statusSpinner!,
+            () => CreateComputedVisual(BuildSessionUsageIndicatorVisual),
+            () => _statusTone,
+            CreatePromptEditor,
+            () => _ = SendSelectedThreadPromptAsync(steer: false),
+            OnThreadTabControlSelectionChanged,
+            OnChatBackendSelectionChanged,
+            OnChatModelSelectionChanged,
+            OnChatReasoningSelectionChanged,
+            OnChatAutoScrollChanged);
+        _threadPaneLayout ??= _threadWorkspaceView.ThreadPaneLayout;
+        _threadBottomPanel ??= _threadWorkspaceView.ThreadBottomPanel;
+        _threadBodySplitter ??= _threadWorkspaceView.ThreadBodySplitter;
+        _threadInput ??= _threadWorkspaceView.ThreadInput;
+        _threadInputView ??= _threadWorkspaceView.ThreadInputView;
+        _sendPromptButton ??= _threadWorkspaceView.SendPromptButton;
+        _threadCommandBar ??= _threadWorkspaceView.ThreadCommandBar;
+        _chatBackendSelect ??= _threadWorkspaceView.ChatBackendSelect;
+        _chatModelSelect ??= _threadWorkspaceView.ChatModelSelect;
+        _chatReasoningSelect ??= _threadWorkspaceView.ChatReasoningSelect;
+        _chatAutoScrollCheckBox ??= _threadWorkspaceView.ChatAutoScrollCheckBox;
+        _threadTabControl ??= _threadWorkspaceView.ThreadTabControl;
 
         RebuildSidebarTree();
+        RefreshThreadPaneContent();
 
-        var treeHost = new ScrollViewer(_sidebarTree)
-            .HorizontalScrollEnabled(false)
-            .VerticalScrollEnabled(true);
-
-        var footer = new VStack(
-            [
-                new TextBlock("Thread Title (optional)"),
-                newThreadTitleInput,
-                new Button(new TextBlock("Refresh Catalog")).Click(() => _ = _shellController.ReloadCatalogAsync(CancellationToken.None)),
-            ])
-        {
-            Spacing = 1,
-        };
-
-        var contentGrid = new Grid
-        {
-            HorizontalAlignment = Align.Stretch,
-            VerticalAlignment = Align.Stretch,
-        }
-        .Rows(
-            new RowDefinition { Height = GridLength.Star(1) },
-            new RowDefinition { Height = GridLength.Auto })
-        .Columns(
-            new ColumnDefinition { Width = GridLength.Star(1) });
-        contentGrid.Cell(treeHost, 0, 0);
-        contentGrid.Cell(footer, 1, 0);
-
-        return new Group(
-            new Markup($"[bold]{NerdFont.FaFolderTree} Navigator[/]"),
-            contentGrid)
-        {
-            HorizontalAlignment = Align.Stretch,
-            VerticalAlignment = Align.Stretch,
-        };
+        _shellView ??= new CodeAltaShellView(
+            _viewModel,
+            _sidebarView.Root,
+            _threadWorkspaceView.Root,
+            _threadCommandBar);
+        return _shellView;
     }
 
     private void RebuildSidebarTree()

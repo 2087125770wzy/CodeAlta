@@ -49,9 +49,12 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private WorkThreadViewState _viewState = new();
     private CodeAltaConfigDocument _globalConfig = new();
     private readonly Dictionary<string, CodeAltaConfigDocument> _projectConfigCache = new(StringComparer.OrdinalIgnoreCase);
+    private CodeAltaShellView? _shellView;
+    private SidebarView? _sidebarView;
+    private ThreadWorkspaceView? _threadWorkspaceView;
+    private SessionUsagePopupView? _sessionUsagePopupView;
     private IUiDispatcher? _uiDispatcher;
     private Spinner? _statusSpinner;
-    private Markup? _statusIconVisual;
     private Visual? _threadPaneLayout;
     private Visual? _threadBottomPanel;
     private VSplitter? _threadBodySplitter;
@@ -63,8 +66,6 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
     private Select<ChatModelOption>? _chatModelSelect;
     private Select<ChatReasoningOption>? _chatReasoningSelect;
     private CheckBox? _chatAutoScrollCheckBox;
-    private Popup? _sessionUsagePopup;
-    private bool _sessionUsagePopupOpen;
     private TreeView? _sidebarTree;
     private TabControl? _threadTabControl;
     private TabPage? _draftTabPage;
@@ -145,28 +146,7 @@ internal sealed partial class CodeAltaApp : IAsyncDisposable
 
         SetStatus("Connecting to available backends...", showSpinner: true);
 
-        var root = new Grid
-        {
-            HorizontalAlignment = Align.Stretch,
-            VerticalAlignment = Align.Stretch,
-        }
-        .Rows(
-            new RowDefinition { Height = GridLength.Auto },
-            new RowDefinition { Height = GridLength.Star(1) })
-        .Columns(
-            new ColumnDefinition { Width = GridLength.Star(1) });
-
-        root.Cell(
-            new TextBlock
-            {
-                Wrap = false,
-            }.Text(() => _viewModel.HeaderText),
-            0,
-            0);
-        root.Cell(
-            BuildMainView(),
-            1,
-            0);
+        var root = EnsureShellView().Root;
 
         await Terminal.RunAsync(
                 root,
