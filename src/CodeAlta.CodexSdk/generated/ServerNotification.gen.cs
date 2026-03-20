@@ -26,6 +26,8 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(TurnDiffUpdatedNotification), typeDiscriminator: "turn/diff/updated")]
 [JsonDerivedType(typeof(TurnPlanUpdatedNotification), typeDiscriminator: "turn/plan/updated")]
 [JsonDerivedType(typeof(ItemStartedNotification), typeDiscriminator: "item/started")]
+[JsonDerivedType(typeof(ItemAutoApprovalReviewStartedNotification), typeDiscriminator: "item/autoApprovalReview/started")]
+[JsonDerivedType(typeof(ItemAutoApprovalReviewCompletedNotification), typeDiscriminator: "item/autoApprovalReview/completed")]
 [JsonDerivedType(typeof(ItemCompletedNotification), typeDiscriminator: "item/completed")]
 [JsonDerivedType(typeof(ItemAgentMessageDeltaNotification), typeDiscriminator: "item/agentMessage/delta")]
 [JsonDerivedType(typeof(ItemPlanDeltaNotification), typeDiscriminator: "item/plan/delta")]
@@ -155,6 +157,18 @@ public abstract partial record ServerNotification
     {
         [JsonPropertyName("params")]
         public ItemStartedNotification Params { get; set; } = default!;
+    }
+
+    public sealed partial record ItemAutoApprovalReviewStartedNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public ItemGuardianApprovalReviewStartedNotification Params { get; set; } = default!;
+    }
+
+    public sealed partial record ItemAutoApprovalReviewCompletedNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public ItemGuardianApprovalReviewCompletedNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ItemCompletedNotification : ServerNotification

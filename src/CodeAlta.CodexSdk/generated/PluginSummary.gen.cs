@@ -8,12 +8,16 @@ namespace CodeAlta.CodexSdk;
 
 public sealed partial record PluginSummary
 {
+    [JsonPropertyName("authPolicy")]
+    public PluginAuthPolicy AuthPolicy { get; set; } = default!;
     [JsonPropertyName("enabled")]
     public bool Enabled { get; set; }
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
     [JsonPropertyName("installed")]
     public bool Installed { get; set; }
+    [JsonPropertyName("installPolicy")]
+    public PluginInstallPolicy InstallPolicy { get; set; } = default!;
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
     [JsonPropertyName("source")]

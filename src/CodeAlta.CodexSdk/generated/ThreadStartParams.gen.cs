@@ -10,6 +10,9 @@ public sealed partial record ThreadStartParams
 {
     [JsonPropertyName("approvalPolicy")]
     public AskForApproval? ApprovalPolicy { get; set; }
+    /// <summary>Override where approval requests are routed for review on this thread and subsequent turns.</summary>
+    [JsonPropertyName("approvalsReviewer")]
+    public ApprovalsReviewer? ApprovalsReviewer { get; set; }
     [JsonPropertyName("baseInstructions")]
     public string? BaseInstructions { get; set; }
     [JsonPropertyName("config")]

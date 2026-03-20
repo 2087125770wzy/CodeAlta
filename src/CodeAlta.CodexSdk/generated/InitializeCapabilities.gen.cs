@@ -14,7 +14,7 @@ public sealed partial record InitializeCapabilities
     /// <summary>Opt into receiving experimental API methods and fields.</summary>
     [JsonPropertyName("experimentalApi")]
     public bool? ExperimentalApi { get; set; }
-    /// <summary>Exact notification method names that should be suppressed for this connection (for example `codex/event/session_configured`).</summary>
+    /// <summary>Exact notification method names that should be suppressed for this connection (for example `thread/started`).</summary>
     [JsonPropertyName("optOutNotificationMethods")]
     public List<string>? OptOutNotificationMethods { get; set; }
 }

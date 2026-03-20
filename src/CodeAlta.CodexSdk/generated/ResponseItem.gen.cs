@@ -11,9 +11,11 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(ReasoningResponseItem), typeDiscriminator: "reasoning")]
 [JsonDerivedType(typeof(LocalShellCallResponseItem), typeDiscriminator: "local_shell_call")]
 [JsonDerivedType(typeof(FunctionCallResponseItem), typeDiscriminator: "function_call")]
+[JsonDerivedType(typeof(ToolSearchCallResponseItem), typeDiscriminator: "tool_search_call")]
 [JsonDerivedType(typeof(FunctionCallOutputResponseItem), typeDiscriminator: "function_call_output")]
 [JsonDerivedType(typeof(CustomToolCallResponseItem), typeDiscriminator: "custom_tool_call")]
 [JsonDerivedType(typeof(CustomToolCallOutputResponseItem), typeDiscriminator: "custom_tool_call_output")]
+[JsonDerivedType(typeof(ToolSearchOutputResponseItem), typeDiscriminator: "tool_search_output")]
 [JsonDerivedType(typeof(WebSearchCallResponseItem), typeDiscriminator: "web_search_call")]
 [JsonDerivedType(typeof(ImageGenerationCallResponseItem), typeDiscriminator: "image_generation_call")]
 [JsonDerivedType(typeof(GhostSnapshotResponseItem), typeDiscriminator: "ghost_snapshot")]
@@ -41,8 +43,6 @@ public abstract partial record ResponseItem
         public List<ReasoningItemContent>? Content { get; set; }
         [JsonPropertyName("encrypted_content")]
         public string? EncryptedContent { get; set; }
-        [JsonPropertyName("id")]
-        public string Id { get; set; } = string.Empty;
         [JsonPropertyName("summary")]
         public List<JsonElement> Summary { get; set; } = [];
     }
@@ -71,6 +71,22 @@ public abstract partial record ResponseItem
         public string? Id { get; set; }
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
+        [JsonPropertyName("namespace")]
+        public string? Namespace { get; set; }
+    }
+
+    public sealed partial record ToolSearchCallResponseItem : ResponseItem
+    {
+        [JsonPropertyName("arguments")]
+        public JsonElement Arguments { get; set; }
+        [JsonPropertyName("call_id")]
+        public string? CallId { get; set; }
+        [JsonPropertyName("execution")]
+        public string Execution { get; set; } = string.Empty;
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+        [JsonPropertyName("status")]
+        public string? Status { get; set; }
     }
 
     public sealed partial record FunctionCallOutputResponseItem : ResponseItem
@@ -78,7 +94,7 @@ public abstract partial record ResponseItem
         [JsonPropertyName("call_id")]
         public string CallId { get; set; } = string.Empty;
         [JsonPropertyName("output")]
-        public FunctionCallOutputPayload Output { get; set; } = default!;
+        public FunctionCallOutputBody Output { get; set; } = default!;
     }
 
     public sealed partial record CustomToolCallResponseItem : ResponseItem
@@ -99,8 +115,22 @@ public abstract partial record ResponseItem
     {
         [JsonPropertyName("call_id")]
         public string CallId { get; set; } = string.Empty;
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
         [JsonPropertyName("output")]
-        public FunctionCallOutputPayload Output { get; set; } = default!;
+        public FunctionCallOutputBody Output { get; set; } = default!;
+    }
+
+    public sealed partial record ToolSearchOutputResponseItem : ResponseItem
+    {
+        [JsonPropertyName("call_id")]
+        public string? CallId { get; set; }
+        [JsonPropertyName("execution")]
+        public string Execution { get; set; } = string.Empty;
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = string.Empty;
+        [JsonPropertyName("tools")]
+        public List<JsonElement> Tools { get; set; } = [];
     }
 
     public sealed partial record WebSearchCallResponseItem : ResponseItem

@@ -27,17 +27,19 @@ internal sealed class AskForApprovalJsonConverter : JsonConverter<AskForApproval
         {
             using var doc = JsonDocument.ParseValue(ref reader);
             var obj = doc.RootElement;
-            if (obj.TryGetProperty("reject", out var __RejectElem))
+            if (obj.TryGetProperty("granular", out var __GranularElem))
             {
-                var __result = new AskForApproval.Reject();
-                if (__RejectElem.TryGetProperty("mcp_elicitations", out var __McpElicitationsProp))
+                var __result = new AskForApproval.Granular();
+                if (__GranularElem.TryGetProperty("mcp_elicitations", out var __McpElicitationsProp))
                     __result.McpElicitations = JsonSerializer.Deserialize<bool>(__McpElicitationsProp, options);
-                if (__RejectElem.TryGetProperty("rules", out var __RulesProp))
+                if (__GranularElem.TryGetProperty("rules", out var __RulesProp))
                     __result.Rules = JsonSerializer.Deserialize<bool>(__RulesProp, options);
-                if (__RejectElem.TryGetProperty("sandbox_approval", out var __SandboxApprovalProp))
+                if (__GranularElem.TryGetProperty("sandbox_approval", out var __SandboxApprovalProp))
                     __result.SandboxApproval = JsonSerializer.Deserialize<bool>(__SandboxApprovalProp, options);
-                if (__RejectElem.TryGetProperty("request_permissions", out var __RequestPermissionsProp))
+                if (__GranularElem.TryGetProperty("request_permissions", out var __RequestPermissionsProp))
                     __result.RequestPermissions = JsonSerializer.Deserialize<bool?>(__RequestPermissionsProp, options);
+                if (__GranularElem.TryGetProperty("skill_approval", out var __SkillApprovalProp))
+                    __result.SkillApproval = JsonSerializer.Deserialize<bool?>(__SkillApprovalProp, options);
                 return __result;
             }
             throw new JsonException($"Unknown AskForApproval object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
@@ -67,9 +69,9 @@ internal sealed class AskForApprovalJsonConverter : JsonConverter<AskForApproval
             case AskForApproval.Never:
                 writer.WriteStringValue("never");
                 break;
-            case AskForApproval.Reject v:
+            case AskForApproval.Granular v:
                 writer.WriteStartObject();
-                writer.WritePropertyName("reject");
+                writer.WritePropertyName("granular");
                 writer.WriteStartObject();
                 writer.WritePropertyName("mcp_elicitations");
                 JsonSerializer.Serialize(writer, v.McpElicitations, options);
@@ -81,6 +83,11 @@ internal sealed class AskForApprovalJsonConverter : JsonConverter<AskForApproval
                 {
                     writer.WritePropertyName("request_permissions");
                     JsonSerializer.Serialize(writer, v.RequestPermissions, options);
+                }
+                if (v.SkillApproval is not null)
+                {
+                    writer.WritePropertyName("skill_approval");
+                    JsonSerializer.Serialize(writer, v.SkillApproval, options);
                 }
                 writer.WriteEndObject();
                 writer.WriteEndObject();
@@ -98,7 +105,7 @@ public abstract partial record AskForApproval
     public sealed partial record OnFailure : AskForApproval;
     public sealed partial record OnRequest : AskForApproval;
     public sealed partial record Never : AskForApproval;
-    public sealed partial record Reject : AskForApproval
+    public sealed partial record Granular : AskForApproval
     {
         [JsonPropertyName("mcp_elicitations")]
         public bool McpElicitations { get; set; }
@@ -108,5 +115,7 @@ public abstract partial record AskForApproval
         public bool SandboxApproval { get; set; }
         [JsonPropertyName("request_permissions")]
         public bool? RequestPermissions { get; set; }
+        [JsonPropertyName("skill_approval")]
+        public bool? SkillApproval { get; set; }
     }
 }

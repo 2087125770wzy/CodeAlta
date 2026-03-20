@@ -12,4 +12,7 @@ public sealed partial record PluginInstallParams
     public AbsolutePathBuf MarketplacePath { get; set; } = default!;
     [JsonPropertyName("pluginName")]
     public string PluginName { get; set; } = string.Empty;
+    /// <summary>When true, apply the remote plugin change before the local install flow.</summary>
+    [JsonPropertyName("forceRemoteSync")]
+    public bool? ForceRemoteSync { get; set; }
 }

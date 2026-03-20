@@ -1,7 +1,6 @@
 using System.IO;
 using System.Text;
 using System.Text.Json;
-using System.Globalization;
 using CodeAlta.CodexSdk;
 using CodexThread = CodeAlta.CodexSdk.Thread;
 using V2ReasoningEffort = CodeAlta.CodexSdk.ReasoningEffort;
@@ -667,379 +666,6 @@ internal static class CodexAgentMapper
         return events;
     }
 
-    // Reserved for potential replay of a CodeAlta-owned JSONL archive.
-    // Restored session history must not call this for backend-owned Codex logs.
-    public static IReadOnlyList<AgentEvent> ToSessionLogHistoryEvents(string sessionId, string sessionLogPath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionLogPath);
-
-        var events = new List<AgentEvent>();
-        string? activeTurnId = null;
-        var messageIndex = 0;
-
-        foreach (var line in ReadSessionLogLines(sessionLogPath))
-        {
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                continue;
-            }
-
-            using var document = JsonDocument.Parse(line);
-            var root = document.RootElement;
-            if (!root.TryGetProperty("timestamp", out var timestampElement) ||
-                timestampElement.ValueKind != JsonValueKind.String ||
-                !DateTimeOffset.TryParse(timestampElement.GetString(), out var timestamp) ||
-                !root.TryGetProperty("type", out var typeElement) ||
-                typeElement.ValueKind != JsonValueKind.String)
-            {
-                continue;
-            }
-
-            switch (typeElement.GetString())
-            {
-                case "event_msg":
-                    if (root.TryGetProperty("payload", out var eventPayload) &&
-                        eventPayload.ValueKind == JsonValueKind.Object &&
-                        JsonSerializer.Deserialize(eventPayload.GetRawText(), CodexJsonSerializerContext.Default.EventMsg) is EventMsg eventMsg)
-                    {
-                        if (eventMsg is EventMsg.TaskStartedEventMsg taskStarted)
-                        {
-                            activeTurnId = taskStarted.TurnId;
-                        }
-
-                        if (TryCreateSessionLogEventMsgEvent(sessionId, eventMsg, timestamp, activeTurnId, out var eventMsgEvent))
-                        {
-                            events.Add(eventMsgEvent!);
-                        }
-                    }
-
-                    break;
-
-                case "response_item":
-                    if (!root.TryGetProperty("payload", out var payload) ||
-                        payload.ValueKind != JsonValueKind.Object ||
-                        JsonSerializer.Deserialize(payload.GetRawText(), CodexJsonSerializerContext.Default.ResponseItem) is not ResponseItem responseItem)
-                    {
-                        break;
-                    }
-
-                    if (responseItem is ResponseItem.MessageResponseItem message && string.IsNullOrWhiteSpace(message.Id))
-                    {
-                        message.Id = $"message:{messageIndex++.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
-                    }
-
-                    var turnId = activeTurnId ?? $"session-log:{sessionId}";
-                    events.Add(ToAgentEvent(
-                        sessionId,
-                        new CodexNotification.RawResponseItemCompleted(
-                            new RawResponseItemCompletedNotification
-                            {
-                                ThreadId = sessionId,
-                                TurnId = turnId,
-                                Item = responseItem
-                            }),
-                        timestamp));
-                    break;
-            }
-        }
-
-        return events;
-    }
-
-    private static bool TryCreateSessionLogEventMsgEvent(
-        string sessionId,
-        EventMsg eventMsg,
-        DateTimeOffset timestamp,
-        string? activeTurnId,
-        out AgentEvent? @event)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        @event = eventMsg switch
-        {
-            EventMsg.TaskStartedEventMsg taskStarted => CreateActivity(
-                sessionId,
-                timestamp,
-                new AgentRunId(taskStarted.TurnId),
-                AgentActivityKind.Turn,
-                AgentActivityPhase.Started,
-                taskStarted.TurnId,
-                null,
-                "turn",
-                null),
-
-            EventMsg.TaskCompleteEventMsg taskComplete => CreateSessionUpdate(
-                sessionId,
-                timestamp,
-                AgentSessionUpdateKind.Idle,
-                null,
-                new AgentRunId(taskComplete.TurnId)),
-
-            EventMsg.TokenCountEventMsg tokenCount => CreateSessionUpdate(
-                sessionId,
-                timestamp,
-                AgentSessionUpdateKind.UsageUpdated,
-                BuildCodexUsageMessage(tokenCount.Info?.TotalTokenUsage.TotalTokens, tokenCount.Info?.ModelContextWindow),
-                CreateRunId(activeTurnId),
-                usage: CreateCodexTokenCountUsage(timestamp, tokenCount.Info, tokenCount.RateLimits)),
-
-            EventMsg.WarningEventMsg warning => CreateSessionUpdate(
-                sessionId,
-                timestamp,
-                AgentSessionUpdateKind.Warning,
-                warning.Message,
-                CreateRunId(activeTurnId)),
-
-            EventMsg.ErrorEventMsg error => new AgentErrorEvent(
-                AgentBackendIds.Codex,
-                sessionId,
-                timestamp,
-                error.Message,
-                null,
-                CreateRunId(activeTurnId)),
-
-            EventMsg.ModelRerouteEventMsg modelReroute => CreateSessionUpdate(
-                sessionId,
-                timestamp,
-                AgentSessionUpdateKind.ModelChanged,
-                $"{modelReroute.FromModel} → {modelReroute.ToModel}",
-                CreateRunId(activeTurnId)),
-
-            EventMsg.ThreadNameUpdatedEventMsg threadNameUpdated => CreateSessionUpdate(
-                sessionId,
-                timestamp,
-                AgentSessionUpdateKind.TitleChanged,
-                threadNameUpdated.ThreadName),
-
-            EventMsg.ContextCompactedEventMsg => CreateSessionUpdate(
-                sessionId,
-                timestamp,
-                AgentSessionUpdateKind.CompactionCompleted,
-                "Thread compacted.",
-                CreateRunId(activeTurnId)),
-
-            EventMsg.TurnDiffEventMsg turnDiff => CreateSessionUpdate(
-                sessionId,
-                timestamp,
-                AgentSessionUpdateKind.DiffUpdated,
-                "Turn diff updated.",
-                CreateRunId(activeTurnId),
-                CreateDiffDetails(turnDiff.UnifiedDiff)),
-
-            EventMsg.PlanUpdateEventMsg planUpdate => new AgentPlanSnapshotEvent(
-                AgentBackendIds.Codex,
-                sessionId,
-                timestamp,
-                CreateRunId(activeTurnId),
-                new AgentPlanSnapshot(
-                    ChangeKind: AgentPlanChangeKind.Updated,
-                    Explanation: planUpdate.Explanation,
-                    Steps: planUpdate.Plan.Select(static step => new AgentPlanStep(
-                        step.Step,
-                        step.Status switch
-                        {
-                            StepStatus.Pending => AgentPlanStepStatus.Pending,
-                            StepStatus.InProgress => AgentPlanStepStatus.InProgress,
-                            StepStatus.Completed => AgentPlanStepStatus.Completed,
-                            _ => null
-                        })).ToArray())),
-
-            EventMsg.ExecCommandBeginEventMsg execCommandBegin => CreateActivity(
-                sessionId,
-                timestamp,
-                CreateRunId(execCommandBegin.TurnId),
-                AgentActivityKind.CommandExecution,
-                AgentActivityPhase.Started,
-                execCommandBegin.CallId,
-                execCommandBegin.TurnId,
-                ResolveCommandText(execCommandBegin.ParsedCmd, execCommandBegin.Command),
-                execCommandBegin.Cwd,
-                CreateCommandExecutionDetails(execCommandBegin)),
-
-            EventMsg.ExecCommandOutputDeltaEventMsg execCommandOutputDelta => new AgentContentDeltaEvent(
-                AgentBackendIds.Codex,
-                sessionId,
-                timestamp,
-                CreateRunId(activeTurnId),
-                AgentContentKind.CommandOutput,
-                execCommandOutputDelta.CallId,
-                execCommandOutputDelta.CallId,
-                execCommandOutputDelta.Chunk),
-
-            EventMsg.TerminalInteractionEventMsg terminalInteraction => CreateActivity(
-                sessionId,
-                timestamp,
-                CreateRunId(activeTurnId),
-                AgentActivityKind.CommandExecution,
-                AgentActivityPhase.Progressed,
-                terminalInteraction.CallId,
-                activeTurnId,
-                "terminal interaction",
-                terminalInteraction.Stdin,
-                CreateTerminalInteractionDetails(terminalInteraction)),
-
-            EventMsg.ExecCommandEndEventMsg execCommandEnd => CreateActivity(
-                sessionId,
-                timestamp,
-                CreateRunId(execCommandEnd.TurnId),
-                AgentActivityKind.CommandExecution,
-                ToActivityPhase(execCommandEnd.Status),
-                execCommandEnd.CallId,
-                execCommandEnd.TurnId,
-                ResolveCommandText(execCommandEnd.ParsedCmd, execCommandEnd.Command),
-                GetCommandExecutionMessage(execCommandEnd),
-                CreateCommandExecutionDetails(execCommandEnd)),
-
-            EventMsg.McpToolCallBeginEventMsg mcpToolCallBegin => CreateActivity(
-                sessionId,
-                timestamp,
-                CreateRunId(activeTurnId),
-                AgentActivityKind.McpToolCall,
-                AgentActivityPhase.Started,
-                mcpToolCallBegin.CallId,
-                activeTurnId,
-                mcpToolCallBegin.Invocation.Tool,
-                mcpToolCallBegin.Invocation.Server,
-                CreateMcpToolCallDetails(mcpToolCallBegin)),
-
-            EventMsg.McpToolCallEndEventMsg mcpToolCallEnd => CreateActivity(
-                sessionId,
-                timestamp,
-                CreateRunId(activeTurnId),
-                AgentActivityKind.McpToolCall,
-                ToMcpToolCallPhase(mcpToolCallEnd.Result),
-                mcpToolCallEnd.CallId,
-                activeTurnId,
-                mcpToolCallEnd.Invocation.Tool,
-                GetMcpToolCallMessage(mcpToolCallEnd.Result),
-                CreateMcpToolCallDetails(mcpToolCallEnd)),
-
-            EventMsg.WebSearchBeginEventMsg webSearchBegin => CreateActivity(
-                sessionId,
-                timestamp,
-                CreateRunId(activeTurnId),
-                AgentActivityKind.WebSearch,
-                AgentActivityPhase.Started,
-                webSearchBegin.CallId,
-                activeTurnId,
-                "web search",
-                null),
-
-            EventMsg.WebSearchEndEventMsg webSearchEnd => CreateActivity(
-                sessionId,
-                timestamp,
-                CreateRunId(activeTurnId),
-                AgentActivityKind.WebSearch,
-                AgentActivityPhase.Completed,
-                webSearchEnd.CallId,
-                activeTurnId,
-                DescribeWebSearchAction(webSearchEnd.Action, webSearchEnd.Query),
-                webSearchEnd.Query,
-                CreateWebSearchDetails(webSearchEnd)),
-
-            EventMsg.ImageGenerationBeginEventMsg imageGenerationBegin => CreateActivity(
-                sessionId,
-                timestamp,
-                CreateRunId(activeTurnId),
-                AgentActivityKind.ImageGeneration,
-                AgentActivityPhase.Started,
-                imageGenerationBegin.CallId,
-                activeTurnId,
-                "image generation",
-                null),
-
-            EventMsg.ImageGenerationEndEventMsg imageGenerationEnd => CreateActivity(
-                sessionId,
-                timestamp,
-                CreateRunId(activeTurnId),
-                AgentActivityKind.ImageGeneration,
-                ToImageGenerationPhase(imageGenerationEnd.Status, AgentActivityPhase.Completed),
-                imageGenerationEnd.CallId,
-                activeTurnId,
-                "image generation",
-                imageGenerationEnd.RevisedPrompt,
-                CreateImageGenerationDetails(imageGenerationEnd)),
-
-            EventMsg.PatchApplyBeginEventMsg patchApplyBegin => CreateActivity(
-                sessionId,
-                timestamp,
-                CreateRunId(patchApplyBegin.TurnId ?? activeTurnId),
-                AgentActivityKind.FileChange,
-                AgentActivityPhase.Started,
-                patchApplyBegin.CallId,
-                patchApplyBegin.TurnId ?? activeTurnId,
-                "file change",
-                null,
-                CreatePatchApplyDetails(patchApplyBegin)),
-
-            EventMsg.PatchApplyEndEventMsg patchApplyEnd => CreateActivity(
-                sessionId,
-                timestamp,
-                CreateRunId(patchApplyEnd.TurnId ?? activeTurnId),
-                AgentActivityKind.FileChange,
-                ToActivityPhase(patchApplyEnd.Status),
-                patchApplyEnd.CallId,
-                patchApplyEnd.TurnId ?? activeTurnId,
-                "file change",
-                patchApplyEnd.Changes is { Count: > 0 } changes ? $"{changes.Count} change(s)" : null,
-                CreatePatchApplyDetails(patchApplyEnd)),
-
-            EventMsg.EnteredReviewModeEventMsg enteredReviewMode => CreateSessionUpdate(
-                sessionId,
-                timestamp,
-                AgentSessionUpdateKind.ModeChanged,
-                $"Entered review mode: {enteredReviewMode.Target}.",
-                CreateRunId(activeTurnId)),
-
-            EventMsg.ExitedReviewModeEventMsg => CreateSessionUpdate(
-                sessionId,
-                timestamp,
-                AgentSessionUpdateKind.ModeChanged,
-                "Exited review mode.",
-                CreateRunId(activeTurnId)),
-
-            EventMsg.ShutdownCompleteEventMsg => CreateSessionUpdate(
-                sessionId,
-                timestamp,
-                AgentSessionUpdateKind.Shutdown,
-                "Thread closed.",
-                CreateRunId(activeTurnId)),
-
-            EventMsg.RawResponseItemEventMsg rawResponseItem when !string.IsNullOrWhiteSpace(activeTurnId) => ToRawResponseItemCompletedEvent(
-                sessionId,
-                new RawResponseItemCompletedNotification
-                {
-                    ThreadId = sessionId,
-                    TurnId = activeTurnId!,
-                    Item = rawResponseItem.Item
-                },
-                timestamp),
-
-            // Skip replaying content-like event_msg variants because session logs already
-            // persist response_item records for messages/reasoning, and replaying both would duplicate history.
-            _ => null
-        };
-
-        return @event is not null;
-    }
-
-    private static IEnumerable<string> ReadSessionLogLines(string sessionLogPath)
-    {
-        using var stream = new FileStream(
-            sessionLogPath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite | FileShare.Delete);
-        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-
-        while (reader.ReadLine() is { } line)
-        {
-            yield return line;
-        }
-    }
-
     private static AgentSessionUpdateEvent CreateSessionUpdate(
         string sessionId,
         DateTimeOffset timestamp,
@@ -1074,27 +700,6 @@ internal static class CodexAgentMapper
                 LastTurnUsage: ToCodexTokenUsage(usage.Last),
                 TotalUsage: ToCodexTokenUsage(usage.Total),
                 ModelContextWindow: usage.ModelContextWindow));
-    }
-
-    private static AgentSessionUsage? CreateCodexTokenCountUsage(DateTimeOffset timestamp, TokenUsageInfo? info, RateLimitSnapshot? rateLimits)
-    {
-        if (info is null && rateLimits is null)
-        {
-            return null;
-        }
-
-        return new AgentSessionUsage(
-            Window: info is null ? null : CreateCodexWindowUsage(ToCodexTokenUsage(info.LastTokenUsage), info.ModelContextWindow),
-            LastOperation: info is null ? null : ToAgentOperationUsage(info.LastTokenUsage, "Last turn"),
-            RateLimits: ToAgentRateLimitSummary(rateLimits, "Account rate limits"),
-            Scope: info is null ? AgentUsageScope.RateLimitOnly : AgentUsageScope.CurrentWindow,
-            Source: AgentUsageSource.CodexTokenCountEvent,
-            UpdatedAt: timestamp,
-            Details: new CodexSessionUsageDetails(
-                LastTurnUsage: info is null ? null : ToCodexTokenUsage(info.LastTokenUsage),
-                TotalUsage: info is null ? null : ToCodexTokenUsage(info.TotalTokenUsage),
-                ModelContextWindow: info?.ModelContextWindow,
-                RateLimits: ToCodexRateLimitSnapshot(rateLimits)));
     }
 
     private static AgentSessionUsage CreateCodexRateLimitUsage(DateTimeOffset timestamp, RateLimitSnapshot rateLimits)
@@ -1136,18 +741,6 @@ internal static class CodexAgentMapper
             Label: label);
     }
 
-    private static AgentOperationUsageSnapshot ToAgentOperationUsage(TokenUsage usage, string label)
-    {
-        ArgumentNullException.ThrowIfNull(usage);
-
-        return new AgentOperationUsageSnapshot(
-            InputTokens: usage.InputTokens,
-            OutputTokens: usage.OutputTokens,
-            CachedInputTokens: usage.CachedInputTokens,
-            ReasoningTokens: usage.ReasoningOutputTokens,
-            Label: label);
-    }
-
     private static AgentRateLimitSummary? ToAgentRateLimitSummary(RateLimitSnapshot? rateLimits, string label)
     {
         if (rateLimits is null)
@@ -1177,18 +770,6 @@ internal static class CodexAgentMapper
     }
 
     private static CodexTokenUsage ToCodexTokenUsage(TokenUsageBreakdown usage)
-    {
-        ArgumentNullException.ThrowIfNull(usage);
-
-        return new CodexTokenUsage(
-            usage.CachedInputTokens,
-            usage.InputTokens,
-            usage.OutputTokens,
-            usage.ReasoningOutputTokens,
-            usage.TotalTokens);
-    }
-
-    private static CodexTokenUsage ToCodexTokenUsage(TokenUsage usage)
     {
         ArgumentNullException.ThrowIfNull(usage);
 
@@ -1480,7 +1061,7 @@ internal static class CodexAgentMapper
                 mcpToolCall.Id,
                 notification.TurnId,
                 mcpToolCall.Tool,
-                mcpToolCall.Error?.Message,
+                GetMcpToolCallMessage(mcpToolCall),
                 CreateMcpToolCallDetails(mcpToolCall)),
 
             ThreadItem.DynamicToolCallThreadItem dynamicToolCall => CreateActivity(
@@ -1592,7 +1173,7 @@ internal static class CodexAgentMapper
                 timestamp,
                 runId,
                 AgentContentKind.Reasoning,
-                reasoning.Id,
+                $"reasoning:{notification.TurnId}",
                 notification.TurnId,
                 ExtractReasoningResponseText(reasoning)),
 
@@ -1716,17 +1297,6 @@ internal static class CodexAgentMapper
         };
     }
 
-    private static AgentActivityPhase ToActivityPhase(ExecCommandStatus status)
-    {
-        return status switch
-        {
-            ExecCommandStatus.Completed => AgentActivityPhase.Completed,
-            ExecCommandStatus.Failed => AgentActivityPhase.Failed,
-            ExecCommandStatus.Declined => AgentActivityPhase.Canceled,
-            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unsupported exec command status.")
-        };
-    }
-
     private static AgentActivityPhase ToActivityPhase(PatchApplyStatus status)
     {
         return status switch
@@ -1803,28 +1373,16 @@ internal static class CodexAgentMapper
     private static AgentActivityPhase ToCustomToolCallPhase(string? status)
         => ToStatusPhase(status, AgentActivityPhase.Requested);
 
-    private static AgentActivityPhase ToFunctionCallOutputPhase(FunctionCallOutputPayload payload)
+    private static AgentActivityPhase ToFunctionCallOutputPhase(FunctionCallOutputBody payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
-
-        return payload.Success switch
-        {
-            false => AgentActivityPhase.Failed,
-            true => AgentActivityPhase.Completed,
-            null => AgentActivityPhase.Completed
-        };
+        return AgentActivityPhase.Completed;
     }
 
-    private static string? GetFunctionCallOutputMessage(FunctionCallOutputPayload payload)
+    private static string? GetFunctionCallOutputMessage(FunctionCallOutputBody payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
-
-        return payload.Success switch
-        {
-            false => "Tool call failed.",
-            true => "Tool call completed.",
-            null => null
-        };
+        return TryGetFunctionCallOutputText(payload);
     }
 
     public static bool TryGetThreadId(CodexNotification notification, out string? threadId)
@@ -2096,65 +1654,6 @@ internal static class CodexAgentMapper
         });
     }
 
-    private static JsonElement CreateCommandExecutionDetails(EventMsg.ExecCommandBeginEventMsg eventMsg)
-    {
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        return CreateObjectElement(writer =>
-        {
-            writer.WriteString("command", ResolveCommandText(eventMsg.ParsedCmd, eventMsg.Command));
-            WriteCommandArray(writer, "rawCommand", eventMsg.Command);
-            WriteParsedCommands(writer, eventMsg.ParsedCmd);
-            writer.WriteString("cwd", eventMsg.Cwd);
-            writer.WriteString("status", "InProgress");
-            if (eventMsg.ProcessId is not null)
-                writer.WriteString("processId", eventMsg.ProcessId);
-            if (eventMsg.InteractionInput is not null)
-                writer.WriteString("interactionInput", eventMsg.InteractionInput);
-            writer.WriteString("source", eventMsg.Source.ToString());
-        });
-    }
-
-    private static JsonElement CreateCommandExecutionDetails(EventMsg.ExecCommandEndEventMsg eventMsg)
-    {
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        return CreateObjectElement(writer =>
-        {
-            writer.WriteString("command", ResolveCommandText(eventMsg.ParsedCmd, eventMsg.Command));
-            WriteCommandArray(writer, "rawCommand", eventMsg.Command);
-            WriteParsedCommands(writer, eventMsg.ParsedCmd);
-            writer.WriteString("cwd", eventMsg.Cwd);
-            writer.WriteString("status", eventMsg.Status.ToString());
-            writer.WriteNumber("exitCode", eventMsg.ExitCode);
-            writer.WriteNumber("durationMs", GetDurationMilliseconds(eventMsg.Duration));
-            if (eventMsg.ProcessId is not null)
-                writer.WriteString("processId", eventMsg.ProcessId);
-            if (eventMsg.AggregatedOutput is not null)
-                writer.WriteString("aggregatedOutput", eventMsg.AggregatedOutput);
-            if (!string.IsNullOrWhiteSpace(eventMsg.FormattedOutput))
-                writer.WriteString("formattedOutput", eventMsg.FormattedOutput);
-            if (!string.IsNullOrWhiteSpace(eventMsg.Stdout))
-                writer.WriteString("stdout", eventMsg.Stdout);
-            if (!string.IsNullOrWhiteSpace(eventMsg.Stderr))
-                writer.WriteString("stderr", eventMsg.Stderr);
-            if (eventMsg.InteractionInput is not null)
-                writer.WriteString("interactionInput", eventMsg.InteractionInput);
-            writer.WriteString("source", eventMsg.Source.ToString());
-        });
-    }
-
-    private static JsonElement CreateTerminalInteractionDetails(EventMsg.TerminalInteractionEventMsg eventMsg)
-    {
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        return CreateObjectElement(writer =>
-        {
-            writer.WriteString("processId", eventMsg.ProcessId);
-            writer.WriteString("stdin", eventMsg.Stdin);
-        });
-    }
-
     private static JsonElement CreateFileChangeDetails(ThreadItem.FileChangeThreadItem item)
     {
         return CreateObjectElement(writer =>
@@ -2177,51 +1676,13 @@ internal static class CodexAgentMapper
             item.Arguments.WriteTo(writer);
             if (item.Error?.Message is not null)
                 writer.WriteString("error", item.Error.Message);
-        });
-    }
-
-    private static JsonElement CreateMcpToolCallDetails(EventMsg.McpToolCallBeginEventMsg eventMsg)
-    {
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        return CreateObjectElement(writer =>
-        {
-            writer.WriteString("tool", eventMsg.Invocation.Tool);
-            writer.WriteString("server", eventMsg.Invocation.Server);
-            writer.WriteString("status", "InProgress");
-            if (eventMsg.Invocation.Arguments is { } arguments)
+            if (item.Result is { } result)
             {
-                writer.WritePropertyName("arguments");
-                arguments.WriteTo(writer);
-            }
-        });
-    }
-
-    private static JsonElement CreateMcpToolCallDetails(EventMsg.McpToolCallEndEventMsg eventMsg)
-    {
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        return CreateObjectElement(writer =>
-        {
-            writer.WriteString("tool", eventMsg.Invocation.Tool);
-            writer.WriteString("server", eventMsg.Invocation.Server);
-            writer.WriteString("status", IsMcpToolCallFailure(eventMsg.Result) ? "Failed" : "Completed");
-            writer.WriteNumber("durationMs", GetDurationMilliseconds(eventMsg.Duration));
-            if (eventMsg.Invocation.Arguments is { } arguments)
-            {
-                writer.WritePropertyName("arguments");
-                arguments.WriteTo(writer);
+                writer.WritePropertyName("result");
+                WriteMcpToolCallResult(writer, result);
             }
 
-            writer.WritePropertyName("result");
-            WriteMcpToolCallResult(writer, eventMsg.Result);
-
-            if (TryGetMcpToolCallError(eventMsg.Result) is { } error)
-            {
-                writer.WriteString("error", error);
-            }
-
-            if (TryGetMcpToolCallOutput(eventMsg.Result) is { } output)
+            if (TryGetMcpToolCallOutput(item.Result) is { } output)
             {
                 writer.WritePropertyName("output");
                 writer.WriteStartObject();
@@ -2276,17 +1737,6 @@ internal static class CodexAgentMapper
         });
     }
 
-    private static JsonElement CreateWebSearchDetails(EventMsg.WebSearchEndEventMsg eventMsg)
-    {
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        return CreateObjectElement(writer =>
-        {
-            writer.WriteString("query", eventMsg.Query);
-            writer.WriteString("action", DescribeWebSearchAction(eventMsg.Action, eventMsg.Query));
-        });
-    }
-
     private static JsonElement CreateImageGenerationDetails(ThreadItem.ImageGenerationThreadItem item)
     {
         return CreateObjectElement(writer =>
@@ -2299,75 +1749,8 @@ internal static class CodexAgentMapper
         });
     }
 
-    private static JsonElement CreateImageGenerationDetails(EventMsg.ImageGenerationEndEventMsg eventMsg)
-    {
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        return CreateObjectElement(writer =>
-        {
-            writer.WriteString("status", eventMsg.Status);
-            if (eventMsg.RevisedPrompt is not null)
-                writer.WriteString("revisedPrompt", eventMsg.RevisedPrompt);
-            if (eventMsg.SavedPath is not null)
-                writer.WriteString("path", eventMsg.SavedPath);
-            if (!string.IsNullOrWhiteSpace(eventMsg.Result))
-                writer.WriteString("result", eventMsg.Result);
-        });
-    }
-
-    private static JsonElement CreatePatchApplyDetails(EventMsg.PatchApplyBeginEventMsg eventMsg)
-    {
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        return CreateObjectElement(writer =>
-        {
-            writer.WriteString("status", PatchApplyStatus.InProgress.ToString());
-            writer.WriteNumber("changeCount", eventMsg.Changes.Count);
-            writer.WriteBoolean("autoApproved", eventMsg.AutoApproved);
-        });
-    }
-
-    private static JsonElement CreatePatchApplyDetails(EventMsg.PatchApplyEndEventMsg eventMsg)
-    {
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        return CreateObjectElement(writer =>
-        {
-            writer.WriteString("status", eventMsg.Status.ToString());
-            writer.WriteNumber("changeCount", eventMsg.Changes?.Count ?? 0);
-            writer.WriteBoolean("success", eventMsg.Success);
-            if (!string.IsNullOrWhiteSpace(eventMsg.Stdout) || !string.IsNullOrWhiteSpace(eventMsg.Stderr))
-            {
-                writer.WritePropertyName("output");
-                writer.WriteStartObject();
-                writer.WriteString("body", BuildPatchApplyOutput(eventMsg));
-                writer.WriteEndObject();
-            }
-        });
-    }
-
     private static AgentRunId? CreateRunId(string? turnId)
         => string.IsNullOrWhiteSpace(turnId) ? null : new AgentRunId(turnId);
-
-    private static string ResolveCommandText(IReadOnlyList<ParsedCommand>? parsedCommands, IReadOnlyList<string>? rawCommand)
-    {
-        if (parsedCommands is { Count: > 0 })
-        {
-            var parsedText = parsedCommands
-                .Select(GetParsedCommandText)
-                .Where(static value => !string.IsNullOrWhiteSpace(value))
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-            if (parsedText.Length > 0)
-            {
-                return string.Join(" ; ", parsedText);
-            }
-        }
-
-        return rawCommand is { Count: > 0 }
-            ? string.Join(" ", rawCommand.Where(static value => !string.IsNullOrWhiteSpace(value)))
-            : string.Empty;
-    }
 
     private static string ResolveCommandText(IReadOnlyList<CommandAction>? commandActions, string? rawCommand)
     {
@@ -2387,20 +1770,6 @@ internal static class CodexAgentMapper
         return rawCommand ?? string.Empty;
     }
 
-    private static string GetParsedCommandText(ParsedCommand parsedCommand)
-    {
-        ArgumentNullException.ThrowIfNull(parsedCommand);
-
-        return parsedCommand switch
-        {
-            ParsedCommand.ReadParsedCommand read => read.Cmd,
-            ParsedCommand.ListFilesParsedCommand listFiles => listFiles.Cmd,
-            ParsedCommand.SearchParsedCommand search => search.Cmd,
-            ParsedCommand.UnknownParsedCommand unknown => unknown.Cmd,
-            _ => parsedCommand.ToString() ?? string.Empty
-        };
-    }
-
     private static string GetCommandActionText(CommandAction commandAction)
     {
         ArgumentNullException.ThrowIfNull(commandAction);
@@ -2415,38 +1784,6 @@ internal static class CodexAgentMapper
         };
     }
 
-    private static void WriteCommandArray(Utf8JsonWriter writer, string propertyName, IReadOnlyList<string>? command)
-    {
-        ArgumentNullException.ThrowIfNull(writer);
-
-        if (command is not { Count: > 0 })
-        {
-            return;
-        }
-
-        writer.WritePropertyName(propertyName);
-        writer.WriteStartArray();
-        foreach (var part in command)
-        {
-            writer.WriteStringValue(part);
-        }
-
-        writer.WriteEndArray();
-    }
-
-    private static void WriteParsedCommands(Utf8JsonWriter writer, IReadOnlyList<ParsedCommand>? parsedCommands)
-    {
-        ArgumentNullException.ThrowIfNull(writer);
-
-        if (parsedCommands is not { Count: > 0 })
-        {
-            return;
-        }
-
-        writer.WritePropertyName("parsedCommand");
-        JsonSerializer.Serialize(writer, parsedCommands, CodexJsonSerializerContext.Default.ListCodeAltaCodexSdkParsedCommand);
-    }
-
     private static void WriteCommandActions(Utf8JsonWriter writer, IReadOnlyList<CommandAction>? commandActions)
     {
         ArgumentNullException.ThrowIfNull(writer);
@@ -2458,68 +1795,6 @@ internal static class CodexAgentMapper
 
         writer.WritePropertyName("commandActions");
         JsonSerializer.Serialize(writer, commandActions, CodexJsonSerializerContext.Default.ListCodeAltaCodexSdkCommandAction);
-    }
-
-    private static double GetDurationMilliseconds(Duration duration)
-    {
-        ArgumentNullException.ThrowIfNull(duration);
-        return duration.Secs * 1000d + (duration.Nanos / 1_000_000d);
-    }
-
-    private static string? GetCommandExecutionMessage(EventMsg.ExecCommandEndEventMsg eventMsg)
-    {
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        if (!string.IsNullOrWhiteSpace(eventMsg.AggregatedOutput))
-            return eventMsg.AggregatedOutput;
-        if (!string.IsNullOrWhiteSpace(eventMsg.FormattedOutput))
-            return eventMsg.FormattedOutput;
-        if (!string.IsNullOrWhiteSpace(eventMsg.Stderr))
-            return eventMsg.Stderr;
-        if (!string.IsNullOrWhiteSpace(eventMsg.Stdout))
-            return eventMsg.Stdout;
-        return null;
-    }
-
-    private static AgentActivityPhase ToMcpToolCallPhase(Result_of_CallToolResult_or_String result)
-        => IsMcpToolCallFailure(result) ? AgentActivityPhase.Failed : AgentActivityPhase.Completed;
-
-    private static bool IsMcpToolCallFailure(Result_of_CallToolResult_or_String result)
-    {
-        ArgumentNullException.ThrowIfNull(result);
-
-        return result switch
-        {
-            Result_of_CallToolResult_or_String.Err => true,
-            Result_of_CallToolResult_or_String.Ok { Value.IsError: true } => true,
-            _ => false
-        };
-    }
-
-    private static string? GetMcpToolCallMessage(Result_of_CallToolResult_or_String result)
-        => TryGetMcpToolCallError(result) ?? TryGetMcpToolCallOutput(result);
-
-    private static string? TryGetMcpToolCallError(Result_of_CallToolResult_or_String result)
-    {
-        ArgumentNullException.ThrowIfNull(result);
-
-        return result switch
-        {
-            Result_of_CallToolResult_or_String.Err err => err.Value,
-            Result_of_CallToolResult_or_String.Ok { Value.IsError: true } ok => TryGetMcpToolCallContentText(ok.Value.Content),
-            _ => null
-        };
-    }
-
-    private static string? TryGetMcpToolCallOutput(Result_of_CallToolResult_or_String result)
-    {
-        ArgumentNullException.ThrowIfNull(result);
-
-        return result switch
-        {
-            Result_of_CallToolResult_or_String.Ok ok => TryGetMcpToolCallContentText(ok.Value.Content),
-            _ => null
-        };
     }
 
     private static string? TryGetMcpToolCallContentText(IReadOnlyList<JsonElement>? content)
@@ -2560,38 +1835,17 @@ internal static class CodexAgentMapper
         return parts.Count == 0 ? null : string.Join(Environment.NewLine, parts);
     }
 
-    private static void WriteMcpToolCallResult(Utf8JsonWriter writer, Result_of_CallToolResult_or_String result)
+    private static string? GetMcpToolCallMessage(ThreadItem.McpToolCallThreadItem item)
+        => item.Error?.Message ?? TryGetMcpToolCallOutput(item.Result);
+
+    private static string? TryGetMcpToolCallOutput(McpToolCallResult? result)
+        => result is null ? null : TryGetMcpToolCallContentText(result.Content);
+
+    private static void WriteMcpToolCallResult(Utf8JsonWriter writer, McpToolCallResult result)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(result);
-
-        switch (result)
-        {
-            case Result_of_CallToolResult_or_String.Err err:
-                writer.WriteStartObject();
-                writer.WriteString("error", err.Value);
-                writer.WriteEndObject();
-                break;
-
-            case Result_of_CallToolResult_or_String.Ok ok:
-                JsonSerializer.Serialize(writer, ok.Value, CodexJsonSerializerContext.Default.CallToolResult);
-                break;
-
-            default:
-                writer.WriteNullValue();
-                break;
-        }
-    }
-
-    private static string BuildPatchApplyOutput(EventMsg.PatchApplyEndEventMsg eventMsg)
-    {
-        ArgumentNullException.ThrowIfNull(eventMsg);
-
-        if (string.IsNullOrWhiteSpace(eventMsg.Stdout))
-            return eventMsg.Stderr;
-        if (string.IsNullOrWhiteSpace(eventMsg.Stderr))
-            return eventMsg.Stdout;
-        return $"{eventMsg.Stdout}{Environment.NewLine}{Environment.NewLine}{eventMsg.Stderr}";
+        JsonSerializer.Serialize(writer, result, CodexJsonSerializerContext.Default.McpToolCallResult);
     }
 
     private static JsonElement CreateLocalShellCallDetails(ResponseItem.LocalShellCallResponseItem item)
@@ -2626,8 +1880,6 @@ internal static class CodexAgentMapper
         return CreateObjectElement(writer =>
         {
             writer.WriteString("callId", item.CallId);
-            if (item.Output.Success is not null)
-                writer.WriteBoolean("success", item.Output.Success.Value);
             writer.WritePropertyName("output");
             WriteFunctionCallOutputPayload(writer, item.Output);
         });
@@ -2651,8 +1903,8 @@ internal static class CodexAgentMapper
         return CreateObjectElement(writer =>
         {
             writer.WriteString("callId", item.CallId);
-            if (item.Output.Success is not null)
-                writer.WriteBoolean("success", item.Output.Success.Value);
+            if (item.Name is not null)
+                writer.WriteString("name", item.Name);
             writer.WritePropertyName("output");
             WriteFunctionCallOutputPayload(writer, item.Output);
         });
@@ -2904,17 +2156,14 @@ internal static class CodexAgentMapper
         }
     }
 
-    private static void WriteFunctionCallOutputPayload(Utf8JsonWriter writer, FunctionCallOutputPayload payload)
+    private static void WriteFunctionCallOutputPayload(Utf8JsonWriter writer, FunctionCallOutputBody payload)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(payload);
 
         writer.WriteStartObject();
-        if (payload.Success is not null)
-            writer.WriteBoolean("success", payload.Success.Value);
-
         writer.WritePropertyName("body");
-        switch (payload.Body)
+        switch (payload)
         {
             case FunctionCallOutputBody.StringValue stringValue:
                 writer.WriteStringValue(stringValue.Value);
@@ -2950,6 +2199,24 @@ internal static class CodexAgentMapper
         }
 
         writer.WriteEndObject();
+    }
+
+    private static string? TryGetFunctionCallOutputText(FunctionCallOutputBody payload)
+    {
+        return payload switch
+        {
+            FunctionCallOutputBody.StringValue stringValue when !string.IsNullOrWhiteSpace(stringValue.Value) => stringValue.Value,
+            FunctionCallOutputBody.ArrayValue arrayValue => string.Join(
+                Environment.NewLine,
+                arrayValue.Value.Select(
+                    static item => item switch
+                    {
+                        FunctionCallOutputContentItem.InputTextFunctionCallOutputContentItem text => text.Text,
+                        FunctionCallOutputContentItem.InputImageFunctionCallOutputContentItem => "Inline Image",
+                        _ => string.Empty
+                    }).Where(static value => !string.IsNullOrWhiteSpace(value))),
+            _ => null
+        };
     }
 
     private static AgentCommandPreviewAction ToAgentCommandPreviewAction(CommandAction action)

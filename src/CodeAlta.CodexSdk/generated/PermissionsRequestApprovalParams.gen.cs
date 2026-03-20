@@ -11,7 +11,7 @@ public sealed partial record PermissionsRequestApprovalParams
     [JsonPropertyName("itemId")]
     public string ItemId { get; set; } = string.Empty;
     [JsonPropertyName("permissions")]
-    public AdditionalPermissionProfile Permissions { get; set; } = default!;
+    public RequestPermissionProfile Permissions { get; set; } = default!;
     [JsonPropertyName("threadId")]
     public string ThreadId { get; set; } = string.Empty;
     [JsonPropertyName("turnId")]

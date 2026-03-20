@@ -8,6 +8,12 @@ namespace CodeAlta.CodexSdk;
 
 public sealed partial record InitializeResponse
 {
+    /// <summary>Platform family for the running app-server target, for example `"unix"` or `"windows"`.</summary>
+    [JsonPropertyName("platformFamily")]
+    public string PlatformFamily { get; set; } = string.Empty;
+    /// <summary>Operating system for the running app-server target, for example `"macos"`, `"linux"`, or `"windows"`.</summary>
+    [JsonPropertyName("platformOs")]
+    public string PlatformOs { get; set; } = string.Empty;
     [JsonPropertyName("userAgent")]
     public string UserAgent { get; set; } = string.Empty;
 }

@@ -10,4 +10,7 @@ public sealed partial record PluginUninstallParams
 {
     [JsonPropertyName("pluginId")]
     public string PluginId { get; set; } = string.Empty;
+    /// <summary>When true, apply the remote plugin change before the local uninstall flow.</summary>
+    [JsonPropertyName("forceRemoteSync")]
+    public bool? ForceRemoteSync { get; set; }
 }

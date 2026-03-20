@@ -18,8 +18,9 @@ public sealed partial record PluginInterface
     public string? Category { get; set; }
     [JsonPropertyName("composerIcon")]
     public AbsolutePathBuf? ComposerIcon { get; set; }
+    /// <summary>Starter prompts for the plugin. Capped at 3 entries with a maximum of 128 characters per entry.</summary>
     [JsonPropertyName("defaultPrompt")]
-    public string? DefaultPrompt { get; set; }
+    public List<string>? DefaultPrompt { get; set; }
     [JsonPropertyName("developerName")]
     public string? DeveloperName { get; set; }
     [JsonPropertyName("displayName")]

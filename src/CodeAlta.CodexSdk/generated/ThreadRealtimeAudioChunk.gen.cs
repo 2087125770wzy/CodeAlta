@@ -17,6 +17,8 @@ public sealed partial record ThreadRealtimeAudioChunk
     public ushort NumChannels { get; set; }
     [JsonPropertyName("sampleRate")]
     public uint SampleRate { get; set; }
+    [JsonPropertyName("itemId")]
+    public string? ItemId { get; set; }
     [JsonPropertyName("samplesPerChannel")]
     public uint? SamplesPerChannel { get; set; }
 }

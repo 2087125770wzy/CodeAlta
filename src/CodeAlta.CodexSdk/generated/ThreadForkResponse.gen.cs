@@ -10,6 +10,9 @@ public sealed partial record ThreadForkResponse
 {
     [JsonPropertyName("approvalPolicy")]
     public AskForApproval ApprovalPolicy { get; set; } = default!;
+    /// <summary>Reviewer currently used for approval requests on this thread.</summary>
+    [JsonPropertyName("approvalsReviewer")]
+    public ApprovalsReviewer ApprovalsReviewer { get; set; } = default!;
     [JsonPropertyName("cwd")]
     public string Cwd { get; set; } = string.Empty;
     [JsonPropertyName("model")]

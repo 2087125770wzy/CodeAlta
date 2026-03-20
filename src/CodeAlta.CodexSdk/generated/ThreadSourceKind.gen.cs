@@ -17,6 +17,8 @@ public enum ThreadSourceKind
     Exec,
     [JsonStringEnumMemberName("appServer")]
     AppServer,
+    [JsonStringEnumMemberName("custom")]
+    Custom,
     [JsonStringEnumMemberName("subAgent")]
     SubAgent,
     [JsonStringEnumMemberName("subAgentReview")]

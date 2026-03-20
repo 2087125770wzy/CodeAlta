@@ -26,9 +26,15 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(ThreadReadRequest), typeDiscriminator: "thread/read")]
 [JsonDerivedType(typeof(SkillsListRequest), typeDiscriminator: "skills/list")]
 [JsonDerivedType(typeof(PluginListRequest), typeDiscriminator: "plugin/list")]
-[JsonDerivedType(typeof(SkillsRemoteListRequest), typeDiscriminator: "skills/remote/list")]
-[JsonDerivedType(typeof(SkillsRemoteExportRequest), typeDiscriminator: "skills/remote/export")]
+[JsonDerivedType(typeof(PluginReadRequest), typeDiscriminator: "plugin/read")]
 [JsonDerivedType(typeof(AppListRequest), typeDiscriminator: "app/list")]
+[JsonDerivedType(typeof(FsReadFileRequest), typeDiscriminator: "fs/readFile")]
+[JsonDerivedType(typeof(FsWriteFileRequest), typeDiscriminator: "fs/writeFile")]
+[JsonDerivedType(typeof(FsCreateDirectoryRequest), typeDiscriminator: "fs/createDirectory")]
+[JsonDerivedType(typeof(FsGetMetadataRequest), typeDiscriminator: "fs/getMetadata")]
+[JsonDerivedType(typeof(FsReadDirectoryRequest), typeDiscriminator: "fs/readDirectory")]
+[JsonDerivedType(typeof(FsRemoveRequest), typeDiscriminator: "fs/remove")]
+[JsonDerivedType(typeof(FsCopyRequest), typeDiscriminator: "fs/copy")]
 [JsonDerivedType(typeof(SkillsConfigWriteRequest), typeDiscriminator: "skills/config/write")]
 [JsonDerivedType(typeof(PluginInstallRequest), typeDiscriminator: "plugin/install")]
 [JsonDerivedType(typeof(PluginUninstallRequest), typeDiscriminator: "plugin/uninstall")]
@@ -192,20 +198,12 @@ public abstract partial record ClientRequest
         public PluginListParams Params { get; set; } = default!;
     }
 
-    public sealed partial record SkillsRemoteListRequest : ClientRequest
+    public sealed partial record PluginReadRequest : ClientRequest
     {
         [JsonPropertyName("id")]
         public RequestId Id { get; set; } = default!;
         [JsonPropertyName("params")]
-        public SkillsRemoteReadParams Params { get; set; } = default!;
-    }
-
-    public sealed partial record SkillsRemoteExportRequest : ClientRequest
-    {
-        [JsonPropertyName("id")]
-        public RequestId Id { get; set; } = default!;
-        [JsonPropertyName("params")]
-        public SkillsRemoteWriteParams Params { get; set; } = default!;
+        public PluginReadParams Params { get; set; } = default!;
     }
 
     public sealed partial record AppListRequest : ClientRequest
@@ -214,6 +212,62 @@ public abstract partial record ClientRequest
         public RequestId Id { get; set; } = default!;
         [JsonPropertyName("params")]
         public AppsListParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record FsReadFileRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public FsReadFileParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record FsWriteFileRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public FsWriteFileParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record FsCreateDirectoryRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public FsCreateDirectoryParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record FsGetMetadataRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public FsGetMetadataParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record FsReadDirectoryRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public FsReadDirectoryParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record FsRemoveRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public FsRemoveParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record FsCopyRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public FsCopyParams Params { get; set; } = default!;
     }
 
     public sealed partial record SkillsConfigWriteRequest : ClientRequest

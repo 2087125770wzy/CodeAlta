@@ -10,4 +10,6 @@ public sealed partial record PluginListResponse
 {
     [JsonPropertyName("marketplaces")]
     public List<PluginMarketplaceEntry> Marketplaces { get; set; } = [];
+    [JsonPropertyName("remoteSyncError")]
+    public string? RemoteSyncError { get; set; }
 }

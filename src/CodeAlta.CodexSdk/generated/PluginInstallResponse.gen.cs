@@ -10,4 +10,6 @@ public sealed partial record PluginInstallResponse
 {
     [JsonPropertyName("appsNeedingAuth")]
     public List<AppSummary> AppsNeedingAuth { get; set; } = [];
+    [JsonPropertyName("authPolicy")]
+    public PluginAuthPolicy AuthPolicy { get; set; } = default!;
 }

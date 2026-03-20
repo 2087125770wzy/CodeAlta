@@ -19,6 +19,9 @@ public sealed partial record ThreadResumeParams
     public string ThreadId { get; set; } = string.Empty;
     [JsonPropertyName("approvalPolicy")]
     public AskForApproval? ApprovalPolicy { get; set; }
+    /// <summary>Override where approval requests are routed for review on this thread and subsequent turns.</summary>
+    [JsonPropertyName("approvalsReviewer")]
+    public ApprovalsReviewer? ApprovalsReviewer { get; set; }
     [JsonPropertyName("baseInstructions")]
     public string? BaseInstructions { get; set; }
     [JsonPropertyName("config")]

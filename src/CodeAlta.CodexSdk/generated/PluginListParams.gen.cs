@@ -11,4 +11,7 @@ public sealed partial record PluginListParams
     /// <summary>Optional working directories used to discover repo marketplaces. When omitted, only home-scoped marketplaces and the official curated marketplace are considered.</summary>
     [JsonPropertyName("cwds")]
     public List<AbsolutePathBuf>? Cwds { get; set; }
+    /// <summary>When true, reconcile the official curated marketplace against the remote plugin state before listing marketplaces.</summary>
+    [JsonPropertyName("forceRemoteSync")]
+    public bool? ForceRemoteSync { get; set; }
 }

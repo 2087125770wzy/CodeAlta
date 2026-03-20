@@ -13,6 +13,8 @@ public sealed partial record ThreadRealtimeStartedNotification
 {
     [JsonPropertyName("threadId")]
     public string ThreadId { get; set; } = string.Empty;
+    [JsonPropertyName("version")]
+    public RealtimeConversationVersion Version { get; set; } = default!;
     [JsonPropertyName("sessionId")]
     public string? SessionId { get; set; }
 }

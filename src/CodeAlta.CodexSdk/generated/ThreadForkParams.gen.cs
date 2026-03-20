@@ -19,6 +19,9 @@ public sealed partial record ThreadForkParams
     public string ThreadId { get; set; } = string.Empty;
     [JsonPropertyName("approvalPolicy")]
     public AskForApproval? ApprovalPolicy { get; set; }
+    /// <summary>Override where approval requests are routed for review on this thread and subsequent turns.</summary>
+    [JsonPropertyName("approvalsReviewer")]
+    public ApprovalsReviewer? ApprovalsReviewer { get; set; }
     [JsonPropertyName("baseInstructions")]
     public string? BaseInstructions { get; set; }
     [JsonPropertyName("config")]
@@ -27,6 +30,8 @@ public sealed partial record ThreadForkParams
     public string? Cwd { get; set; }
     [JsonPropertyName("developerInstructions")]
     public string? DeveloperInstructions { get; set; }
+    [JsonPropertyName("ephemeral")]
+    public bool? Ephemeral { get; set; }
     /// <summary>Configuration overrides for the forked thread, if any.</summary>
     [JsonPropertyName("model")]
     public string? Model { get; set; }

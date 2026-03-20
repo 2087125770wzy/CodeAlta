@@ -10,6 +10,9 @@ public sealed partial record ProfileV2
 {
     [JsonPropertyName("approval_policy")]
     public AskForApproval? ApprovalPolicy { get; set; }
+    /// <summary>[UNSTABLE] Optional profile-level override for where approval requests are routed for review. If omitted, the enclosing config default is used.</summary>
+    [JsonPropertyName("approvals_reviewer")]
+    public ApprovalsReviewer? ApprovalsReviewer { get; set; }
     [JsonPropertyName("chatgpt_base_url")]
     public string? ChatgptBaseUrl { get; set; }
     [JsonPropertyName("model")]

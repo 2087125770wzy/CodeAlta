@@ -15,6 +15,9 @@ public sealed partial record TurnStartParams
     /// <summary>Override the approval policy for this turn and subsequent turns.</summary>
     [JsonPropertyName("approvalPolicy")]
     public AskForApproval? ApprovalPolicy { get; set; }
+    /// <summary>Override where approval requests are routed for review on this turn and subsequent turns.</summary>
+    [JsonPropertyName("approvalsReviewer")]
+    public ApprovalsReviewer? ApprovalsReviewer { get; set; }
     /// <summary>Override the working directory for this turn and subsequent turns.</summary>
     [JsonPropertyName("cwd")]
     public string? Cwd { get; set; }

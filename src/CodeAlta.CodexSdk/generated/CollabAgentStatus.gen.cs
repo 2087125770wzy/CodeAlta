@@ -13,6 +13,8 @@ public enum CollabAgentStatus
     PendingInit,
     [JsonStringEnumMemberName("running")]
     Running,
+    [JsonStringEnumMemberName("interrupted")]
+    Interrupted,
     [JsonStringEnumMemberName("completed")]
     Completed,
     [JsonStringEnumMemberName("errored")]

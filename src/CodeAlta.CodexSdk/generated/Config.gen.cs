@@ -12,6 +12,9 @@ public sealed partial record Config
     public AnalyticsConfig? Analytics { get; set; }
     [JsonPropertyName("approval_policy")]
     public AskForApproval? ApprovalPolicy { get; set; }
+    /// <summary>[UNSTABLE] Optional default for where approval requests are routed for review.</summary>
+    [JsonPropertyName("approvals_reviewer")]
+    public ApprovalsReviewer? ApprovalsReviewer { get; set; }
     [JsonPropertyName("compact_prompt")]
     public string? CompactPrompt { get; set; }
     [JsonPropertyName("developer_instructions")]

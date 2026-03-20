@@ -28,6 +28,8 @@ internal sealed class SessionSourceJsonConverter : JsonConverter<SessionSource>
         {
             using var doc = JsonDocument.ParseValue(ref reader);
             var obj = doc.RootElement;
+            if (obj.TryGetProperty("custom", out var __CustomElem))
+                return new SessionSource.Custom { Value = JsonSerializer.Deserialize<string>(__CustomElem, options)! };
             if (obj.TryGetProperty("subAgent", out var __SubAgentElem))
                 return new SessionSource.SubAgent { Value = JsonSerializer.Deserialize<SubAgentSource>(__SubAgentElem, options)! };
             throw new JsonException($"Unknown SessionSource object variant. Properties: {string.Join(", ", EnumeratePropertyNames(obj))}");
@@ -60,6 +62,12 @@ internal sealed class SessionSourceJsonConverter : JsonConverter<SessionSource>
             case SessionSource.Unknown:
                 writer.WriteStringValue("unknown");
                 break;
+            case SessionSource.Custom v:
+                writer.WriteStartObject();
+                writer.WritePropertyName("custom");
+                JsonSerializer.Serialize(writer, v.Value, options);
+                writer.WriteEndObject();
+                break;
             case SessionSource.SubAgent v:
                 writer.WriteStartObject();
                 writer.WritePropertyName("subAgent");
@@ -80,6 +88,10 @@ public abstract partial record SessionSource
     public sealed partial record Exec : SessionSource;
     public sealed partial record AppServer : SessionSource;
     public sealed partial record Unknown : SessionSource;
+    public sealed partial record Custom : SessionSource
+    {
+        public string Value { get; set; } = string.Empty;
+    }
     public sealed partial record SubAgent : SessionSource
     {
         public SubAgentSource Value { get; set; } = default!;

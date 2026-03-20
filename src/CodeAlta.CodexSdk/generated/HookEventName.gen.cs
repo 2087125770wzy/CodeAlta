@@ -11,6 +11,8 @@ public enum HookEventName
 {
     [JsonStringEnumMemberName("sessionStart")]
     SessionStart,
+    [JsonStringEnumMemberName("userPromptSubmit")]
+    UserPromptSubmit,
     [JsonStringEnumMemberName("stop")]
     Stop
 }

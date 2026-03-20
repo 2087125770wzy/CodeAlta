@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 namespace CodeAlta.CodexSdk;
 
 /// <summary>
-/// EXPERIMENTAL - app metadata summary for plugin-install responses.
+/// EXPERIMENTAL - app metadata summary for plugin responses.
 /// </summary>
 public sealed partial record AppSummary
 {

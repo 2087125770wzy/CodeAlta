@@ -36,6 +36,8 @@ public abstract partial record ThreadItem
     {
         [JsonPropertyName("id")]
         public string Id { get; set; } = string.Empty;
+        [JsonPropertyName("memoryCitation")]
+        public MemoryCitation? MemoryCitation { get; set; }
         [JsonPropertyName("phase")]
         public MessagePhase? Phase { get; set; }
         [JsonPropertyName("text")]
@@ -150,9 +152,15 @@ public abstract partial record ThreadItem
         /// <summary>Unique identifier for this collab tool call.</summary>
         [JsonPropertyName("id")]
         public string Id { get; set; } = string.Empty;
+        /// <summary>Model requested for the spawned agent, when applicable.</summary>
+        [JsonPropertyName("model")]
+        public string? Model { get; set; }
         /// <summary>Prompt text sent as part of the collab tool call, when available.</summary>
         [JsonPropertyName("prompt")]
         public string? Prompt { get; set; }
+        /// <summary>Reasoning effort requested for the spawned agent, when applicable.</summary>
+        [JsonPropertyName("reasoningEffort")]
+        public ReasoningEffort? ReasoningEffort { get; set; }
         /// <summary>Thread ID of the receiving agent, when applicable. In case of spawn operation, this corresponds to the newly spawned agent.</summary>
         [JsonPropertyName("receiverThreadIds")]
         public List<string> ReceiverThreadIds { get; set; } = [];

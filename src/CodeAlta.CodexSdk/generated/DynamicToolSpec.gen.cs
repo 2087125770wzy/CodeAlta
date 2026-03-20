@@ -14,4 +14,6 @@ public sealed partial record DynamicToolSpec
     public JsonElement InputSchema { get; set; }
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("deferLoading")]
+    public bool? DeferLoading { get; set; }
 }

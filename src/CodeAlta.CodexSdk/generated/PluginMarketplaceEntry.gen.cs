@@ -14,4 +14,6 @@ public sealed partial record PluginMarketplaceEntry
     public AbsolutePathBuf Path { get; set; } = default!;
     [JsonPropertyName("plugins")]
     public List<PluginSummary> Plugins { get; set; } = [];
+    [JsonPropertyName("interface")]
+    public MarketplaceInterface? Interface { get; set; }
 }

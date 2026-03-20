@@ -431,6 +431,42 @@ public sealed partial class CodexClient : IAsyncDisposable
             "thread/rollback", parameters, cancellationToken);
     }
 
+    /// <summary>
+    /// Unsubscribes this connection from a thread's turn and item events.
+    /// </summary>
+    /// <param name="threadId">The id of the thread to unsubscribe from.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The unsubscribe response with the final subscription status.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="threadId"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<ThreadUnsubscribeResponse> ThreadUnsubscribeAsync(
+        string threadId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(threadId);
+        return _transport.SendRequestAsync<ThreadUnsubscribeParams, ThreadUnsubscribeResponse>(
+            "thread/unsubscribe",
+            new ThreadUnsubscribeParams { ThreadId = threadId },
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Patches persisted thread metadata without resuming the thread.
+    /// </summary>
+    /// <param name="parameters">Thread metadata update parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The refreshed thread after metadata changes are applied.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<ThreadMetadataUpdateResponse> ThreadMetadataUpdateAsync(
+        ThreadMetadataUpdateParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<ThreadMetadataUpdateParams, ThreadMetadataUpdateResponse>(
+            "thread/metadata/update", parameters, cancellationToken);
+    }
+
     // ── Turn APIs ─────────────────────────────────────────────────
 
     /// <summary>
@@ -520,6 +556,57 @@ public sealed partial class CodexClient : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         return _transport.SendRequestAsync<CommandExecParams, CommandExecResponse>(
             "command/exec", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes stdin bytes or closes stdin for a running command execution session.
+    /// </summary>
+    /// <param name="parameters">Command execution write parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>An empty response on success.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<CommandExecWriteResponse> CommandExecWriteAsync(
+        CommandExecWriteParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<CommandExecWriteParams, CommandExecWriteResponse>(
+            "command/exec/write", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Terminates a running command execution session by client-supplied process id.
+    /// </summary>
+    /// <param name="parameters">Command execution termination parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>An empty response on success.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<CommandExecTerminateResponse> CommandExecTerminateAsync(
+        CommandExecTerminateParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<CommandExecTerminateParams, CommandExecTerminateResponse>(
+            "command/exec/terminate", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resizes a running PTY-backed command execution session.
+    /// </summary>
+    /// <param name="parameters">Command execution resize parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>An empty response on success.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<CommandExecResizeResponse> CommandExecResizeAsync(
+        CommandExecResizeParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<CommandExecResizeParams, CommandExecResizeResponse>(
+            "command/exec/resize", parameters, cancellationToken);
     }
 
     // ── Model API ─────────────────────────────────────────────────
@@ -620,6 +707,42 @@ public sealed partial class CodexClient : IAsyncDisposable
             "configRequirements/read", cancellationToken);
     }
 
+    // ── External Agent Config APIs ────────────────────────────────
+
+    /// <summary>
+    /// Detects migratable external-agent configuration artifacts.
+    /// </summary>
+    /// <param name="parameters">External agent config detection parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The detected migration candidates.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<ExternalAgentConfigDetectResponse> ExternalAgentConfigDetectAsync(
+        ExternalAgentConfigDetectParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<ExternalAgentConfigDetectParams, ExternalAgentConfigDetectResponse>(
+            "externalAgentConfig/detect", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Imports selected external-agent configuration artifacts into Codex config.
+    /// </summary>
+    /// <param name="parameters">External agent config import parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The applied migration result.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<ExternalAgentConfigImportResponse> ExternalAgentConfigImportAsync(
+        ExternalAgentConfigImportParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<ExternalAgentConfigImportParams, ExternalAgentConfigImportResponse>(
+            "externalAgentConfig/import", parameters, cancellationToken);
+    }
+
     // ── Skills APIs ───────────────────────────────────────────────
 
     /// <summary>
@@ -655,39 +778,109 @@ public sealed partial class CodexClient : IAsyncDisposable
         return _transport.SendRequestAsync<SkillsConfigWriteParams, SkillsConfigWriteResponse>(
             "skills/config/write", parameters, cancellationToken);
     }
+    //
+    // /// <summary>
+    // /// Lists remote skills from the skills marketplace.
+    // /// </summary>
+    // /// <param name="parameters">Remote skills list parameters with scope and filters.</param>
+    // /// <param name="cancellationToken">A token to cancel the operation.</param>
+    // /// <returns>A list of remote skill summaries.</returns>
+    // /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    // /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    // public Task<SkillsRemoteReadResponse> SkillsRemoteListAsync(
+    //     SkillsRemoteReadParams parameters,
+    //     CancellationToken cancellationToken = default)
+    // {
+    //     ArgumentNullException.ThrowIfNull(parameters);
+    //     return _transport.SendRequestAsync<SkillsRemoteReadParams, SkillsRemoteReadResponse>(
+    //         "skills/remote/list", parameters, cancellationToken);
+    // }
+    //
+    // /// <summary>
+    // /// Exports a remote skill by hazelnut id to the local skills directory.
+    // /// </summary>
+    // /// <param name="parameters">Remote skill export parameters with the hazelnut id.</param>
+    // /// <param name="cancellationToken">A token to cancel the operation.</param>
+    // /// <returns>The exported skill with its id and local path.</returns>
+    // /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    // /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    // public Task<SkillsRemoteWriteResponse> SkillsRemoteExportAsync(
+    //     SkillsRemoteWriteParams parameters,
+    //     CancellationToken cancellationToken = default)
+    // {
+    //     ArgumentNullException.ThrowIfNull(parameters);
+    //     return _transport.SendRequestAsync<SkillsRemoteWriteParams, SkillsRemoteWriteResponse>(
+    //         "skills/remote/export", parameters, cancellationToken);
+    // }
+
+    // ── Plugin APIs ───────────────────────────────────────────────
 
     /// <summary>
-    /// Lists remote skills from the skills marketplace.
+    /// Lists discovered plugins and marketplace state.
     /// </summary>
-    /// <param name="parameters">Remote skills list parameters with scope and filters.</param>
+    /// <param name="parameters">Plugin list parameters.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>A list of remote skill summaries.</returns>
+    /// <returns>The plugin list response.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
     /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
-    public Task<SkillsRemoteReadResponse> SkillsRemoteListAsync(
-        SkillsRemoteReadParams parameters,
+    public Task<PluginListResponse> PluginListAsync(
+        PluginListParams parameters,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parameters);
-        return _transport.SendRequestAsync<SkillsRemoteReadParams, SkillsRemoteReadResponse>(
-            "skills/remote/list", parameters, cancellationToken);
+        return _transport.SendRequestAsync<PluginListParams, PluginListResponse>(
+            "plugin/list", parameters, cancellationToken);
     }
 
     /// <summary>
-    /// Exports a remote skill by hazelnut id to the local skills directory.
+    /// Reads a discovered plugin by marketplace path and plugin name.
     /// </summary>
-    /// <param name="parameters">Remote skill export parameters with the hazelnut id.</param>
+    /// <param name="parameters">Plugin read parameters.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The exported skill with its id and local path.</returns>
+    /// <returns>The plugin details response.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
     /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
-    public Task<SkillsRemoteWriteResponse> SkillsRemoteExportAsync(
-        SkillsRemoteWriteParams parameters,
+    public Task<PluginReadResponse> PluginReadAsync(
+        PluginReadParams parameters,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parameters);
-        return _transport.SendRequestAsync<SkillsRemoteWriteParams, SkillsRemoteWriteResponse>(
-            "skills/remote/export", parameters, cancellationToken);
+        return _transport.SendRequestAsync<PluginReadParams, PluginReadResponse>(
+            "plugin/read", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Installs a plugin from a discovered marketplace entry.
+    /// </summary>
+    /// <param name="parameters">Plugin install parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The plugin install response.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<PluginInstallResponse> PluginInstallAsync(
+        PluginInstallParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<PluginInstallParams, PluginInstallResponse>(
+            "plugin/install", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Uninstalls a plugin by id.
+    /// </summary>
+    /// <param name="parameters">Plugin uninstall parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The plugin uninstall response.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<PluginUninstallResponse> PluginUninstallAsync(
+        PluginUninstallParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<PluginUninstallParams, PluginUninstallResponse>(
+            "plugin/uninstall", parameters, cancellationToken);
     }
 
     // ── App APIs ──────────────────────────────────────────────────
@@ -707,6 +900,127 @@ public sealed partial class CodexClient : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         return _transport.SendRequestAsync<AppsListParams, AppsListResponse>(
             "app/list", parameters, cancellationToken);
+    }
+
+    // ── File System APIs ──────────────────────────────────────────
+
+    /// <summary>
+    /// Reads a file from an absolute path and returns its base64-encoded contents.
+    /// </summary>
+    /// <param name="parameters">File read parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The file read response.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<FsReadFileResponse> FsReadFileAsync(
+        FsReadFileParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<FsReadFileParams, FsReadFileResponse>(
+            "fs/readFile", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Writes a file to an absolute path from base64-encoded contents.
+    /// </summary>
+    /// <param name="parameters">File write parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>An empty response on success.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<FsWriteFileResponse> FsWriteFileAsync(
+        FsWriteFileParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<FsWriteFileParams, FsWriteFileResponse>(
+            "fs/writeFile", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a directory at an absolute path.
+    /// </summary>
+    /// <param name="parameters">Directory creation parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>An empty response on success.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<FsCreateDirectoryResponse> FsCreateDirectoryAsync(
+        FsCreateDirectoryParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<FsCreateDirectoryParams, FsCreateDirectoryResponse>(
+            "fs/createDirectory", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads filesystem metadata for an absolute path.
+    /// </summary>
+    /// <param name="parameters">Metadata read parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The filesystem metadata response.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<FsGetMetadataResponse> FsGetMetadataAsync(
+        FsGetMetadataParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<FsGetMetadataParams, FsGetMetadataResponse>(
+            "fs/getMetadata", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists direct child entries for an absolute directory path.
+    /// </summary>
+    /// <param name="parameters">Directory read parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The directory listing response.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<FsReadDirectoryResponse> FsReadDirectoryAsync(
+        FsReadDirectoryParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<FsReadDirectoryParams, FsReadDirectoryResponse>(
+            "fs/readDirectory", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Removes a file or directory tree at an absolute path.
+    /// </summary>
+    /// <param name="parameters">Filesystem remove parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>An empty response on success.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<FsRemoveResponse> FsRemoveAsync(
+        FsRemoveParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<FsRemoveParams, FsRemoveResponse>(
+            "fs/remove", parameters, cancellationToken);
+    }
+
+    /// <summary>
+    /// Copies a file or directory tree between absolute paths.
+    /// </summary>
+    /// <param name="parameters">Filesystem copy parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>An empty response on success.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<FsCopyResponse> FsCopyAsync(
+        FsCopyParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<FsCopyParams, FsCopyResponse>(
+            "fs/copy", parameters, cancellationToken);
     }
 
     // ── Account APIs ──────────────────────────────────────────────
@@ -841,6 +1155,25 @@ public sealed partial class CodexClient : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(parameters);
         return _transport.SendRequestAsync<ListMcpServerStatusParams, ListMcpServerStatusResponse>(
             "mcpServerStatus/list", parameters, cancellationToken);
+    }
+
+    // ── Windows Sandbox APIs ──────────────────────────────────────
+
+    /// <summary>
+    /// Starts Windows sandbox setup for the selected mode.
+    /// </summary>
+    /// <param name="parameters">Windows sandbox setup parameters.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The setup start response.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="parameters"/> is <see langword="null"/>.</exception>
+    /// <exception cref="JsonRpcException">Thrown when the server returns an error.</exception>
+    public Task<WindowsSandboxSetupStartResponse> WindowsSandboxSetupStartAsync(
+        WindowsSandboxSetupStartParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return _transport.SendRequestAsync<WindowsSandboxSetupStartParams, WindowsSandboxSetupStartResponse>(
+            "windowsSandbox/setupStart", parameters, cancellationToken);
     }
 
     // ── Experimental Feature APIs ─────────────────────────────────
