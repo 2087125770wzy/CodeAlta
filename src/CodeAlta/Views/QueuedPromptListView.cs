@@ -68,10 +68,11 @@ internal static class QueuedPromptListView
     {
         var promptText = new TextBlock(queuedPrompt.PreviewText)
         {
+            HorizontalAlignment = Align.Stretch,
             Wrap = false,
             IsSelectable = false,
-            HorizontalAlignment = Align.Stretch,
-        }.Trimming(TextTrimming.EndEllipsis);
+            Trimming = TextTrimming.EndEllipsis,
+        };
 
         var left = new Grid
             {
