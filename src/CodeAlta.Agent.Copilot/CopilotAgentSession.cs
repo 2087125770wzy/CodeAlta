@@ -382,7 +382,7 @@ public sealed class CopilotAgentSession : ICopilotAgentSession
 
                 case AssistantMessageEvent assistantMessage
                     when !string.IsNullOrWhiteSpace(assistantMessage.Data.InteractionId)
-                         && CopilotAgentMapper.GetAssistantMessageContentKind(assistantMessage.Data.Phase) == AgentContentKind.Assistant:
+                         && CopilotAgentMapper.GetAssistantMessageContentKind(assistantMessage.Data) == AgentContentKind.Assistant:
                     GetOrCreate(assistantMessage.Data.InteractionId!).FinalAnswerSeen = true;
                     _activeInteractionId = assistantMessage.Data.InteractionId;
                     return SessionEventProjection.PublishMapped;

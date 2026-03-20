@@ -177,6 +177,74 @@ public sealed class CopilotAgentSessionTests
     }
 
     [TestMethod]
+    public void ProjectSessionEvents_SynthesizesIdleWhenPhaseLessAssistantMessageEndsTurn()
+    {
+        var tracker = new CopilotAgentSession.CopilotInteractionTracker();
+        const string sessionId = "session-1";
+        const string interactionId = "interaction-1";
+
+        CopilotAgentSession.ProjectSessionEvents(
+            sessionId,
+            new UserMessageEvent
+            {
+                Timestamp = DateTimeOffset.Parse("2026-03-20T06:20:50Z"),
+                Data = new UserMessageData
+                {
+                    Content = "Write the final summary.",
+                    InteractionId = interactionId
+                }
+            },
+            tracker);
+
+        CopilotAgentSession.ProjectSessionEvents(
+            sessionId,
+            new AssistantTurnStartEvent
+            {
+                Timestamp = DateTimeOffset.Parse("2026-03-20T06:20:51Z"),
+                Data = new AssistantTurnStartData
+                {
+                    TurnId = "29",
+                    InteractionId = interactionId
+                }
+            },
+            tracker);
+
+        var finalMessageEvents = CopilotAgentSession.ProjectSessionEvents(
+            sessionId,
+            new AssistantMessageEvent
+            {
+                Timestamp = DateTimeOffset.Parse("2026-03-20T06:20:59Z"),
+                Data = new AssistantMessageData
+                {
+                    MessageId = "message-29",
+                    InteractionId = interactionId,
+                    Content = "The report is written to report_codealta_app_architecture.md."
+                }
+            },
+            tracker);
+
+        Assert.AreEqual(1, finalMessageEvents.Count);
+        Assert.AreEqual(AgentContentKind.Assistant, ((AgentContentCompletedEvent)finalMessageEvents[0]).Kind);
+
+        var completionEvents = CopilotAgentSession.ProjectSessionEvents(
+            sessionId,
+            new AssistantTurnEndEvent
+            {
+                Timestamp = DateTimeOffset.Parse("2026-03-20T06:20:59Z"),
+                Data = new AssistantTurnEndData
+                {
+                    TurnId = "29"
+                }
+            },
+            tracker);
+
+        Assert.AreEqual(2, completionEvents.Count);
+        Assert.IsInstanceOfType<AgentActivityEvent>(completionEvents[0]);
+        Assert.IsInstanceOfType<AgentSessionUpdateEvent>(completionEvents[1]);
+        Assert.AreEqual(AgentSessionUpdateKind.Idle, ((AgentSessionUpdateEvent)completionEvents[1]).Kind);
+    }
+
+    [TestMethod]
     public void ShouldRefreshQuotaForEvent_TriggersOnTurnBoundariesAndPromptReady()
     {
         Assert.IsTrue(CopilotAgentSession.ShouldRefreshQuotaForEvent(

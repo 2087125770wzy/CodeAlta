@@ -403,7 +403,7 @@ internal static class CopilotAgentMapper
                 sessionId,
                 message.Timestamp,
                 new AgentRunId(message.Data.MessageId),
-                GetAssistantMessageContentKind(message.Data.Phase),
+                GetAssistantMessageContentKind(message.Data),
                 message.Data.MessageId,
                 message.Data.ParentToolCallId,
                 message.Data.Content),
@@ -646,12 +646,27 @@ internal static class CopilotAgentMapper
         return projectedEvents;
     }
 
-    internal static AgentContentKind GetAssistantMessageContentKind(string? phase)
-        => phase switch
+    internal static AgentContentKind GetAssistantMessageContentKind(AssistantMessageData message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        if (string.Equals(message.Phase, "final_answer", StringComparison.Ordinal))
         {
-            "final_answer" => AgentContentKind.Assistant,
-            _ => AgentContentKind.Reasoning,
-        };
+            return AgentContentKind.Assistant;
+        }
+
+        if (!string.IsNullOrWhiteSpace(message.Phase))
+        {
+            return AgentContentKind.Reasoning;
+        }
+
+        if (message.ToolRequests is { Length: > 0 } || string.IsNullOrWhiteSpace(message.Content))
+        {
+            return AgentContentKind.Reasoning;
+        }
+
+        return AgentContentKind.Assistant;
+    }
 
     internal static AgentContentCompletedEvent? TryCreateEmbeddedReasoningEvent(string sessionId, AssistantMessageEvent message)
     {

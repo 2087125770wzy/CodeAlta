@@ -342,7 +342,7 @@ public sealed class CopilotAgentMapperTests
         var mappedMessage = CopilotAgentMapper.ToAgentEvent("session-1", messageEvent);
         Assert.IsInstanceOfType<AgentContentCompletedEvent>(mappedMessage);
         var normalizedMessage = (AgentContentCompletedEvent)mappedMessage;
-        Assert.AreEqual(AgentContentKind.Reasoning, normalizedMessage.Kind);
+        Assert.AreEqual(AgentContentKind.Assistant, normalizedMessage.Kind);
         Assert.AreEqual("final message", normalizedMessage.Content);
         Assert.AreEqual("msg-2", normalizedMessage.RunId?.Value);
 
@@ -380,7 +380,7 @@ public sealed class CopilotAgentMapperTests
     }
 
     [TestMethod]
-    public void ToAgentEvent_MapsAssistantMessagesWithoutPhaseToReasoning()
+    public void ToAgentEvent_MapsAssistantMessagesWithoutPhaseAndWithoutToolRequestsToAssistant()
     {
         var timestamp = DateTimeOffset.Parse("2026-03-14T13:02:45+00:00");
         var messageEvent = new AssistantMessageEvent
@@ -391,6 +391,35 @@ public sealed class CopilotAgentMapperTests
                 MessageId = "msg-3",
                 Content = "Perfect! Now I have enough information.",
                 Phase = null
+            }
+        };
+
+        var mapped = CopilotAgentMapper.ToAgentEvent("session-1", messageEvent);
+
+        Assert.IsInstanceOfType<AgentContentCompletedEvent>(mapped);
+        Assert.AreEqual(AgentContentKind.Assistant, ((AgentContentCompletedEvent)mapped).Kind);
+    }
+
+    [TestMethod]
+    public void ToAgentEvent_MapsAssistantMessagesWithoutPhaseButWithToolRequestsToReasoning()
+    {
+        var timestamp = DateTimeOffset.Parse("2026-03-14T13:02:45+00:00");
+        var messageEvent = new AssistantMessageEvent
+        {
+            Timestamp = timestamp,
+            Data = new AssistantMessageData
+            {
+                MessageId = "msg-3",
+                Content = "Perfect! Now I have enough information.",
+                Phase = null,
+                ToolRequests =
+                [
+                    new AssistantMessageDataToolRequestsItem
+                    {
+                        ToolCallId = "tool-1",
+                        Name = "view",
+                    }
+                ]
             }
         };
 
