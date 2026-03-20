@@ -12,6 +12,7 @@
 
     <!-- Enable AOT analyzers -->
     <IsAotCompatible>true</IsAotCompatible>
+    <AssemblyName>alta</AssemblyName>
   </PropertyGroup>
 
   <PropertyGroup>
