@@ -22,27 +22,27 @@ This is the implementation checklist for the lighter post-refactor cleanup pass.
 
 ## Phase 3: Shrink the `CodeAltaApp` relay surface
 
-- [ ] Remove one-line forwarding methods from `CodeAltaApp` once they are no longer needed by coordinator wiring.
-- [ ] Keep `CodeAltaApp` focused on lifecycle, composition, and view construction.
-- [ ] Preserve the current guardrail intent that `CodeAltaApp` remains a facade-sized host rather than a workflow bucket.
+- [x] Remove one-line forwarding methods from `CodeAltaApp` once they are no longer needed by coordinator wiring.
+- [x] Keep `CodeAltaApp` focused on lifecycle, composition, and view construction.
+- [x] Preserve the current guardrail intent that `CodeAltaApp` remains a facade-sized host rather than a workflow bucket.
 
 ## Phase 4: Low-risk structural cleanup
 
-- [ ] Move `IUiDispatcher`, `UiDispatch`, and `TerminalUiDispatcher` into a shared threading namespace outside `CodeAlta.App`.
-- [ ] Reclassify `OpenThreadState` into a more accurate app-owned state namespace, or rename it to better reflect its role.
-- [ ] Move `SidebarCoordinator` out of `Views` if that can be done without churn.
-- [ ] Extract shared UI helpers or constants out of `Views` when they are consumed by `Presentation`.
-- [ ] Defer broader namespace reshuffles unless they become a natural byproduct of the earlier steps.
+- [x] Move `IUiDispatcher`, `UiDispatch`, and `TerminalUiDispatcher` into a shared threading namespace outside `CodeAlta.App`.
+- [x] Reclassify `OpenThreadState` into a more accurate app-owned state namespace, or rename it to better reflect its role.
+- [x] Move `SidebarCoordinator` out of `Views` if that can be done without churn.
+- [x] Extract shared UI helpers or constants out of `Views` when they are consumed by `Presentation`.
+- [x] Defer broader namespace reshuffles unless they become a natural byproduct of the earlier steps.
 
 ## Phase 5: Reassess remaining cleanup items
 
-- [ ] Reevaluate `CodeAltaShellBridge` after the earlier phases and remove it only if it becomes obviously redundant.
-- [ ] Reevaluate whether `ChatSelectorCoordinator` and `ThreadTabStripCoordinator` still need namespace moves after their constructor cleanup.
-- [ ] Leave large formatter splitting out of scope unless file growth creates a concrete maintenance problem.
+- [x] Reevaluate `CodeAltaShellBridge` after the earlier phases and remove it only if it becomes obviously redundant. Kept as a small adapter seam.
+- [x] Reevaluate whether `ChatSelectorCoordinator` and `ThreadTabStripCoordinator` still need namespace moves after their constructor cleanup. They remain in `Presentation`.
+- [x] Leave large formatter splitting out of scope unless file growth creates a concrete maintenance problem.
 
 ## Verification
 
-- [ ] Update documentation if file locations, terminology, or ownership boundaries change.
+- [x] Update documentation if file locations, terminology, or ownership boundaries change.
 - [ ] Run `dotnet build -c Release` from `src`.
 - [ ] Run `dotnet test -c Release` from `src`.
 - [ ] Verify the existing architecture guardrails still enforce the intended facade and ownership boundaries.

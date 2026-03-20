@@ -1,7 +1,7 @@
 using CodeAlta.Agent;
 using CodeAlta.Presentation.Formatting;
 using CodeAlta.ViewModels;
-using CodeAlta.Views;
+using CodeAlta.Presentation.Controls;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;

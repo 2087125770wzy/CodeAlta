@@ -87,11 +87,37 @@ public sealed class ArchitectureGuardrailTests
     [TestMethod]
     public void UiProjectionAndUsageFiles_KeepExplicitBindableAccessGuards()
     {
-        var sidebarSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "SidebarCoordinator.cs"));
+        var sidebarSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "SidebarCoordinator.cs"));
         var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));
 
         Assert.IsTrue(sidebarSource.Contains("verifyBindableAccess();", StringComparison.Ordinal));
         Assert.IsTrue(appSource.Contains("private T ReadBindableState<T>(Func<T> read)", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void ThreadingAbstractions_MoveOutsideAppNamespace()
+    {
+        var codeAltaRoot = GetCodeAltaSourceRoot();
+
+        Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "Threading", "IUiDispatcher.cs")));
+        Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "Threading", "UiDispatch.cs")));
+        Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "Threading", "TerminalUiDispatcher.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(codeAltaRoot, "App", "IUiDispatcher.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(codeAltaRoot, "App", "UiDispatch.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(codeAltaRoot, "App", "TerminalUiDispatcher.cs")));
+    }
+
+    [TestMethod]
+    public void AppOwnedStateAndSharedViews_MoveOutOfLegacyLocations()
+    {
+        var codeAltaRoot = GetCodeAltaSourceRoot();
+
+        Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "App", "State", "OpenThreadState.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(codeAltaRoot, "Models", "OpenThreadState.cs")));
+        Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "App", "SidebarCoordinator.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(codeAltaRoot, "Views", "SidebarCoordinator.cs")));
+        Assert.IsTrue(File.Exists(Path.Combine(codeAltaRoot, "Presentation", "Controls", "SessionUsagePopupView.cs")));
+        Assert.IsFalse(File.Exists(Path.Combine(codeAltaRoot, "Views", "SessionUsagePopupView.cs")));
     }
 
     [TestMethod]

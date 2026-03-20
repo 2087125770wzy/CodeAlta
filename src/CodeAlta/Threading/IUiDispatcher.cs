@@ -1,4 +1,4 @@
-namespace CodeAlta.App;
+namespace CodeAlta.Threading;
 
 internal interface IUiDispatcher
 {
