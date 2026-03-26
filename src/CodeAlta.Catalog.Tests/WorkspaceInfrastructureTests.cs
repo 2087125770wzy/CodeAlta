@@ -222,38 +222,25 @@ public sealed class WorkspaceInfrastructureTests
     [TestMethod]
     public void PathTemplateResolver_Resolve_ExpandsMacros()
     {
-        var context = new PathTemplateContext
-        {
-            WorkspaceSlug = "wk-core",
-            ProjectSlug = "repo-main",
-            RepoName = "repo-main",
-            MachineId = "machine-a",
-            WorkspaceId = WorkspaceId.Parse("01963b36-0d6f-7e4b-a7e0-6b2e6d1f4c8a"),
-            ProjectId = ProjectId.Parse("01963b36-0d70-7a11-b3c2-1f2e3d4c5b6a"),
-            BaseRoot = @"C:\code",
-        };
+        using var root = TempDirectory.Create();
+        var context = CreatePathTemplateContext(root.Path);
+        var resolved = PathTemplateResolver.Resolve(
+            Path.Combine("{workspaceKey}", "{projectKey}"),
+            context);
 
-        var resolved = PathTemplateResolver.Resolve(@"{workspaceKey}\{projectKey}", context);
-
-        StringAssert.EndsWith(resolved, @"wk-core\repo-main");
+        Assert.AreEqual(
+            Path.GetFullPath(Path.Combine(root.Path, "wk-core", "repo-main")),
+            resolved);
     }
 
     [TestMethod]
     public void PathTemplateResolver_Resolve_ThrowsForTraversal()
     {
-        var context = new PathTemplateContext
-        {
-            WorkspaceSlug = "wk-core",
-            ProjectSlug = "repo-main",
-            RepoName = "repo-main",
-            MachineId = "machine-a",
-            WorkspaceId = WorkspaceId.Parse("01963b36-0d6f-7e4b-a7e0-6b2e6d1f4c8a"),
-            ProjectId = ProjectId.Parse("01963b36-0d70-7a11-b3c2-1f2e3d4c5b6a"),
-            BaseRoot = @"C:\code",
-        };
+        using var root = TempDirectory.Create();
+        var context = CreatePathTemplateContext(root.Path);
 
         Assert.ThrowsExactly<ArgumentException>(() =>
-            PathTemplateResolver.Resolve(@"..\escape", context));
+            PathTemplateResolver.Resolve(Path.Combine("..", "escape"), context));
     }
 
     [TestMethod]
@@ -681,6 +668,20 @@ public sealed class WorkspaceInfrastructureTests
                     Checkout = new CheckoutRule { PathTemplate = @"{workspaceKey}\{projectKey}" },
                 },
             ],
+        };
+    }
+
+    private static PathTemplateContext CreatePathTemplateContext(string baseRoot)
+    {
+        return new PathTemplateContext
+        {
+            WorkspaceSlug = "wk-core",
+            ProjectSlug = "repo-main",
+            RepoName = "repo-main",
+            MachineId = "machine-a",
+            WorkspaceId = WorkspaceId.Parse("01963b36-0d6f-7e4b-a7e0-6b2e6d1f4c8a"),
+            ProjectId = ProjectId.Parse("01963b36-0d70-7a11-b3c2-1f2e3d4c5b6a"),
+            BaseRoot = baseRoot,
         };
     }
 
