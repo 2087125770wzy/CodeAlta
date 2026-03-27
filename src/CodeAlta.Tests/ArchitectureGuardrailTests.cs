@@ -249,6 +249,15 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void ShellWorkspaceCoordinator_RefreshSelectionRebuildsSidebarProjection()
+    {
+        var workspaceSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "ShellWorkspaceCoordinator.cs"));
+
+        Assert.IsTrue(workspaceSource.Contains("_workspaceContext.RefreshSidebarProjection();", StringComparison.Ordinal));
+        Assert.IsFalse(workspaceSource.Contains("_workspaceContext.SyncSidebarSelectionToCurrentState();", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void CodeAltaApp_DelegatesBackendInitializationWorkflow()
     {
         var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));

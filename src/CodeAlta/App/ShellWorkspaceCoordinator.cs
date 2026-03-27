@@ -224,7 +224,7 @@ internal sealed class ShellWorkspaceCoordinator
         _workspaceContext.VerifyBindableAccess();
         _workspaceContext.EnsureSelectionDefaults();
         _shellViewModel.HeaderText = BuildHeaderText();
-        _workspaceContext.SyncSidebarSelectionToCurrentState();
+        _workspaceContext.RefreshSidebarProjection();
         RefreshThreadWorkspaceCore();
     }
 
