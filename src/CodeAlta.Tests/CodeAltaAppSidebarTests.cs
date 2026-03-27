@@ -67,7 +67,7 @@ public sealed class CodeAltaAppSidebarTests
     }
 
     [TestMethod]
-    public void ResolveTargetForProjectionChange_PreservesExplicitProjectSelectionWhenCurrentThreadIsVisible()
+    public void ResolveTargetForProjectionChange_PrefersCurrentVisibleThreadSelection()
     {
         var project = CreateProject("project-1", "CodeAlta", @"C:\repo");
         var visibleThread = CreateThread(
@@ -92,6 +92,32 @@ public sealed class CodeAltaAppSidebarTests
             SidebarSelectionTarget.Project(project.Id),
             projection,
             currentTarget);
+
+        Assert.AreEqual(SidebarSelectionTarget.Thread(visibleThread.ThreadId), selectedTarget);
+    }
+
+    [TestMethod]
+    public void ResolveTargetForProjectionChange_FallsBackToPreviousTargetWhenCurrentTargetIsNotVisible()
+    {
+        var project = CreateProject("project-1", "CodeAlta", @"C:\repo");
+        var visibleThread = CreateThread(
+            threadId: "thread-1",
+            title: "Recovered thread",
+            kind: WorkThreadKind.ProjectThread,
+            projectId: project.Id,
+            backendId: AgentBackendIds.Codex.Value,
+            workingDirectory: project.ProjectPath);
+        var projection = SidebarTreeProjectionBuilder.Build(
+            [project],
+            [visibleThread],
+            @"C:\global",
+            project.Id,
+            maxRecentThreadsPerProject: 3);
+
+        var selectedTarget = SidebarSelectionResolver.ResolveTargetForProjectionChange(
+            SidebarSelectionTarget.Project(project.Id),
+            projection,
+            SidebarSelectionTarget.Thread("missing-thread"));
 
         Assert.AreEqual(SidebarSelectionTarget.Project(project.Id), selectedTarget);
     }

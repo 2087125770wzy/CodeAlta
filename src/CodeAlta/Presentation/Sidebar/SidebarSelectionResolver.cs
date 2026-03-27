@@ -25,6 +25,12 @@ internal static class SidebarSelectionResolver
         SidebarTreeProjection? projection,
         SidebarSelectionTarget currentTarget)
     {
+        if (projection is not null &&
+            projection.ContainsTarget(currentTarget))
+        {
+            return currentTarget;
+        }
+
         if (previousTarget is { } target &&
             projection is not null &&
             projection.ContainsTarget(target))
