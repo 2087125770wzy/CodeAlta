@@ -100,7 +100,7 @@ Launch helpers:
 - `dotnet run --project src/CodeAlta -- --test`
 - `dotnet run --project src/CodeAlta -- --test --test-duration 15`
 
-`--test` still starts the real terminal UI, but it schedules cancellation after the requested duration so a smoke test can verify startup and a short steady-state run without manual Ctrl+C. Smoke-test lifecycle markers and normal diagnostic activity are written to `~/.codealta/logs/codealta.log`.
+`--test` still starts the real terminal UI, but it schedules cancellation after the requested duration so a smoke test can verify startup and a short steady-state run without manual Ctrl+C. Smoke-test lifecycle markers and normal diagnostic activity are written to the rolling logs under `~/.codealta/logs/`.
 
 Current terminal shell capabilities:
 
@@ -123,7 +123,7 @@ Current terminal shell capabilities:
   - CodeAlta now auto-approves backend permission requests and auto-resolves `ask_user` prompts by preferring continue/inspect-style choices (or a neutral fallback for freeform prompts).
   - Sequential Codex/Copilot tool activity is grouped into compact "Tool Calls" timeline cards so verbose command/tool logs stay out of the main document flow; each chip shows a live status icon, inferred tool/command label, compact context, and an expandable `LogControl` detail dialog with full output, wrapping toggle, and compact execution stats.
   - When a run finishes, CodeAlta emits a separate compact "Modified Files" recap card that aggregates all files changed during that run, shows per-file and total `+/-` line counts, and opens an inline diff viewer for each file when diff data is available from the backend.
-  - The terminal shell writes a persistent diagnostic log to `~/.codealta/logs/codealta.log`, including chat prompt submission, selected backend/model/tool set, normalized agent events, and Copilot permission/user-input callback traffic.
+  - The terminal shell writes rolling diagnostic logs under `~/.codealta/logs/`, including chat prompt submission, selected backend/model/tool set, normalized agent events, and Copilot permission/user-input callback traffic.
 - Workspace operations:
   - list discovered workspaces
   - resolve global/workspace/project scopes.

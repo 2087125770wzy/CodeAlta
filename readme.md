@@ -21,7 +21,7 @@ An agentic AI coding CLI assistant developed in .NET.
 - A temporary `AlwaysQueue` toggle beside `AutoScroll` lets you enqueue prompts on an idle selected thread to exercise the waiting-list UI without sending immediately (`CodeAlta`)
 - Idle started threads can be compacted manually from the footer bar or with `F11`, using the thread's current backend/model/reasoning configuration; reopening an existing thread now re-resumes a dead backend session before compacting, and the timeline surfaces explicit manual compaction notices instead of dropping back to a generic busy state (`CodeAlta`)
 - Codex backend sessions default to no sandbox in CodeAlta, so prompts can inspect sibling projects outside the current working directory without requiring the session cwd to be moved first
-- CodeAlta writes a persistent diagnostic log to `~/.codealta/logs/codealta.log` for chat/backend troubleshooting
+- CodeAlta writes rolling diagnostic logs under `~/.codealta/logs/` for chat/backend troubleshooting
 - `CodeAlta --test` runs the real terminal app for a short smoke-test window and exits automatically after 10 seconds by default
 - In-memory MCP transport tests for tool discovery and roundtrip tool calls
 

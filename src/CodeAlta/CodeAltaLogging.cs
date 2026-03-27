@@ -6,6 +6,8 @@ namespace CodeAlta;
 internal static class CodeAltaLogging
 {
     internal const string LogFileName = "codealta.log";
+    internal const long LogFileSizeLimitBytes = 10L * 1024L * 1024L;
+    internal const int RetainedLogFileCountLimit = 10;
 
     public static bool Initialize(string homeRoot)
     {
@@ -16,8 +18,8 @@ internal static class CodeAltaLogging
             return false;
         }
 
-        var logFilePath = GetLogFilePath(homeRoot);
-        Directory.CreateDirectory(Path.GetDirectoryName(logFilePath)!);
+        var fileWriterOptions = CreateFileWriterOptions(homeRoot);
+        Directory.CreateDirectory(Path.GetDirectoryName(fileWriterOptions.FilePath)!);
 
         var config = new LogManagerConfig
         {
@@ -34,14 +36,7 @@ internal static class CodeAltaLogging
         };
 
         config.RootLogger.MinimumLevel = LogLevel.Info;
-        config.RootLogger.Writers.Add(new FileLogWriter(
-            new FileLogWriterOptions(logFilePath)
-            {
-                RollingInterval = FileRollingInterval.Daily,
-                RetainedFileCountLimit = 10,
-                AutoFlush = true,
-                FailureMode = FileLogWriterFailureMode.Ignore
-            }));
+        config.RootLogger.Writers.Add(new FileLogWriter(fileWriterOptions));
 
         config.GetLoggerConfig("CodeAlta.Chat").MinimumLevel = LogLevel.Debug;
         config.GetLoggerConfig("CodeAlta.ChatAgentConnection").MinimumLevel = LogLevel.Debug;
@@ -51,6 +46,20 @@ internal static class CodeAltaLogging
 
         LogManager.InitializeForAsync(config);
         return true;
+    }
+
+    internal static FileLogWriterOptions CreateFileWriterOptions(string homeRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(homeRoot);
+
+        return new FileLogWriterOptions(GetLogFilePath(homeRoot))
+        {
+            AutoFlush = true,
+            FileSizeLimitBytes = LogFileSizeLimitBytes,
+            RollingInterval = FileRollingInterval.Daily,
+            RetainedFileCountLimit = RetainedLogFileCountLimit,
+            FailureMode = FileLogWriterFailureMode.Ignore,
+        };
     }
 
     public static string GetLogFilePath(string homeRoot)
