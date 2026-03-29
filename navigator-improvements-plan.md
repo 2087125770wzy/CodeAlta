@@ -7,14 +7,14 @@ Read that document first for the full product and technical guidance, UX intent,
 - [x] Add navigator sort mode enum and default values
 - [x] Define sidebar structural state vs bindable row state boundaries
 - [x] Add project hidden flag to `ProjectDescriptor` and catalog serialization
-- [ ] Add thread-side cached metadata needed for navigator/dialog management
+- [x] Add thread-side cached metadata needed for navigator/dialog management
   - [x] Persist or derive a stable message count
-  - [ ] Ensure last activity timestamps reflect message updates
+  - [x] Ensure last activity timestamps reflect message updates
 - [x] Add application-level delete operations
   - [x] Delete single thread
   - [x] Delete project and all of its threads
   - [x] Handle backend-supported and local-only delete flows
-- [ ] Extend sidebar projection models to carry recency text, exact timestamps, node kind, and row actions
+- [x] Extend sidebar projection models to carry recency text, exact timestamps, node kind, and row actions
 - [x] Add bindable row view models for sidebar nodes where live values change
 - [x] Add relative time formatter utility and exact timestamp tooltip content helper
 - [x] Add recency refresh strategy that updates only when displayed buckets change
@@ -63,20 +63,20 @@ Read that document first for the full product and technical guidance, UX intent,
   - [x] Show metadata file path
   - [x] Validate editable fields
   - [x] Save through catalog and refresh UI
-- [ ] Add inline project rename on F2
-  - [ ] Enter rename mode only for project rows
-  - [ ] Use `TextBox` inline in the tree row
-  - [ ] Validate non-empty display name
-  - [ ] Save on Enter
-  - [ ] Cancel on ESC
-  - [ ] Preserve selection after save
+- [x] Add inline project rename on F2
+  - [x] Enter rename mode only for project rows
+  - [x] Use `TextBox` inline in the tree row
+  - [x] Validate non-empty display name
+  - [x] Save on Enter
+  - [x] Cancel on ESC
+  - [x] Preserve selection after save
 - [x] Add tests for sidebar projection recency and sort behavior
 - [x] Add tests for sidebar reactivity without unnecessary rebuilds
 - [x] Add tests for delete flows
 - [x] Add tests for dialog row view models and selection commands
-- [ ] Add tests for inline rename validation and commit/cancel behavior
+- [x] Add tests for inline rename validation and commit/cancel behavior
 - [x] Add tests for navigator settings persistence
-- [ ] Final UX polish
-  - [ ] Ensure timestamps stay visible while hover actions appear
-  - [ ] Ensure hover buttons have tooltips
-  - [ ] Ensure relative time labels refresh appropriately over time
+- [x] Final UX polish
+  - [x] Ensure timestamps stay visible while hover actions appear
+  - [x] Ensure hover buttons have tooltips
+  - [x] Ensure relative time labels refresh appropriately over time
