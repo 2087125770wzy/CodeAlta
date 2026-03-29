@@ -92,6 +92,12 @@ public sealed class WorkThreadDescriptor
     public string? LatestSummary { get; set; }
 
     /// <summary>
+    /// Gets or sets the cached number of displayable messages when known.
+    /// </summary>
+    [JsonPropertyName("message_count")]
+    public int? MessageCount { get; set; }
+
+    /// <summary>
     /// Gets the path to the source markdown file when loaded from disk.
     /// </summary>
     public string? SourcePath { get; set; }
@@ -169,6 +175,11 @@ public sealed class WorkThreadDescriptor
         if (string.IsNullOrWhiteSpace(WorkingDirectory))
         {
             throw new ArgumentException("Working directory is required.", nameof(WorkingDirectory));
+        }
+
+        if (MessageCount is < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MessageCount), MessageCount, "MessageCount cannot be negative.");
         }
 
         switch (Kind)

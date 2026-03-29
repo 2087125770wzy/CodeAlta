@@ -271,6 +271,29 @@ public sealed class AgentHub : IAsyncDisposable
     }
 
     /// <summary>
+    /// Attempts to archive a backend-owned thread.
+    /// </summary>
+    /// <param name="backendId">The backend identifier.</param>
+    /// <param name="threadId">The backend thread identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> when the backend archived the thread; otherwise <see langword="false"/>.</returns>
+    public async Task<bool> TryArchiveThreadAsync(
+        AgentBackendId backendId,
+        string threadId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+
+        var backend = await GetOrCreateBackendAsync(backendId, cancellationToken).ConfigureAwait(false);
+        if (backend is not IThreadArchivingBackend archivingBackend)
+        {
+            return false;
+        }
+
+        return await archivingBackend.TryArchiveThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Sends input through an active agent session.
     /// </summary>
     /// <param name="agentId">Agent id.</param>

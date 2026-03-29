@@ -108,6 +108,58 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     }
 
     /// <summary>
+    /// Archives a thread through the backend when supported and persists local archival metadata.
+    /// </summary>
+    /// <param name="thread">The thread to archive.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> when the backend archived the thread; otherwise <see langword="false"/>.</returns>
+    public async Task<bool> ArchiveThreadAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+
+        var backendArchived = false;
+        if (!string.IsNullOrWhiteSpace(thread.BackendSessionId))
+        {
+            try
+            {
+                backendArchived = await _agentHub.TryArchiveThreadAsync(
+                        new AgentBackendId(thread.BackendId),
+                        thread.BackendSessionId,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+            }
+        }
+
+        thread.Status = WorkThreadStatus.Archived;
+
+        if (thread.Kind == WorkThreadKind.InternalThread)
+        {
+            await _threadCatalog.SaveInternalAsync(thread, cancellationToken).ConfigureAwait(false);
+        }
+
+        await UpdateThreadLocalStateAsync(thread, cancellationToken).ConfigureAwait(false);
+        return backendArchived;
+    }
+
+    /// <summary>
+    /// Persists machine-local thread metadata for a recoverable thread.
+    /// </summary>
+    /// <param name="thread">The thread whose local state should be updated.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task PersistThreadLocalStateAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        await UpdateThreadLocalStateAsync(thread, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Creates a new global thread session and returns its descriptor.
     /// </summary>
     public async Task<WorkThreadDescriptor> CreateGlobalThreadAsync(
@@ -641,6 +693,19 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             "xhigh" => AgentReasoningEffort.XHigh,
             _ => null,
         };
+    }
+
+    private async Task UpdateThreadLocalStateAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken)
+    {
+        var viewState = await _threadCatalog.LoadViewStateAsync(cancellationToken).ConfigureAwait(false);
+        viewState.ThreadStates[thread.ThreadId] = new WorkThreadLocalState
+        {
+            Archived = thread.Status == WorkThreadStatus.Archived,
+            MessageCount = thread.MessageCount,
+        };
+
+        viewState.UpdatedAt = DateTimeOffset.UtcNow;
+        await _threadCatalog.SaveViewStateAsync(viewState, cancellationToken).ConfigureAwait(false);
     }
 
     private sealed class ThreadSessionEntry

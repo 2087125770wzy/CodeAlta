@@ -6,7 +6,7 @@ namespace CodeAlta.Agent.Codex;
 /// <summary>
 /// Codex app-server implementation of <see cref="IAgentBackend"/>.
 /// </summary>
-public sealed class CodexAgentBackend : ICodexAgentBackend
+public sealed class CodexAgentBackend : ICodexAgentBackend, IThreadArchivingBackend
 {
     private readonly ConcurrentDictionary<string, CodexAgentSession> _sessions = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
@@ -196,6 +196,22 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
     internal void RemoveSession(string sessionId)
     {
         _sessions.TryRemove(sessionId, out _);
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> TryArchiveThreadAsync(string threadId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+
+        var client = await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
+        await client.ThreadArchiveAsync(new ThreadArchiveParams { ThreadId = threadId }, cancellationToken).ConfigureAwait(false);
+
+        if (_sessions.TryRemove(threadId, out var session))
+        {
+            await session.DisposeAsync().ConfigureAwait(false);
+        }
+
+        return true;
     }
 
     private static void ValidateTools(IReadOnlyList<AgentToolDefinition>? tools)

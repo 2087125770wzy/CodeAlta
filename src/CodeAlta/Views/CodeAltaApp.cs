@@ -175,8 +175,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         _shellController = new CodeAltaShellController(
             new CodeAltaShellBridge(this),
             _knownProjectImporter,
-            new ProjectCatalogLoader(projectCatalog),
-            new RecoverableThreadSource(_runtimeService));
+            new ProjectCatalogStore(projectCatalog),
+            new RecoverableThreadSource(_runtimeService),
+            new WorkThreadArchiver(_runtimeService));
         _runtimeEventPump = new RuntimeEventPump(_runtimeService, _shellController);
         _terminalLoopCoordinator = new TerminalLoopCoordinator(
             _shellController,
@@ -350,7 +351,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             (tab, message, showSpinner, tone) => SetThreadStatus(tab, message, showSpinner, tone),
             ClearThreadStatus,
             ResetThreadTab,
-            _threadRuntimeEventCoordinator.HandleAgentEvent);
+            _threadRuntimeEventCoordinator.HandleAgentEvent,
+            thread => _threadStateCoordinator.PersistThreadLocalStateAsync(thread));
     }
 
     /// <summary>

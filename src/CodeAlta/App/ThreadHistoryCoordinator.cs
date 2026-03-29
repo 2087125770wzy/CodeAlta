@@ -23,6 +23,7 @@ internal sealed class ThreadHistoryCoordinator
     private readonly Action<OpenThreadState> _clearThreadStatus;
     private readonly Action<OpenThreadState> _resetThreadTab;
     private readonly Action<WorkThreadDescriptor, OpenThreadState, AgentEvent> _handleAgentEvent;
+    private readonly Func<WorkThreadDescriptor, Task> _persistThreadLocalStateAsync;
 
     public ThreadHistoryCoordinator(
         WorkThreadRuntimeService runtimeService,
@@ -34,7 +35,8 @@ internal sealed class ThreadHistoryCoordinator
         Action<OpenThreadState, string, bool, StatusTone> setThreadStatus,
         Action<OpenThreadState> clearThreadStatus,
         Action<OpenThreadState> resetThreadTab,
-        Action<WorkThreadDescriptor, OpenThreadState, AgentEvent> handleAgentEvent)
+        Action<WorkThreadDescriptor, OpenThreadState, AgentEvent> handleAgentEvent,
+        Func<WorkThreadDescriptor, Task> persistThreadLocalStateAsync)
     {
         ArgumentNullException.ThrowIfNull(runtimeService);
         ArgumentNullException.ThrowIfNull(ensureThreadTab);
@@ -46,6 +48,7 @@ internal sealed class ThreadHistoryCoordinator
         ArgumentNullException.ThrowIfNull(clearThreadStatus);
         ArgumentNullException.ThrowIfNull(resetThreadTab);
         ArgumentNullException.ThrowIfNull(handleAgentEvent);
+        ArgumentNullException.ThrowIfNull(persistThreadLocalStateAsync);
 
         _runtimeService = runtimeService;
         _ensureThreadTab = ensureThreadTab;
@@ -57,6 +60,7 @@ internal sealed class ThreadHistoryCoordinator
         _clearThreadStatus = clearThreadStatus;
         _resetThreadTab = resetThreadTab;
         _handleAgentEvent = handleAgentEvent;
+        _persistThreadLocalStateAsync = persistThreadLocalStateAsync;
     }
 
     public async Task EnsureLoadedAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default)
@@ -306,6 +310,8 @@ internal sealed class ThreadHistoryCoordinator
                 StatusTone.Info);
 
             var history = await GetHistoryAsync(thread, tab, preferCachedHistory, cancellationToken).ConfigureAwait(false);
+            thread.MessageCount = CountRenderableMessages(history);
+            await _persistThreadLocalStateAsync(thread).ConfigureAwait(false);
             _resetThreadTab(tab);
 
             var plan = loadOnlyFromLastUserPrompt

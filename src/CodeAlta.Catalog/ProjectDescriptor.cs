@@ -56,6 +56,12 @@ public sealed class ProjectDescriptor
     public List<string> Tags { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets a value indicating whether the project is archived.
+    /// </summary>
+    [JsonPropertyName("archived")]
+    public bool Archived { get; set; }
+
+    /// <summary>
     /// Gets or sets checkout settings.
     /// </summary>
     [JsonPropertyName("checkout")]

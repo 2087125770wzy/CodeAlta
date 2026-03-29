@@ -52,6 +52,9 @@ public sealed class WorkThreadYamlSerializer
 
         [JsonPropertyName("latest_summary")]
         public string? LatestSummary { get; set; }
+
+        [JsonPropertyName("message_count")]
+        public int? MessageCount { get; set; }
     }
 
     private sealed class WorkThreadViewStateDocument
@@ -67,6 +70,12 @@ public sealed class WorkThreadYamlSerializer
 
         [JsonPropertyName("thread_preferences")]
         public Dictionary<string, WorkThreadPreference>? ThreadPreferences { get; set; }
+
+        [JsonPropertyName("navigator")]
+        public NavigatorSettings? Navigator { get; set; }
+
+        [JsonPropertyName("thread_states")]
+        public Dictionary<string, WorkThreadLocalState>? ThreadStates { get; set; }
     }
 
     /// <summary>
@@ -96,6 +105,7 @@ public sealed class WorkThreadYamlSerializer
             LastActiveAt = frontMatter.LastActiveAt ?? default,
             StartedAt = frontMatter.StartedAt,
             LatestSummary = frontMatter.LatestSummary,
+            MessageCount = frontMatter.MessageCount,
             MarkdownBody = document.Body,
         };
     }
@@ -141,6 +151,7 @@ public sealed class WorkThreadYamlSerializer
             LastActiveAt = descriptor.LastActiveAt,
             StartedAt = descriptor.StartedAt,
             LatestSummary = descriptor.LatestSummary,
+            MessageCount = descriptor.MessageCount,
         };
 
         return SerializeMarkdown(frontMatter, descriptor.MarkdownBody, descriptor.Title);
@@ -164,6 +175,11 @@ public sealed class WorkThreadYamlSerializer
                 static entry => entry.Key,
                 static entry => entry.Value,
                 StringComparer.OrdinalIgnoreCase) ?? new Dictionary<string, WorkThreadPreference>(StringComparer.OrdinalIgnoreCase),
+            Navigator = document.Navigator ?? new NavigatorSettings(),
+            ThreadStates = document.ThreadStates?.ToDictionary(
+                static entry => entry.Key,
+                static entry => entry.Value,
+                StringComparer.OrdinalIgnoreCase) ?? new Dictionary<string, WorkThreadLocalState>(StringComparer.OrdinalIgnoreCase),
         };
     }
 
@@ -181,6 +197,8 @@ public sealed class WorkThreadYamlSerializer
             SelectedThreadId = viewState.SelectedThreadId,
             UpdatedAt = viewState.UpdatedAt,
             ThreadPreferences = viewState.ThreadPreferences,
+            Navigator = viewState.Navigator,
+            ThreadStates = viewState.ThreadStates,
         };
 
         return YamlSerializer.Serialize(document);

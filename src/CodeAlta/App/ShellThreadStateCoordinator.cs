@@ -125,6 +125,7 @@ internal sealed class ShellThreadStateCoordinator
         var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
         var threads = await _threadCatalog.LoadInternalAsync(cancellationToken).ConfigureAwait(false);
         var viewState = await _threadCatalog.LoadViewStateAsync(cancellationToken).ConfigureAwait(false);
+        ApplyThreadLocalState(threads, viewState);
         return new InitialCatalogState(projects, threads, viewState);
     }
 
@@ -174,7 +175,7 @@ internal sealed class ShellThreadStateCoordinator
         ArgumentNullException.ThrowIfNull(threads);
 
         _projects = projects;
-        _threads = threads;
+        _threads = ApplyThreadLocalState(threads, ViewState);
 
         ViewState.OpenThreadIds.RemoveAll(id => _threads.All(thread => !string.Equals(thread.ThreadId, id, StringComparison.OrdinalIgnoreCase)));
         if (!string.IsNullOrWhiteSpace(ViewState.SelectedThreadId) &&
@@ -200,6 +201,19 @@ internal sealed class ShellThreadStateCoordinator
 
         EnsureSelectionDefaults();
         _refreshCatalogAndThreadWorkspace();
+    }
+
+    public async Task PersistThreadLocalStateAsync(WorkThreadDescriptor thread)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+
+        ViewState.ThreadStates[thread.ThreadId] = new WorkThreadLocalState
+        {
+            Archived = thread.Status == WorkThreadStatus.Archived,
+            MessageCount = thread.MessageCount,
+        };
+        ViewState.UpdatedAt = DateTimeOffset.UtcNow;
+        await PersistViewStateAsync().ConfigureAwait(false);
     }
 
     public void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken)
@@ -451,5 +465,33 @@ internal sealed class ShellThreadStateCoordinator
         }
 
         await _ensureThreadHistoryLoadedAsync(thread, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static IReadOnlyList<WorkThreadDescriptor> ApplyThreadLocalState(
+        IReadOnlyList<WorkThreadDescriptor> threads,
+        WorkThreadViewState viewState)
+    {
+        ArgumentNullException.ThrowIfNull(threads);
+        ArgumentNullException.ThrowIfNull(viewState);
+
+        foreach (var thread in threads)
+        {
+            if (!viewState.ThreadStates.TryGetValue(thread.ThreadId, out var localState))
+            {
+                continue;
+            }
+
+            if (localState.Archived)
+            {
+                thread.Status = WorkThreadStatus.Archived;
+            }
+
+            if (localState.MessageCount is { } messageCount)
+            {
+                thread.MessageCount = messageCount;
+            }
+        }
+
+        return threads;
     }
 }

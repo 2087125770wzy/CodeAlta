@@ -135,6 +135,7 @@ public sealed class CatalogInfrastructureTests
     {
         var serializer = new CatalogYamlSerializer();
         var project = CreateProjectDescriptor("repo-main", "Repo.Main", "Main Repo");
+        project.Archived = true;
         project.MarkdownBody = "# Main Repo\n\nShared code and services.";
 
         var markdown = serializer.SerializeProjectMarkdown(project);
@@ -144,6 +145,7 @@ public sealed class CatalogInfrastructureTests
         Assert.AreEqual(project.Slug, reloaded.Slug);
         Assert.AreEqual(project.Name, reloaded.Name);
         Assert.AreEqual(project.DisplayName, reloaded.DisplayName);
+        Assert.IsTrue(reloaded.Archived);
         StringAssert.Contains(reloaded.MarkdownBody, "Shared code and services.");
     }
 
@@ -259,6 +261,7 @@ public sealed class CatalogInfrastructureTests
     {
         var serializer = new WorkThreadYamlSerializer();
         var descriptor = CreateInternalThreadDescriptor();
+        descriptor.MessageCount = 7;
         descriptor.MarkdownBody = "# Review sqlitevec integration";
 
         var markdown = serializer.SerializeThreadMarkdown(descriptor);
@@ -272,6 +275,7 @@ public sealed class CatalogInfrastructureTests
         Assert.AreEqual(descriptor.BackendId, reloaded.BackendId);
         Assert.AreEqual(descriptor.BackendSessionId, reloaded.BackendSessionId);
         Assert.AreEqual(descriptor.StartedAt, reloaded.StartedAt);
+        Assert.AreEqual(7, reloaded.MessageCount);
     }
 
     [TestMethod]
@@ -361,6 +365,19 @@ public sealed class CatalogInfrastructureTests
                     AutoScroll = false,
                 },
             },
+            Navigator = new NavigatorSettings
+            {
+                SortMode = NavigatorProjectSortMode.Date,
+                RecentThreadsPerProject = 8,
+            },
+            ThreadStates = new Dictionary<string, WorkThreadLocalState>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["platform-search-review"] = new WorkThreadLocalState
+                {
+                    Archived = true,
+                    MessageCount = 42,
+                },
+            },
         };
 
         await threadCatalog.SaveViewStateAsync(viewState).ConfigureAwait(false);
@@ -371,6 +388,10 @@ public sealed class CatalogInfrastructureTests
         Assert.AreEqual("gpt-5.4", reloaded.ThreadPreferences["platform-search-review"].ModelId);
         Assert.AreEqual(AgentReasoningEffort.High, reloaded.ThreadPreferences["platform-search-review"].ReasoningEffort);
         Assert.IsFalse(reloaded.ThreadPreferences["platform-search-review"].AutoScroll);
+        Assert.AreEqual(NavigatorProjectSortMode.Date, reloaded.Navigator.SortMode);
+        Assert.AreEqual(8, reloaded.Navigator.RecentThreadsPerProject);
+        Assert.IsTrue(reloaded.ThreadStates["platform-search-review"].Archived);
+        Assert.AreEqual(42, reloaded.ThreadStates["platform-search-review"].MessageCount);
     }
 
     [TestMethod]

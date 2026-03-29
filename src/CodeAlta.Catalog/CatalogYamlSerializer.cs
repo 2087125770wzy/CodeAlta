@@ -41,6 +41,9 @@ public sealed class CatalogYamlSerializer
         [JsonPropertyName("tags")]
         public List<string>? Tags { get; set; }
 
+        [JsonPropertyName("archived")]
+        public bool? Archived { get; set; }
+
         [JsonPropertyName("checkout")]
         public CheckoutFrontMatter? Checkout { get; set; }
     }
@@ -114,6 +117,7 @@ public sealed class CatalogYamlSerializer
             ProjectPath = projectPath,
             DefaultBranch = frontMatter.DefaultBranch ?? "main",
             Tags = frontMatter.Tags ?? [],
+            Archived = frontMatter.Archived ?? false,
             Checkout = new CheckoutRule
             {
                 PathTemplate = frontMatter.Checkout?.PathTemplate ?? string.Empty,
@@ -141,6 +145,7 @@ public sealed class CatalogYamlSerializer
             Path = descriptor.ProjectPath,
             DefaultBranch = descriptor.DefaultBranch,
             Tags = descriptor.Tags,
+            Archived = descriptor.Archived,
             Checkout = string.IsNullOrWhiteSpace(descriptor.Checkout.PathTemplate)
                 ? null
                 : new CheckoutFrontMatter { PathTemplate = descriptor.Checkout.PathTemplate },
