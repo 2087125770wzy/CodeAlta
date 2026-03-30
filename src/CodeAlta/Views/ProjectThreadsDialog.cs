@@ -68,11 +68,11 @@ internal sealed class ProjectThreadsDialog
         using (_document.BeginUpdate())
         {
             _document
-                .AddColumn(new DataGridColumnInfo<bool>("select", string.Empty, false, ProjectThreadsDialogRowViewModel.Accessor.IsSelected))
-                .AddColumn(ProjectThreadsDialogRowViewModel.Accessor.Title)
-                .AddColumn(new DataGridColumnInfo<DateTimeOffset?>("updated", "Last Updated", true, ProjectThreadsDialogRowViewModel.Accessor.LastUpdatedAt))
-                .AddColumn(ProjectThreadsDialogRowViewModel.Accessor.MessageCount)
-                .AddColumn(new DataGridColumnInfo<ProjectThreadsDialogRowViewModel>("open", "Action", false, rowAccessor));
+                .AddColumn(new DataGridColumnInfo<bool>("select", "✅", false, ProjectThreadsDialogRowViewModel.Accessor.IsSelected))
+                .AddColumn(new DataGridColumnInfo<string>("title", "🧵 Thread", false, ProjectThreadsDialogRowViewModel.Accessor.Title))
+                .AddColumn(new DataGridColumnInfo<ProjectThreadsDialogRowViewModel>("updated", "🕒 Updated", true, rowAccessor))
+                .AddColumn(new DataGridColumnInfo<int?>("messages", "💬 Messages", true, ProjectThreadsDialogRowViewModel.Accessor.MessageCount))
+                .AddColumn(new DataGridColumnInfo<ProjectThreadsDialogRowViewModel>("open", "🚀 Open", false, rowAccessor));
 
             foreach (var row in _state.Rows)
             {
@@ -89,11 +89,11 @@ internal sealed class ProjectThreadsDialog
             .ShowHeader(true)
             .ShowRowAnchor(false);
 
-        static Visual BuildLastUpdatedCell(DataTemplateValue<DateTimeOffset?> value, in DataTemplateContext _)
+        static Visual BuildLastUpdatedCell(DataTemplateValue<ProjectThreadsDialogRowViewModel> value, in DataTemplateContext _)
         {
             var row = value.GetValue();
-            return new Markup(() => row.ToString())
-                .Wrap(false);
+            return new TextBlock(() => row.LastUpdatedRelative)
+                .Tooltip(new TextBlock(() => row.LastUpdatedExact));
         }
 
         static Visual BuildMessageCountCell(DataTemplateValue<int?> value, in DataTemplateContext _)
@@ -121,32 +121,39 @@ internal sealed class ProjectThreadsDialog
         grid.Columns.Add(new DataGridColumn<bool>
         {
             Key = "select",
-            Header = new TextBlock(""),
+            Header = new TextBlock("✅"),
             TypedValueAccessor = ProjectThreadsDialogRowViewModel.Accessor.IsSelected,
             Width = GridLength.Auto,
             //CellTemplate = new DataTemplate<ProjectThreadsDialogRowViewModel>(BuildSelectionCell, null),
         });
         grid.Columns.Add(new DataGridColumn<string>
         {
-            Key = ProjectThreadsDialogRowViewModel.Accessor.Title.Name,
-            Header = new TextBlock("Thread Title"),
+            Key = "title",
+            Header = new TextBlock("🧵 Thread"),
             TypedValueAccessor = ProjectThreadsDialogRowViewModel.Accessor.Title,
             Width = GridLength.Star(2),
             Sortable = true,
         });
-        grid.Columns.Add(new DataGridColumn<DateTimeOffset?>
+        grid.Columns.Add(new DataGridColumn<ProjectThreadsDialogRowViewModel>
         {
             Key = "updated",
-            Header = new TextBlock("Last Updated"),
-            TypedValueAccessor = ProjectThreadsDialogRowViewModel.Accessor.LastUpdatedAt,
+            Header = new TextBlock("🕒 Updated"),
+            TypedValueAccessor = rowAccessor,
             Width = GridLength.Auto,
             Sortable = true,
-            CellTemplate = new DataTemplate<DateTimeOffset?>(BuildLastUpdatedCell, null),
+            SortComparer = Comparer<ProjectThreadsDialogRowViewModel>.Create(static (left, right) =>
+            {
+                var compare = Nullable.Compare(left.LastUpdatedAt, right.LastUpdatedAt);
+                return compare != 0
+                    ? compare
+                    : string.Compare(left.ThreadId, right.ThreadId, StringComparison.OrdinalIgnoreCase);
+            }),
+            CellTemplate = new DataTemplate<ProjectThreadsDialogRowViewModel>(BuildLastUpdatedCell, null),
         });
         grid.Columns.Add(new DataGridColumn<int?>
         {
-            Key = ProjectThreadsDialogRowViewModel.Accessor.MessageCount.Name,
-            Header = new TextBlock("Messages"),
+            Key = "messages",
+            Header = new TextBlock("💬 Messages"),
             TypedValueAccessor = ProjectThreadsDialogRowViewModel.Accessor.MessageCount,
             Width = GridLength.Auto,
             CellAlignment = TextAlignment.Right,
@@ -175,7 +182,7 @@ internal sealed class ProjectThreadsDialog
         grid.Columns.Add(new DataGridColumn<ProjectThreadsDialogRowViewModel>
         {
             Key = "open",
-            Header = new TextBlock("Action"),
+            Header = new TextBlock("🚀 Open"),
             TypedValueAccessor = rowAccessor,
             Width = GridLength.Auto,
             CellActivationMode = DataGridCellActivationMode.DirectActivate,
