@@ -3,6 +3,7 @@ using CodeAlta.Models;
 using CodeAlta.Threading;
 using CodeAlta.ViewModels;
 using XenoAtom.Terminal.UI;
+using XenoAtom.Terminal.UI.Geometry;
 
 namespace CodeAlta.App;
 
@@ -32,15 +33,15 @@ internal static class SidebarServicesFactory
             shellController,
             threadStateCoordinator,
             getUiDispatcher,
-            () => sidebar!.View.Tree.GetAbsoluteBounds(),
-            () => sidebar!.View.Tree,
+            () => GetSidebarDialogBounds(sidebar),
+            () => GetSidebarFocusTarget(sidebar),
             setStatus,
             setReadyStatusForCurrentSelection);
         var navigatorSettings = new NavigatorSettingsCoordinator(
             threadStateCoordinator,
             getUiDispatcher,
-            () => sidebar!.View.Tree.GetAbsoluteBounds(),
-            () => sidebar!.View.Tree,
+            () => GetSidebarDialogBounds(sidebar),
+            () => GetSidebarFocusTarget(sidebar),
             refreshCatalogAndThreadWorkspace,
             setStatus);
         sidebar = new SidebarCoordinator(
@@ -68,4 +69,10 @@ internal static class SidebarServicesFactory
         await threadStateCoordinator.SaveNavigatorSettingsAsync(settings).ConfigureAwait(false);
         refreshCatalogAndThreadWorkspace();
     }
+
+    private static Rectangle? GetSidebarDialogBounds(SidebarCoordinator? sidebar)
+        => DialogBoundsResolver.ResolveAppBounds(GetSidebarFocusTarget(sidebar));
+
+    private static Visual? GetSidebarFocusTarget(SidebarCoordinator? sidebar)
+        => sidebar?.View.Tree;
 }
