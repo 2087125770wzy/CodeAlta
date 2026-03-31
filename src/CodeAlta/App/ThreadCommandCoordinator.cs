@@ -60,11 +60,14 @@ internal sealed class ThreadCommandCoordinator
         _promptComposerViewModel = promptComposerViewModel;
     }
 
-    public async Task SendSelectedThreadPromptAsync(bool steer)
+    public async Task SendPromptAsync(
+        string? promptText,
+        bool steer,
+        CancellationToken cancellationToken = default)
     {
         var thread = _threadSelection.GetSelectedThread();
         var hadExistingThread = thread is not null;
-        var prompt = UiDispatch.Invoke(_selectorUi.GetUiDispatcher(), () => _selectorUi.GetThreadInput()?.Text?.Trim());
+        var prompt = promptText?.Trim();
         if (thread is null)
         {
             if (steer)
@@ -104,14 +107,14 @@ internal sealed class ThreadCommandCoordinator
             if (steer && thread is not null)
             {
                 var queuedTab = _threadSelection.EnsureThreadTab(thread);
-                await _queueCoordinator.ConvertNextQueuedPromptToSteerAsync(queuedTab, CancellationToken.None).ConfigureAwait(false);
+                await _queueCoordinator.ConvertNextQueuedPromptToSteerAsync(queuedTab, cancellationToken).ConfigureAwait(false);
             }
 
             return;
         }
 
         var tab = _threadSelection.EnsureThreadTab(thread);
-        await _threadSelection.EnsureThreadHistoryLoadedAsync(thread, CancellationToken.None).ConfigureAwait(false);
+        await _threadSelection.EnsureThreadHistoryLoadedAsync(thread, cancellationToken).ConfigureAwait(false);
         tab.Timeline.ReplaceTruncatedHistoryLoadButton();
 
         var alwaysEnqueue = hadExistingThread &&
@@ -124,10 +127,12 @@ internal sealed class ThreadCommandCoordinator
         }
 
         _commandContext.ClearThreadInput();
-        await DispatchPromptAsync(thread, tab, prompt, steer, CancellationToken.None).ConfigureAwait(false);
+        await DispatchPromptAsync(thread, tab, prompt, steer, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task DelegateSelectedThreadAsync()
+    public async Task DelegateThreadAsync(
+        string? promptText,
+        CancellationToken cancellationToken = default)
     {
         var thread = _threadSelection.GetSelectedThread();
         if (thread is null)
@@ -143,7 +148,7 @@ internal sealed class ThreadCommandCoordinator
         }
 
         var tab = _threadSelection.EnsureThreadTab(thread);
-        var prompt = UiDispatch.Invoke(_selectorUi.GetUiDispatcher(), () => _selectorUi.GetThreadInput()?.Text?.Trim());
+        var prompt = promptText?.Trim();
         if (string.IsNullOrWhiteSpace(prompt))
         {
             _commandContext.SetShellStatus("Enter delegation instructions before creating an internal thread.", false, StatusTone.Warning);
@@ -177,7 +182,7 @@ internal sealed class ThreadCommandCoordinator
                     targetProject,
                     executionOptions,
                     title: ThreadRuntimeEventCoordinator.SummarizeContent(prompt),
-                    cancellationToken: CancellationToken.None)
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
             _preferences.RememberThreadPreference(child.ThreadId, executionOptions.Model, executionOptions.ReasoningEffort, tab.AutoScroll, false);
 
@@ -200,7 +205,7 @@ internal sealed class ThreadCommandCoordinator
                         Input = AgentInput.Text(
                             $"Delegated from thread '{thread.Title}' ({thread.ThreadId}): {prompt}")
                     },
-                    CancellationToken.None)
+                    cancellationToken)
                 .ConfigureAwait(false);
 
             _commandContext.ClearThreadInput();

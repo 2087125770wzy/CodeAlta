@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using CodeAlta.Frontend.Commands;
 using CodeAlta.Models;
 using CodeAlta.Presentation.Chat;
 using CodeAlta.Presentation.Shell;
@@ -20,23 +21,23 @@ internal sealed class ThreadWorkspaceView
 {
     private Markup? _statusIconVisual;
     private readonly Dictionary<string, TabPage> _tabPages = new(StringComparer.OrdinalIgnoreCase);
+    private readonly PromptComposerViewModel _promptComposerViewModel;
+    private readonly Binding<string?> _promptTextBinding;
     private Dialog? _expandedPromptDialog;
 
     internal const TerminalKey ExpandPromptShortcutKey = TerminalKey.F6;
-    internal static readonly KeySequence SessionUsageShortcutSequence = new(
-        new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
-        new KeyGesture(TerminalChar.CtrlU, TerminalModifiers.Ctrl));
-    internal static readonly KeySequence ThreadInfoShortcutSequence = new(
-        new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
-        new KeyGesture(TerminalChar.CtrlT, TerminalModifiers.Ctrl));
+    internal static readonly KeySequence SessionUsageShortcutSequence = ShellCommandCatalog.SessionUsageShortcutSequence;
+    internal static readonly KeySequence ThreadInfoShortcutSequence = ShellCommandCatalog.ThreadInfoShortcutSequence;
 
     public ThreadWorkspaceView(
         CodeAltaShellViewModel shellViewModel,
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
+        IReadOnlyList<ThreadWorkspaceCommandBinding> commandBindings,
         Func<Visual> buildSessionUsageIndicatorVisual,
         Action openSessionUsagePopup,
         Action<Visual> toggleThreadInfoPopup,
+        Action<string> acceptPrompt,
         Action sendPrompt,
         Action steerPrompt,
         Action clearQueuedPrompts,
@@ -59,9 +60,11 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(shellViewModel);
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
+        ArgumentNullException.ThrowIfNull(commandBindings);
         ArgumentNullException.ThrowIfNull(buildSessionUsageIndicatorVisual);
         ArgumentNullException.ThrowIfNull(openSessionUsagePopup);
         ArgumentNullException.ThrowIfNull(toggleThreadInfoPopup);
+        ArgumentNullException.ThrowIfNull(acceptPrompt);
         ArgumentNullException.ThrowIfNull(sendPrompt);
         ArgumentNullException.ThrowIfNull(steerPrompt);
         ArgumentNullException.ThrowIfNull(clearQueuedPrompts);
@@ -80,6 +83,9 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(thinkingAnimationPhase01);
         ArgumentNullException.ThrowIfNull(onAutoScrollChanged);
 
+        _promptComposerViewModel = promptComposerViewModel;
+        _promptTextBinding = promptText;
+
         ThreadCommandBar = new CommandBar
         {
             HorizontalAlignment = Align.Stretch,
@@ -92,23 +98,8 @@ internal sealed class ThreadWorkspaceView
         Visual? threadInfoButton = null;
         ThreadInput = CreatePromptEditor(
             promptComposerViewModel,
-            sendPrompt,
-            openSessionUsagePopup,
-            () =>
-            {
-                if (threadInfoButton is not null)
-                {
-                    toggleThreadInfoPopup(threadInfoButton);
-                }
-            },
-            () => workspaceViewModel.CanShowThreadInfo,
-            () => OpenExpandedPromptDialog(promptComposerViewModel, promptText),
-            steerPrompt,
-            clearQueuedPrompts,
-            delegateThread,
-            abortThread,
-            compactThread,
-            closeTab,
+            acceptPrompt,
+            commandBindings,
             promptText)
             .IsEnabled(promptComposerViewModel.Bind.IsEnabled);
         ThreadInputView = ThreadInput.Scrollable();
@@ -314,137 +305,46 @@ internal sealed class ThreadWorkspaceView
         return _tabPages.Remove(tabId);
     }
 
+    public void OpenExpandedPromptDialog()
+        => OpenExpandedPromptDialog(_promptComposerViewModel, _promptTextBinding);
+
     private static ChatPromptEditor CreatePromptEditor(
         PromptComposerViewModel promptComposerViewModel,
-        Action sendPrompt,
-        Action openSessionUsagePopup,
-        Action openThreadInfoPopup,
-        Func<bool> canShowThreadInfo,
-        Action openExpandedPromptEditor,
-        Action steerPrompt,
-        Action clearQueuedPrompts,
-        Action delegateThread,
-        Action abortThread,
-        Action compactThread,
-        Action closeTab,
+        Action<string> acceptPrompt,
+        IReadOnlyList<ThreadWorkspaceCommandBinding> commandBindings,
         Binding<string?> promptText)
     {
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
-        ArgumentNullException.ThrowIfNull(sendPrompt);
-        ArgumentNullException.ThrowIfNull(openSessionUsagePopup);
-        ArgumentNullException.ThrowIfNull(openThreadInfoPopup);
-        ArgumentNullException.ThrowIfNull(canShowThreadInfo);
-        ArgumentNullException.ThrowIfNull(openExpandedPromptEditor);
-        ArgumentNullException.ThrowIfNull(steerPrompt);
-        ArgumentNullException.ThrowIfNull(clearQueuedPrompts);
-        ArgumentNullException.ThrowIfNull(delegateThread);
-        ArgumentNullException.ThrowIfNull(abortThread);
-        ArgumentNullException.ThrowIfNull(compactThread);
-        ArgumentNullException.ThrowIfNull(closeTab);
-        var editor = CreateStyledPromptEditor(_ => sendPrompt(), placeholder: null)
+        ArgumentNullException.ThrowIfNull(acceptPrompt);
+        ArgumentNullException.ThrowIfNull(commandBindings);
+        var editor = CreateStyledPromptEditor(acceptPrompt, placeholder: null)
             .Placeholder(promptComposerViewModel.Bind.Placeholder)
             .Text(promptText);
 
-        editor.AddCommand(new Command
+        foreach (var binding in commandBindings)
         {
-            Id = "CodeAlta.Thread.SessionUsage",
-            LabelMarkup = "Context Usage",
-            DescriptionMarkup = "Show context and usage details for the selected backend session.",
-            Sequence = SessionUsageShortcutSequence,
-            Presentation = CommandPresentation.CommandBar,
-            Execute = _visual => openSessionUsagePopup(),
-        });
-
-        editor.AddCommand(new Command
-        {
-            Id = "CodeAlta.Thread.Info",
-            LabelMarkup = "Thread Info",
-            DescriptionMarkup = "Show information about the selected thread.",
-            Sequence = ThreadInfoShortcutSequence,
-            Presentation = CommandPresentation.CommandBar,
-            Execute = _visual => openThreadInfoPopup(),
-            CanExecute = _visual => canShowThreadInfo(),
-        });
-
-        editor.AddCommand(new Command
-        {
-            Id = "CodeAlta.Thread.ExpandPrompt",
-            LabelMarkup = "Full Prompt",
-            DescriptionMarkup = "Open the current prompt in a large editor window. Escape closes the window and keeps the draft.",
-            Gesture = new KeyGesture(ExpandPromptShortcutKey),
-            Presentation = CommandPresentation.CommandBar,
-            Execute = _visual => openExpandedPromptEditor(),
-            CanExecute = _visual => promptComposerViewModel.IsEnabled,
-        });
-
-        editor.AddCommand(new Command
-        {
-            Id = "CodeAlta.Thread.Steer",
-            LabelMarkup = "Steer",
-            DescriptionMarkup = "Send an immediate steering instruction to the selected thread.",
-            Gesture = new KeyGesture(TerminalKey.F5),
-            Importance = CommandImportance.Primary,
-            Presentation = CommandPresentation.CommandBar,
-            Execute = _visual => steerPrompt(),
-            CanExecute = _visual => promptComposerViewModel.CanSteer,
-        });
-
-        editor.AddCommand(new Command
-        {
-            Id = "CodeAlta.Thread.Delegate",
-            LabelMarkup = "Delegate",
-            DescriptionMarkup = "Create a delegated internal thread from the current project thread.",
-            Gesture = new KeyGesture(TerminalKey.F7),
-            Presentation = CommandPresentation.CommandBar,
-            Execute = _visual => delegateThread(),
-            CanExecute = _visual => promptComposerViewModel.CanDelegate,
-        });
-
-        editor.AddCommand(new Command
-        {
-            Id = "CodeAlta.Thread.Abort",
-            LabelMarkup = "Abort",
-            DescriptionMarkup = "Abort the selected thread run.",
-            Gesture = new KeyGesture(TerminalKey.F8),
-            Presentation = CommandPresentation.CommandBar,
-            Execute = _visual => abortThread(),
-            CanExecute = _visual => promptComposerViewModel.CanAbort,
-        });
-
-        editor.AddCommand(new Command
-        {
-            Id = "CodeAlta.Thread.ClearQueue",
-            LabelMarkup = "Clear Queue",
-            DescriptionMarkup = "Clear all queued prompts for the selected thread.",
-            Gesture = new KeyGesture(TerminalKey.F10),
-            Presentation = CommandPresentation.CommandBar,
-            Execute = _visual => clearQueuedPrompts(),
-            CanExecute = _visual => promptComposerViewModel.CanClearQueue,
-        });
-
-        editor.AddCommand(new Command
-        {
-            Id = "CodeAlta.Thread.Compact",
-            LabelMarkup = "Compact",
-            DescriptionMarkup = "Compact the selected thread session when it is idle.",
-            Gesture = new KeyGesture(TerminalKey.F11),
-            Presentation = CommandPresentation.CommandBar,
-            Execute = _visual => compactThread(),
-            CanExecute = _visual => promptComposerViewModel.CanCompact,
-        });
-
-        editor.AddCommand(new Command
-        {
-            Id = "CodeAlta.Thread.CloseTab",
-            LabelMarkup = "Close Tab",
-            DescriptionMarkup = "Close the current thread tab.",
-            Gesture = new KeyGesture(TerminalKey.F9),
-            Presentation = CommandPresentation.CommandBar,
-            Execute = _visual => closeTab(),
-            CanExecute = _visual => promptComposerViewModel.CanCloseTab,
-        });
+            editor.AddCommand(BuildCommand(binding));
+        }
 
         return editor;
+    }
+
+    private static Command BuildCommand(ThreadWorkspaceCommandBinding binding)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+
+        var metadata = binding.Metadata;
+        return new Command
+        {
+            Id = metadata.Id,
+            LabelMarkup = metadata.Label,
+            DescriptionMarkup = metadata.Description,
+            Execute = _ => binding.Execute(),
+            CanExecute = _ => binding.CanExecute(),
+            Gesture = metadata.Gesture,
+            Sequence = metadata.Sequence,
+            Presentation = metadata.ShowInCommandBar ? CommandPresentation.CommandBar : default,
+        };
     }
 
     private void OpenExpandedPromptDialog(

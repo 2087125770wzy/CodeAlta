@@ -17,7 +17,7 @@ namespace CodeAlta.Tests;
 public sealed class ThreadCommandCoordinatorTests
 {
     [TestMethod]
-    public async Task SendSelectedThreadPromptAsync_UsesDraftPromptCapturedBeforeThreadCreationRefresh()
+    public async Task SendPromptAsync_UsesDraftPromptCapturedBeforeThreadCreationRefresh()
     {
         using var temp = TempDirectory.Create();
         var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
@@ -130,7 +130,7 @@ public sealed class ThreadCommandCoordinatorTests
             queueCoordinator,
             new PromptComposerViewModel());
 
-        await coordinator.SendSelectedThreadPromptAsync(steer: false).ConfigureAwait(false);
+        await coordinator.SendPromptAsync(threadInput.Text, steer: false).ConfigureAwait(false);
 
         Assert.AreEqual("Investigate the regression", backend.LastSentText);
         Assert.AreEqual(1, clearThreadInputCallCount);
@@ -139,7 +139,7 @@ public sealed class ThreadCommandCoordinatorTests
     }
 
     [TestMethod]
-    public async Task SendSelectedThreadPromptAsync_UsesFirstPromptSentenceAsProjectThreadTitle()
+    public async Task SendPromptAsync_UsesFirstPromptSentenceAsProjectThreadTitle()
     {
         using var temp = TempDirectory.Create();
         var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
@@ -260,7 +260,7 @@ public sealed class ThreadCommandCoordinatorTests
             queueCoordinator,
             new PromptComposerViewModel());
 
-        await coordinator.SendSelectedThreadPromptAsync(steer: false).ConfigureAwait(false);
+        await coordinator.SendPromptAsync(threadInput.Text, steer: false).ConfigureAwait(false);
 
         Assert.AreEqual("Investigate the regression in startup flow.", threadSelection.GetSelectedThread()!.Title);
         Assert.AreEqual("Investigate the regression in startup flow. It only happens on Windows.", backend.LastSentText);

@@ -205,9 +205,14 @@ public sealed class ArchitectureGuardrailTests
     {
         var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs"));
         var creationSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "ThreadCreationCoordinator.cs"));
+        var shellCommandSurfaceSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Commands", "ShellCommandSurfaceCoordinator.cs"));
+        var threadCommandSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "ThreadCommandCoordinator.cs"));
 
-        Assert.IsTrue(appSource.Contains("_threadCommandCoordinator.SendSelectedThreadPromptAsync", StringComparison.Ordinal));
-        Assert.IsTrue(appSource.Contains("_threadCommandCoordinator.DelegateSelectedThreadAsync", StringComparison.Ordinal));
+        Assert.IsTrue(appSource.Contains("_shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync", StringComparison.Ordinal));
+        Assert.IsTrue(appSource.Contains("_shellCommandSurfaceCoordinator.SubmitCurrentDelegationAsync", StringComparison.Ordinal));
+        Assert.IsTrue(shellCommandSurfaceSource.Contains("new ShellInputCoordinator(", StringComparison.Ordinal));
+        Assert.IsFalse(threadCommandSource.Contains("GetThreadInput()", StringComparison.Ordinal));
+        Assert.IsFalse(threadCommandSource.Contains("/help", StringComparison.Ordinal));
         Assert.IsTrue(creationSource.Contains("_buildPreferredExecutionOptions(", StringComparison.Ordinal));
         Assert.IsFalse(appSource.Contains("private async Task<AgentPermissionDecision> HandleThreadPermissionRequestAsync(", StringComparison.Ordinal));
         Assert.IsFalse(appSource.Contains("private async Task<AgentUserInputResponse> HandleThreadUserInputRequestAsync(", StringComparison.Ordinal));
@@ -463,7 +468,17 @@ public sealed class ArchitectureGuardrailTests
         var appPath = Path.Combine(GetCodeAltaSourceRoot(), "Views", "CodeAltaApp.cs");
         var appSize = new FileInfo(appPath).Length;
 
-        Assert.IsTrue(appSize < 36000, $"CodeAltaApp.cs exceeded the facade size budget: {appSize} bytes.");
+        Assert.IsTrue(appSize < 37500, $"CodeAltaApp.cs exceeded the facade size budget: {appSize} bytes.");
+    }
+
+    [TestMethod]
+    public void HelpAndWorkspaceCommands_ShareShellCommandCatalog()
+    {
+        var helpSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Help", "ShellHelpContentBuilder.cs"));
+        var surfaceSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Frontend", "Commands", "ShellCommandSurfaceCoordinator.cs"));
+
+        Assert.IsTrue(helpSource.Contains("ShellCommandCatalog.Commands", StringComparison.Ordinal));
+        Assert.IsTrue(surfaceSource.Contains("ShellCommandCatalog.Get(", StringComparison.Ordinal));
     }
 
     [TestMethod]

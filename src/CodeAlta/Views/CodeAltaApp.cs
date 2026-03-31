@@ -4,6 +4,7 @@ using CodeAlta.Agent;
 using CodeAlta.App;
 using CodeAlta.App.Context;
 using CodeAlta.Catalog;
+using CodeAlta.Frontend.Commands;
 using CodeAlta.Models;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Presentation.Chat;
@@ -44,6 +45,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private readonly ThreadRuntimeEventCoordinator _threadRuntimeEventCoordinator;
     private readonly ThreadPromptQueueCoordinator _threadPromptQueueCoordinator;
     private readonly ThreadCommandCoordinator _threadCommandCoordinator;
+    private readonly ShellCommandSurfaceCoordinator _shellCommandSurfaceCoordinator;
     private readonly ThreadCreationCoordinator _threadCreationCoordinator;
     private readonly PromptDraftUiCoordinator _promptDraftUiCoordinator;
     private readonly CodeAltaShellViewModel _shellViewModel = new();
@@ -346,6 +348,26 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 _threadRuntimeEventCoordinator.TryRenderInteraction),
             _threadPromptQueueCoordinator,
             _promptComposerViewModel);
+        _shellCommandSurfaceCoordinator = new ShellCommandSurfaceCoordinator(
+            _promptComposerViewModel,
+            _threadWorkspaceViewModel,
+            _threadCommandCoordinator,
+            () => ReadBindableState(() => _promptDraftUiCoordinator.PromptText),
+            CloseCurrentShellTabAsync,
+            SetStatus,
+            () => ThreadPaneLayout?.GetAbsoluteBounds(),
+            () => ThreadInput,
+            GetSelectedThread,
+            EnsureThreadTab,
+            () => EnsureSessionUsagePresenter().TogglePopupFromIndicator(),
+            () =>
+            {
+                if (ThreadInput is not null)
+                {
+                    EnsureThreadInfoPresenter().TogglePopup(ThreadInput);
+                }
+            },
+            () => _threadWorkspaceView?.OpenExpandedPromptDialog());
         _threadHistoryCoordinator = new ThreadHistoryCoordinator(
             _runtimeService,
             EnsureThreadTab,
@@ -555,20 +577,22 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             _shellViewModel,
             _threadWorkspaceViewModel,
             _promptComposerViewModel,
+            _shellCommandSurfaceCoordinator.BuildWorkspaceCommandBindings(),
             () => CreateUsageComputedVisual(EnsureSessionUsagePresenter().BuildIndicatorVisual),
             () => EnsureSessionUsagePresenter().TogglePopupFromIndicator(),
             anchor => EnsureThreadInfoPresenter().TogglePopup(anchor),
-            () => _ = _threadCommandCoordinator.SendSelectedThreadPromptAsync(steer: false),
-            () => _ = _threadCommandCoordinator.SendSelectedThreadPromptAsync(steer: true),
+            acceptedPrompt => _ = _shellCommandSurfaceCoordinator.HandleAcceptedPromptAsync(acceptedPrompt),
+            () => _ = _shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: false),
+            () => _ = _shellCommandSurfaceCoordinator.SubmitCurrentPromptAsync(steer: true),
             () => _ = _threadCommandCoordinator.ClearSelectedThreadQueueAsync(),
             queuedPromptId => _ = _threadCommandCoordinator.ConvertSelectedThreadQueuedPromptToSteerAsync(queuedPromptId),
             queuedPromptId => _threadCommandCoordinator.DeleteSelectedThreadQueuedPrompt(queuedPromptId),
             (queuedPromptId, remainingCount) => _threadCommandCoordinator.UpdateSelectedThreadQueuedPromptCount(queuedPromptId, remainingCount),
             (queuedPromptId, text) => _threadCommandCoordinator.UpdateSelectedThreadQueuedPromptText(queuedPromptId, text),
-            () => _ = _threadCommandCoordinator.DelegateSelectedThreadAsync(),
-            () => _ = _threadCommandCoordinator.AbortSelectedThreadAsync(),
-            () => _ = _threadCommandCoordinator.CompactSelectedThreadAsync(),
-            () => _ = GetSelectedThread() is not null ? CloseSelectedThreadAsync() : CloseDraftTabAsync(),
+            () => _ = _shellCommandSurfaceCoordinator.SubmitCurrentDelegationAsync(),
+            () => _ = _shellCommandSurfaceCoordinator.AbortSelectedThreadAsync(),
+            () => _ = _shellCommandSurfaceCoordinator.CompactSelectedThreadAsync(),
+            () => _ = _shellCommandSurfaceCoordinator.CloseCurrentTabAsync(),
             OnChatBackendSelectionChanged,
             OnChatModelSelectionChanged,
             OnChatReasoningSelectionChanged,
@@ -732,6 +756,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         await PersistViewStateAsync().ConfigureAwait(false);
         RefreshSelectionAndThreadWorkspace();
     }
+
+    private Task CloseCurrentShellTabAsync()
+        => GetSelectedThread() is not null ? CloseSelectedThreadAsync() : CloseDraftTabAsync();
 
     private bool GetAutoApproveEnabled()
         => DefaultAutoApproveEnabled;
