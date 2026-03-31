@@ -40,9 +40,70 @@ internal sealed record ShellCommandMetadata(
     ShellCommandAvailability Availability,
     KeyGesture? Gesture = null,
     KeySequence? Sequence = null,
+    string? CommandName = null,
     IReadOnlyList<string>? Aliases = null,
     bool ShowInCommandBar = true,
     bool ShowInHelp = true)
 {
-    public IReadOnlyList<string> Aliases { get; } = Aliases ?? [];
+    public string CommandName { get; } = ResolveCommandName(CommandName, Label);
+
+    public IReadOnlyList<string> Aliases { get; } = BuildAliases(
+        ResolveCommandName(CommandName, Label),
+        Aliases);
+
+    private static string ResolveCommandName(string? commandName, string label)
+    {
+        if (!string.IsNullOrWhiteSpace(commandName))
+        {
+            return commandName;
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+
+        Span<char> buffer = stackalloc char[label.Length];
+        var index = 0;
+        var pendingUnderscore = false;
+        foreach (var character in label)
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                if (pendingUnderscore && index > 0)
+                {
+                    buffer[index++] = '_';
+                }
+
+                buffer[index++] = char.ToLowerInvariant(character);
+                pendingUnderscore = false;
+                continue;
+            }
+
+            pendingUnderscore = index > 0;
+        }
+
+        return index == 0 ? "command" : new string(buffer[..index]);
+    }
+
+    private static IReadOnlyList<string> BuildAliases(string commandName, IReadOnlyList<string>? aliases)
+    {
+        var allAliases = new List<string>(1 + (aliases?.Count ?? 0))
+        {
+            commandName,
+        };
+
+        if (aliases is not null)
+        {
+            foreach (var alias in aliases)
+            {
+                if (string.IsNullOrWhiteSpace(alias) ||
+                    allAliases.Contains(alias, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                allAliases.Add(alias);
+            }
+        }
+
+        return allAliases;
+    }
 }

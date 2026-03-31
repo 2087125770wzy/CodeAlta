@@ -41,9 +41,16 @@ internal sealed class ShellInputRouter
         return ShellCommandCatalog.FindByAlias(commandName) switch
         {
             { Id: "CodeAlta.Shell.Help" } => new OpenHelpIntent(arguments),
+            { Id: "CodeAlta.Shell.CommandPalette" } => new OpenCommandPaletteIntent(),
+            { Id: "CodeAlta.Thread.SessionUsage" } => new OpenSessionUsageIntent(),
+            { Id: "CodeAlta.Thread.Info" } => new OpenThreadInfoIntent(),
+            { Id: "CodeAlta.Thread.ExpandPrompt" } => new OpenExpandedPromptIntent(),
+            { Id: "CodeAlta.Thread.Send" } => new SendPromptIntent(arguments ?? string.Empty),
+            { Id: "CodeAlta.Thread.Steer" } => new SteerPromptIntent(arguments ?? string.Empty),
             { Id: "CodeAlta.Thread.Abort" } => new AbortThreadIntent(),
             { Id: "CodeAlta.Thread.Compact" } => new CompactThreadIntent(),
             { Id: "CodeAlta.Thread.CloseTab" } => new CloseTabIntent(),
+            { Id: "CodeAlta.Thread.ClearQueue" } => new ClearQueueIntent(),
             { Id: "CodeAlta.Thread.Queue" } => new QueueStatusIntent(),
             { Id: "CodeAlta.Thread.Delegate" } when !string.IsNullOrWhiteSpace(arguments) => new DelegateThreadIntent(arguments),
             { Id: "CodeAlta.Thread.Delegate" } => new DelegateThreadIntent(string.Empty),

@@ -11,7 +11,12 @@ internal sealed class ShellInputCoordinator
     private readonly Func<Task> _closeCurrentTabAsync;
     private readonly Func<Task> _showHelpAsync;
     private readonly Func<string?, Task> _showHelpAsyncWithFilter;
+    private readonly Func<Task> _showCommandPaletteAsync;
+    private readonly Func<Task> _showSessionUsageAsync;
+    private readonly Func<Task> _showThreadInfoAsync;
+    private readonly Func<Task> _showExpandedPromptAsync;
     private readonly Func<Task> _showQueueStatusAsync;
+    private readonly Func<Task> _clearQueueAsync;
     private readonly ThreadCommandCoordinator _threadCommandCoordinator;
     private readonly Action<string, bool, StatusTone> _setStatus;
 
@@ -21,7 +26,12 @@ internal sealed class ShellInputCoordinator
         Func<Task> closeCurrentTabAsync,
         Func<Task> showHelpAsync,
         Func<string?, Task> showHelpAsyncWithFilter,
+        Func<Task> showCommandPaletteAsync,
+        Func<Task> showSessionUsageAsync,
+        Func<Task> showThreadInfoAsync,
+        Func<Task> showExpandedPromptAsync,
         Func<Task> showQueueStatusAsync,
+        Func<Task> clearQueueAsync,
         ThreadCommandCoordinator threadCommandCoordinator,
         Action<string, bool, StatusTone> setStatus)
     {
@@ -30,7 +40,12 @@ internal sealed class ShellInputCoordinator
         ArgumentNullException.ThrowIfNull(closeCurrentTabAsync);
         ArgumentNullException.ThrowIfNull(showHelpAsync);
         ArgumentNullException.ThrowIfNull(showHelpAsyncWithFilter);
+        ArgumentNullException.ThrowIfNull(showCommandPaletteAsync);
+        ArgumentNullException.ThrowIfNull(showSessionUsageAsync);
+        ArgumentNullException.ThrowIfNull(showThreadInfoAsync);
+        ArgumentNullException.ThrowIfNull(showExpandedPromptAsync);
         ArgumentNullException.ThrowIfNull(showQueueStatusAsync);
+        ArgumentNullException.ThrowIfNull(clearQueueAsync);
         ArgumentNullException.ThrowIfNull(threadCommandCoordinator);
         ArgumentNullException.ThrowIfNull(setStatus);
 
@@ -39,7 +54,12 @@ internal sealed class ShellInputCoordinator
         _closeCurrentTabAsync = closeCurrentTabAsync;
         _showHelpAsync = showHelpAsync;
         _showHelpAsyncWithFilter = showHelpAsyncWithFilter;
+        _showCommandPaletteAsync = showCommandPaletteAsync;
+        _showSessionUsageAsync = showSessionUsageAsync;
+        _showThreadInfoAsync = showThreadInfoAsync;
+        _showExpandedPromptAsync = showExpandedPromptAsync;
         _showQueueStatusAsync = showQueueStatusAsync;
+        _clearQueueAsync = clearQueueAsync;
         _threadCommandCoordinator = threadCommandCoordinator;
         _setStatus = setStatus;
     }
@@ -119,8 +139,28 @@ internal sealed class ShellInputCoordinator
                 await _showHelpAsyncWithFilter(help.FilterText).ConfigureAwait(false);
                 return;
 
+            case OpenCommandPaletteIntent:
+                await _showCommandPaletteAsync().ConfigureAwait(false);
+                return;
+
+            case OpenSessionUsageIntent:
+                await _showSessionUsageAsync().ConfigureAwait(false);
+                return;
+
+            case OpenThreadInfoIntent:
+                await _showThreadInfoAsync().ConfigureAwait(false);
+                return;
+
+            case OpenExpandedPromptIntent:
+                await _showExpandedPromptAsync().ConfigureAwait(false);
+                return;
+
             case UnknownTextCommandIntent unknown:
                 _setStatus($"Unknown command '/{unknown.CommandName}'. Press F1 or type /help.", false, StatusTone.Warning);
+                return;
+
+            case ClearQueueIntent:
+                await _clearQueueAsync().ConfigureAwait(false);
                 return;
 
             default:

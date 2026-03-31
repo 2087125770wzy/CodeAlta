@@ -362,15 +362,16 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(binding);
 
         var metadata = binding.Metadata;
+        var searchTerms = metadata.Aliases.Count == 0
+            ? $"{metadata.CommandName} {metadata.Label}"
+            : $"{metadata.CommandName} {metadata.Label} {string.Join(' ', metadata.Aliases)}";
         return new Command
         {
             Id = metadata.Id,
-            LabelMarkup = metadata.Label,
-            Name = metadata.Aliases.FirstOrDefault(),
+            LabelMarkup = metadata.CommandName,
+            Name = metadata.CommandName,
             DescriptionMarkup = metadata.Description,
-            SearchText = metadata.Aliases.Count == 0
-                ? metadata.Label
-                : $"{metadata.Label} {string.Join(' ', metadata.Aliases)}",
+            SearchText = searchTerms,
             Execute = _ => binding.Execute(),
             CanExecute = _ => binding.CanExecute(),
             Gesture = metadata.Gesture,

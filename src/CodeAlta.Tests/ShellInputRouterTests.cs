@@ -37,10 +37,29 @@ public sealed class ShellInputRouterTests
     public void Route_TextCommands_ReturnTypedIntents()
     {
         Assert.IsInstanceOfType<OpenHelpIntent>(_router.Route("/help", steerRequested: false));
+        Assert.IsInstanceOfType<OpenCommandPaletteIntent>(_router.Route("/command_palette", steerRequested: false));
+        Assert.IsInstanceOfType<OpenSessionUsageIntent>(_router.Route("/context_usage", steerRequested: false));
+        Assert.IsInstanceOfType<OpenThreadInfoIntent>(_router.Route("/thread_info", steerRequested: false));
+        Assert.IsInstanceOfType<OpenExpandedPromptIntent>(_router.Route("/full_prompt", steerRequested: false));
+        Assert.IsInstanceOfType<SendPromptIntent>(_router.Route("/send investigate the regression", steerRequested: false));
+        Assert.IsInstanceOfType<SteerPromptIntent>(_router.Route("/steer focus on tests", steerRequested: false));
         Assert.IsInstanceOfType<AbortThreadIntent>(_router.Route("/abort", steerRequested: false));
+        Assert.IsInstanceOfType<ClearQueueIntent>(_router.Route("/clear_queue", steerRequested: false));
         Assert.IsInstanceOfType<CompactThreadIntent>(_router.Route("/compact", steerRequested: false));
         Assert.IsInstanceOfType<CloseTabIntent>(_router.Route("/close", steerRequested: false));
         Assert.IsInstanceOfType<QueueStatusIntent>(_router.Route("/queue", steerRequested: false));
+    }
+
+    [TestMethod]
+    public void Route_CommandNames_KeepRemainingTextAsPrompt()
+    {
+        var sendIntent = _router.Route("/send investigate the regression", steerRequested: false);
+        var steerIntent = _router.Route("/steer focus on tests", steerRequested: false);
+
+        Assert.IsInstanceOfType<SendPromptIntent>(sendIntent);
+        Assert.AreEqual("investigate the regression", ((SendPromptIntent)sendIntent).PromptText);
+        Assert.IsInstanceOfType<SteerPromptIntent>(steerIntent);
+        Assert.AreEqual("focus on tests", ((SteerPromptIntent)steerIntent).PromptText);
     }
 
     [TestMethod]

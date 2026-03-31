@@ -11,6 +11,7 @@ public sealed class ShellCommandHelpTests
     {
         var helpCommand = ShellCommandCatalog.Get("CodeAlta.Shell.Help");
         var paletteCommand = ShellCommandCatalog.Get("CodeAlta.Shell.CommandPalette");
+        var fullPromptCommand = ShellCommandCatalog.Get("CodeAlta.Thread.ExpandPrompt");
 
         var sections = ShellHelpContentBuilder.BuildSections();
         var entry = sections
@@ -19,10 +20,14 @@ public sealed class ShellCommandHelpTests
         var paletteEntry = sections
             .SelectMany(static section => section.Entries)
             .Single(candidate => string.Equals(candidate.Label, paletteCommand.Label, StringComparison.Ordinal));
+        var fullPromptEntry = sections
+            .SelectMany(static section => section.Entries)
+            .Single(candidate => string.Equals(candidate.Label, fullPromptCommand.Label, StringComparison.Ordinal));
 
         CollectionAssert.Contains(entry.Bindings.ToArray(), "/help");
         CollectionAssert.Contains(entry.Bindings.ToArray(), "?");
         CollectionAssert.Contains(paletteEntry.Bindings.ToArray(), "/");
+        CollectionAssert.Contains(fullPromptEntry.Bindings.ToArray(), "/full_prompt");
     }
 
     [TestMethod]
@@ -33,5 +38,18 @@ public sealed class ShellCommandHelpTests
 
         Assert.AreEqual(1, entries.Length);
         Assert.AreEqual("Compact", entries[0].Label);
+    }
+
+    [TestMethod]
+    public void ShellCommandMetadata_UsesCommandStyleIdentifiers()
+    {
+        var fullPromptCommand = ShellCommandCatalog.Get("CodeAlta.Thread.ExpandPrompt");
+        var closeTabCommand = ShellCommandCatalog.Get("CodeAlta.Thread.CloseTab");
+
+        Assert.AreEqual("full_prompt", fullPromptCommand.CommandName);
+        CollectionAssert.Contains(fullPromptCommand.Aliases.ToArray(), "full_prompt");
+        Assert.AreEqual("close_tab", closeTabCommand.CommandName);
+        CollectionAssert.Contains(closeTabCommand.Aliases.ToArray(), "close_tab");
+        CollectionAssert.Contains(closeTabCommand.Aliases.ToArray(), "close");
     }
 }

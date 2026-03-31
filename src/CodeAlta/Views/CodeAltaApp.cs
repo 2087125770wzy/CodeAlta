@@ -499,6 +499,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
         if (_shellView is null)
         {
+            var commandPaletteMetadata = ShellCommandCatalog.Get("CodeAlta.Shell.CommandPalette");
             _shellView = new CodeAltaShellView(
                 _shellViewModel,
                 _sidebarCoordinator.View.Root,
@@ -515,12 +516,12 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             });
             _shellView.Root.AddCommand(new Command
             {
-                Id = "CodeAlta.Shell.CommandPalette",
-                LabelMarkup = "Command Palette",
-                Name = "palette",
-                SearchText = "commands palette command search",
-                DescriptionMarkup = "Search and run available shell commands.",
-                Gesture = new KeyGesture(TerminalChar.CtrlP, TerminalModifiers.Ctrl),
+                Id = commandPaletteMetadata.Id,
+                LabelMarkup = commandPaletteMetadata.CommandName,
+                Name = commandPaletteMetadata.CommandName,
+                SearchText = $"{commandPaletteMetadata.CommandName} {commandPaletteMetadata.Label}",
+                DescriptionMarkup = commandPaletteMetadata.Description,
+                Gesture = commandPaletteMetadata.Gesture,
                 Presentation = CommandPresentation.CommandBar,
                 Execute = _ => _shellCommandSurfaceCoordinator.ShowCommandPalette(),
             });

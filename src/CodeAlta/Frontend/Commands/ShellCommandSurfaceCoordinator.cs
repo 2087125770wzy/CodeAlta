@@ -73,7 +73,12 @@ internal sealed class ShellCommandSurfaceCoordinator
             closeCurrentTabAsync,
             () => ShowShellHelpAsync(),
             ShowShellHelpAsync,
+            ShowCommandPaletteAsync,
+            ShowSelectedSessionUsageAsync,
+            ShowSelectedThreadInfoAsync,
+            ShowExpandedPromptEditorAsync,
             ShowSelectedThreadQueueStatusAsync,
+            ClearSelectedThreadQueueAsync,
             threadCommandCoordinator,
             setStatus);
     }
@@ -118,6 +123,12 @@ internal sealed class ShellCommandSurfaceCoordinator
 
     public void ShowCommandPalette()
         => (_commandPalette ??= new CommandPalette()).Show();
+
+    public Task ShowCommandPaletteAsync()
+    {
+        ShowCommandPalette();
+        return Task.CompletedTask;
+    }
 
     private ThreadWorkspaceCommandBinding CreateCommandBinding(string commandId, Action execute)
     {
@@ -181,4 +192,25 @@ internal sealed class ShellCommandSurfaceCoordinator
         _setStatus(message, false, tone);
         return Task.CompletedTask;
     }
+
+    private Task ShowSelectedSessionUsageAsync()
+    {
+        _openSessionUsage();
+        return Task.CompletedTask;
+    }
+
+    private Task ShowSelectedThreadInfoAsync()
+    {
+        _openThreadInfo();
+        return Task.CompletedTask;
+    }
+
+    private Task ShowExpandedPromptEditorAsync()
+    {
+        _openExpandedPromptEditor();
+        return Task.CompletedTask;
+    }
+
+    private Task ClearSelectedThreadQueueAsync()
+        => _threadCommandCoordinator.ClearSelectedThreadQueueAsync();
 }
