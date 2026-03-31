@@ -62,6 +62,9 @@ public sealed class WorkThreadYamlSerializer
         [JsonPropertyName("open_thread_ids")]
         public List<string>? OpenThreadIds { get; set; }
 
+        [JsonPropertyName("selection")]
+        public WorkThreadSelectionState? Selection { get; set; }
+
         [JsonPropertyName("selected_thread_id")]
         public string? SelectedThreadId { get; set; }
 
@@ -166,10 +169,13 @@ public sealed class WorkThreadYamlSerializer
     {
         ArgumentNullException.ThrowIfNull(yaml);
         var document = YamlSerializer.Deserialize<WorkThreadViewStateDocument>(yaml) ?? new WorkThreadViewStateDocument();
+        var openThreadIds = document.OpenThreadIds ?? [];
+        var selection = document.Selection ?? BuildLegacySelection(document.SelectedThreadId, openThreadIds);
         return new WorkThreadViewState
         {
-            OpenThreadIds = document.OpenThreadIds ?? [],
-            SelectedThreadId = document.SelectedThreadId,
+            OpenThreadIds = openThreadIds,
+            Selection = selection,
+            SelectedThreadId = selection.Surface == WorkThreadSelectionSurface.Thread ? selection.ThreadId : null,
             UpdatedAt = document.UpdatedAt ?? default,
             ThreadPreferences = document.ThreadPreferences?.ToDictionary(
                 static entry => entry.Key,
@@ -194,7 +200,10 @@ public sealed class WorkThreadYamlSerializer
         var document = new WorkThreadViewStateDocument
         {
             OpenThreadIds = viewState.OpenThreadIds,
-            SelectedThreadId = viewState.SelectedThreadId,
+            Selection = viewState.Selection,
+            SelectedThreadId = viewState.Selection.Surface == WorkThreadSelectionSurface.Thread
+                ? viewState.Selection.ThreadId
+                : null,
             UpdatedAt = viewState.UpdatedAt,
             ThreadPreferences = viewState.ThreadPreferences,
             Navigator = viewState.Navigator,
@@ -202,6 +211,21 @@ public sealed class WorkThreadYamlSerializer
         };
 
         return YamlSerializer.Serialize(document);
+    }
+
+    private static WorkThreadSelectionState BuildLegacySelection(string? selectedThreadId, IReadOnlyList<string> openThreadIds)
+    {
+        if (!string.IsNullOrWhiteSpace(selectedThreadId))
+        {
+            return WorkThreadSelectionState.Thread(selectedThreadId, projectId: null);
+        }
+
+        if (openThreadIds.FirstOrDefault(static threadId => !string.IsNullOrWhiteSpace(threadId)) is { } firstOpenThreadId)
+        {
+            return WorkThreadSelectionState.Thread(firstOpenThreadId, projectId: null);
+        }
+
+        return WorkThreadSelectionState.GlobalDraft();
     }
 
     private static WorkThreadKind ParseKind(string? value)

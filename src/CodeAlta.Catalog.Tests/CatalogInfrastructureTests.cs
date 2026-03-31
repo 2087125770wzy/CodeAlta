@@ -354,6 +354,7 @@ public sealed class CatalogInfrastructureTests
         var viewState = new WorkThreadViewState
         {
             OpenThreadIds = ["global", "platform-search-review"],
+            Selection = WorkThreadSelectionState.Thread("platform-search-review", "project-1"),
             SelectedThreadId = "platform-search-review",
             UpdatedAt = new DateTimeOffset(2026, 03, 10, 13, 0, 0, TimeSpan.Zero),
             ThreadPreferences = new Dictionary<string, WorkThreadPreference>(StringComparer.OrdinalIgnoreCase)
@@ -384,6 +385,9 @@ public sealed class CatalogInfrastructureTests
         var reloaded = await threadCatalog.LoadViewStateAsync().ConfigureAwait(false);
 
         CollectionAssert.AreEqual(viewState.OpenThreadIds, reloaded.OpenThreadIds);
+        Assert.AreEqual(WorkThreadSelectionSurface.Thread, reloaded.Selection.Surface);
+        Assert.AreEqual("platform-search-review", reloaded.Selection.ThreadId);
+        Assert.AreEqual("project-1", reloaded.Selection.ProjectId);
         Assert.AreEqual(viewState.SelectedThreadId, reloaded.SelectedThreadId);
         Assert.AreEqual("gpt-5.4", reloaded.ThreadPreferences["platform-search-review"].ModelId);
         Assert.AreEqual(AgentReasoningEffort.High, reloaded.ThreadPreferences["platform-search-review"].ReasoningEffort);
@@ -392,6 +396,25 @@ public sealed class CatalogInfrastructureTests
         Assert.AreEqual(8, reloaded.Navigator.RecentThreadsPerProject);
         Assert.IsTrue(reloaded.ThreadStates["platform-search-review"].Archived);
         Assert.AreEqual(42, reloaded.ThreadStates["platform-search-review"].MessageCount);
+    }
+
+    [TestMethod]
+    public void WorkThreadYamlSerializer_DeserializeViewState_MigratesLegacyThreadSelection()
+    {
+        var serializer = new WorkThreadYamlSerializer();
+        var yaml =
+            """
+            open_thread_ids:
+              - global
+              - platform-search-review
+            selected_thread_id: platform-search-review
+            """;
+
+        var reloaded = serializer.DeserializeViewState(yaml);
+
+        Assert.AreEqual(WorkThreadSelectionSurface.Thread, reloaded.Selection.Surface);
+        Assert.AreEqual("platform-search-review", reloaded.Selection.ThreadId);
+        Assert.AreEqual("platform-search-review", reloaded.SelectedThreadId);
     }
 
     [TestMethod]

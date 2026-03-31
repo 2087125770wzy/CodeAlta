@@ -15,7 +15,14 @@ public sealed class WorkThreadViewState
     public List<string> OpenThreadIds { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets the persisted shell selection.
+    /// </summary>
+    [JsonPropertyName("selection")]
+    public WorkThreadSelectionState Selection { get; set; } = WorkThreadSelectionState.GlobalDraft();
+
+    /// <summary>
     /// Gets or sets the selected thread identifier.
+    /// This legacy field remains for compatibility with older persisted state.
     /// </summary>
     [JsonPropertyName("selected_thread_id")]
     public string? SelectedThreadId { get; set; }
@@ -50,6 +57,9 @@ public sealed class WorkThreadViewState
     /// <exception cref="ArgumentException">Thrown when the data is invalid.</exception>
     public void Validate()
     {
+        Selection ??= WorkThreadSelectionState.GlobalDraft();
+        Selection.Validate();
+
         var duplicateThreadId = OpenThreadIds
             .Where(static x => !string.IsNullOrWhiteSpace(x))
             .GroupBy(static x => x, StringComparer.OrdinalIgnoreCase)
@@ -62,10 +72,21 @@ public sealed class WorkThreadViewState
             throw new ArgumentException($"Open thread ids contain duplicate entry '{duplicateThreadId}'.", nameof(OpenThreadIds));
         }
 
-        if (!string.IsNullOrWhiteSpace(SelectedThreadId)
-            && !OpenThreadIds.Contains(SelectedThreadId, StringComparer.OrdinalIgnoreCase))
+        var selectedThreadId = Selection.Surface == WorkThreadSelectionSurface.Thread
+            ? Selection.ThreadId
+            : SelectedThreadId;
+        if (!string.IsNullOrWhiteSpace(selectedThreadId)
+            && !OpenThreadIds.Contains(selectedThreadId, StringComparer.OrdinalIgnoreCase))
         {
-            throw new ArgumentException("Selected thread id must be present in open_thread_ids.", nameof(SelectedThreadId));
+            throw new ArgumentException("Selected thread id must be present in open_thread_ids.", nameof(Selection));
+        }
+
+        var legacySelectedThreadId = Selection.Surface == WorkThreadSelectionSurface.Thread
+            ? Selection.ThreadId
+            : null;
+        if (!string.Equals(SelectedThreadId, legacySelectedThreadId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Selected thread id must mirror the persisted selection.", nameof(SelectedThreadId));
         }
 
         var invalidPreferenceKey = ThreadPreferences.Keys.FirstOrDefault(string.IsNullOrWhiteSpace);
@@ -88,6 +109,136 @@ public sealed class WorkThreadViewState
             state.Validate();
         }
     }
+}
+
+/// <summary>
+/// Describes the persisted shell selection restored by the terminal UI.
+/// </summary>
+public sealed class WorkThreadSelectionState
+{
+    /// <summary>
+    /// Gets or sets the selected shell surface.
+    /// </summary>
+    [JsonPropertyName("surface")]
+    public WorkThreadSelectionSurface Surface { get; set; } = WorkThreadSelectionSurface.Draft;
+
+    /// <summary>
+    /// Gets or sets the draft scope when the draft workspace is selected.
+    /// </summary>
+    [JsonPropertyName("draft_scope")]
+    public WorkThreadDraftScope DraftScope { get; set; } = WorkThreadDraftScope.Global;
+
+    /// <summary>
+    /// Gets or sets the selected or preferred project identifier.
+    /// </summary>
+    [JsonPropertyName("project_id")]
+    public string? ProjectId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the selected thread identifier when a thread workspace is selected.
+    /// </summary>
+    [JsonPropertyName("thread_id")]
+    public string? ThreadId { get; set; }
+
+    /// <summary>
+    /// Creates a persisted global draft selection.
+    /// </summary>
+    public static WorkThreadSelectionState GlobalDraft(string? projectId = null)
+        => new()
+        {
+            Surface = WorkThreadSelectionSurface.Draft,
+            DraftScope = WorkThreadDraftScope.Global,
+            ProjectId = projectId,
+        };
+
+    /// <summary>
+    /// Creates a persisted project draft selection.
+    /// </summary>
+    public static WorkThreadSelectionState ProjectDraft(string projectId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+        return new WorkThreadSelectionState
+        {
+            Surface = WorkThreadSelectionSurface.Draft,
+            DraftScope = WorkThreadDraftScope.Project,
+            ProjectId = projectId,
+        };
+    }
+
+    /// <summary>
+    /// Creates a persisted thread selection.
+    /// </summary>
+    public static WorkThreadSelectionState Thread(string threadId, string? projectId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        return new WorkThreadSelectionState
+        {
+            Surface = WorkThreadSelectionSurface.Thread,
+            ProjectId = projectId,
+            ThreadId = threadId,
+        };
+    }
+
+    /// <summary>
+    /// Validates the selection state.
+    /// </summary>
+    /// <exception cref="ArgumentException">Thrown when the selection is invalid.</exception>
+    public void Validate()
+    {
+        if (Surface == WorkThreadSelectionSurface.Thread)
+        {
+            if (string.IsNullOrWhiteSpace(ThreadId))
+            {
+                throw new ArgumentException("Thread selection must specify thread_id.", nameof(ThreadId));
+            }
+
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(ThreadId))
+        {
+            throw new ArgumentException("Draft selection cannot specify thread_id.", nameof(ThreadId));
+        }
+
+        if (DraftScope == WorkThreadDraftScope.Project && string.IsNullOrWhiteSpace(ProjectId))
+        {
+            throw new ArgumentException("Project draft selection must specify project_id.", nameof(ProjectId));
+        }
+    }
+}
+
+/// <summary>
+/// Identifies the persisted shell surface.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<WorkThreadSelectionSurface>))]
+public enum WorkThreadSelectionSurface
+{
+    /// <summary>
+    /// The draft workspace is selected.
+    /// </summary>
+    Draft,
+
+    /// <summary>
+    /// A thread workspace is selected.
+    /// </summary>
+    Thread,
+}
+
+/// <summary>
+/// Identifies the persisted draft scope.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<WorkThreadDraftScope>))]
+public enum WorkThreadDraftScope
+{
+    /// <summary>
+    /// The global draft scope is selected.
+    /// </summary>
+    Global,
+
+    /// <summary>
+    /// A project draft scope is selected.
+    /// </summary>
+    Project,
 }
 
 /// <summary>

@@ -131,6 +131,28 @@ public sealed class ShellThreadStateCoordinatorTests
     }
 
     [TestMethod]
+    public void ApplyRecoveredCatalogState_PreservesPersistedDraftSelectionEvenWhenOpenThreadsExist()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var coordinator = CreateCoordinator(options);
+        var project = CreateProject("project-1", "CodeAlta");
+        coordinator.ViewState = new WorkThreadViewState
+        {
+            OpenThreadIds = ["thread-1"],
+            Selection = WorkThreadSelectionState.ProjectDraft(project.Id),
+        };
+
+        coordinator.ApplyRecoveredCatalogState([project], [CreateThread("thread-1", project.Id)]);
+
+        Assert.AreEqual(ShellSurface.DraftWorkspace, coordinator.Selection.Surface);
+        Assert.IsInstanceOfType<WorkspaceTarget.Draft>(coordinator.Selection.Target);
+        Assert.IsFalse(coordinator.GlobalScopeSelected);
+        Assert.AreEqual(project.Id, coordinator.SelectedProjectId);
+        Assert.IsNull(coordinator.SelectedThreadId);
+    }
+
+    [TestMethod]
     public async Task SaveNavigatorSettingsAsync_PersistsUpdatedSettings()
     {
         using var temp = TempDirectory.Create();

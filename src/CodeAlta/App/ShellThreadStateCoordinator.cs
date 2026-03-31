@@ -158,12 +158,8 @@ internal sealed class ShellThreadStateCoordinator
             ViewState,
             PendingStartupThreadRestoreId);
 
-        if (string.IsNullOrWhiteSpace(SelectedThreadId) &&
-            recovery.RestoredThreadId is { } restoredThreadId &&
-            FindThread(restoredThreadId) is { } restoredThread)
-        {
-            _selectionCoordinator.SelectThread(restoredThread);
-        }
+        _selectionCoordinator.ApplyInitialSelection(ViewState, Projects, Threads);
+        PendingStartupThreadRestoreId = recovery.RestoredThreadId ?? PendingStartupThreadRestoreId;
 
         EnsureSelectionDefaults();
         _refreshCatalogAndThreadWorkspace();

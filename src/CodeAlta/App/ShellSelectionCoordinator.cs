@@ -17,7 +17,14 @@ internal sealed class ShellSelectionCoordinator
     public ShellSelection Selection
     {
         get => _state.Selection;
-        set => _state.Selection = value;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            _state.Selection = value;
+            ViewState.Selection = ToPersistedSelection(value);
+            ViewState.SelectedThreadId = value.SelectedThreadId;
+        }
     }
 
     public string? PendingStartupThreadRestoreId
@@ -116,17 +123,21 @@ internal sealed class ShellSelectionCoordinator
         ArgumentNullException.ThrowIfNull(threads);
 
         ViewState = viewState;
-        var desiredThreadId = ViewState.SelectedThreadId ?? ViewState.OpenThreadIds.FirstOrDefault();
-        PendingStartupThreadRestoreId = desiredThreadId;
-        if (!string.IsNullOrWhiteSpace(desiredThreadId) &&
+        var persistedSelection = NormalizePersistedSelection(ViewState.Selection, ViewState.SelectedThreadId, ViewState.OpenThreadIds);
+        PendingStartupThreadRestoreId = persistedSelection.Surface == WorkThreadSelectionSurface.Thread
+            ? persistedSelection.ThreadId
+            : null;
+
+        if (persistedSelection.Surface == WorkThreadSelectionSurface.Thread &&
+            persistedSelection.ThreadId is { Length: > 0 } desiredThreadId &&
             FindThread(threads, desiredThreadId) is { } thread)
         {
             Selection = ShellSelection.Thread(thread.ThreadId, thread.ProjectRef);
             return;
         }
 
-        var preferredProjectId = NormalizeProjectId(projects, Selection.SelectedProjectId ?? projects.FirstOrDefault()?.Id);
-        Selection = Selection.GlobalScopeSelected
+        var preferredProjectId = NormalizeProjectId(projects, persistedSelection.ProjectId ?? projects.FirstOrDefault()?.Id);
+        Selection = persistedSelection.DraftScope == WorkThreadDraftScope.Global
             ? ShellSelection.GlobalDraft(preferredProjectId)
             : preferredProjectId is { } projectId
                 ? ShellSelection.ProjectDraft(projectId)
@@ -231,5 +242,43 @@ internal sealed class ShellSelectionCoordinator
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
 
         return threads.FirstOrDefault(thread => string.Equals(thread.ThreadId, threadId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static WorkThreadSelectionState NormalizePersistedSelection(
+        WorkThreadSelectionState? selection,
+        string? legacySelectedThreadId,
+        IReadOnlyList<string> openThreadIds)
+    {
+        if (selection is not null)
+        {
+            return selection;
+        }
+
+        if (!string.IsNullOrWhiteSpace(legacySelectedThreadId))
+        {
+            return WorkThreadSelectionState.Thread(legacySelectedThreadId, projectId: null);
+        }
+
+        if (openThreadIds.FirstOrDefault(static threadId => !string.IsNullOrWhiteSpace(threadId)) is { } firstOpenThreadId)
+        {
+            return WorkThreadSelectionState.Thread(firstOpenThreadId, projectId: null);
+        }
+
+        return WorkThreadSelectionState.GlobalDraft();
+    }
+
+    private static WorkThreadSelectionState ToPersistedSelection(ShellSelection selection)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+
+        return selection.Target switch
+        {
+            WorkspaceTarget.Draft { IsGlobal: true } draft => WorkThreadSelectionState.GlobalDraft(draft.ProjectId),
+            WorkspaceTarget.Draft draft => draft.ProjectId is { Length: > 0 } projectId
+                ? WorkThreadSelectionState.ProjectDraft(projectId)
+                : WorkThreadSelectionState.GlobalDraft(),
+            WorkspaceTarget.Thread thread => WorkThreadSelectionState.Thread(thread.ThreadId, thread.ProjectId),
+            _ => WorkThreadSelectionState.GlobalDraft(selection.SelectedProjectId),
+        };
     }
 }

@@ -64,16 +64,27 @@ internal sealed class ShellCatalogStateCoordinator
         _projects = projects;
         _threads = _viewStateCoordinator.ApplyThreadLocalState(threads, viewState);
         _openThreadRegistry.PruneRetainedThreadState(_threads);
+        viewState.Selection ??= WorkThreadSelectionState.GlobalDraft();
 
         viewState.OpenThreadIds.RemoveAll(id => _threads.All(thread => !string.Equals(thread.ThreadId, id, StringComparison.OrdinalIgnoreCase)));
-        if (!string.IsNullOrWhiteSpace(viewState.SelectedThreadId) &&
-            viewState.OpenThreadIds.All(id => !string.Equals(id, viewState.SelectedThreadId, StringComparison.OrdinalIgnoreCase)))
+        if (viewState.Selection.Surface == WorkThreadSelectionSurface.Thread &&
+            (!viewState.OpenThreadIds.Contains(viewState.Selection.ThreadId, StringComparer.OrdinalIgnoreCase) ||
+             FindThread(viewState.Selection.ThreadId) is null))
         {
+            viewState.Selection = viewState.Selection.ProjectId is { Length: > 0 } projectId
+                ? WorkThreadSelectionState.ProjectDraft(projectId)
+                : WorkThreadSelectionState.GlobalDraft(viewState.Selection.ProjectId);
             viewState.SelectedThreadId = null;
+        }
+        else
+        {
+            viewState.SelectedThreadId = viewState.Selection.Surface == WorkThreadSelectionSurface.Thread
+                ? viewState.Selection.ThreadId
+                : null;
         }
 
         string? restoredThreadId = null;
-        if (string.IsNullOrWhiteSpace(viewState.SelectedThreadId) &&
+        if (viewState.Selection.Surface != WorkThreadSelectionSurface.Thread &&
             !string.IsNullOrWhiteSpace(pendingStartupThreadRestoreId) &&
             FindThread(pendingStartupThreadRestoreId) is { } restoredThread)
         {
@@ -82,6 +93,7 @@ internal sealed class ShellCatalogStateCoordinator
                 viewState.OpenThreadIds.Insert(0, restoredThread.ThreadId);
             }
 
+            viewState.Selection = WorkThreadSelectionState.Thread(restoredThread.ThreadId, restoredThread.ProjectRef);
             viewState.SelectedThreadId = restoredThread.ThreadId;
             restoredThreadId = restoredThread.ThreadId;
         }

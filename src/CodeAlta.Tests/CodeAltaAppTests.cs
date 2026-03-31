@@ -1061,6 +1061,7 @@ public sealed class CodeAltaAppTests
             new WorkThreadViewState
             {
                 OpenThreadIds = ["thread-1"],
+                Selection = WorkThreadSelectionState.Thread("thread-1", "project-1"),
                 SelectedThreadId = "thread-1",
             },
             [thread]);
