@@ -429,9 +429,16 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     }
 
     private void RefreshChatSelectorsForDraftScope(AgentBackendId? preferredBackendId = null)
-        => _chatSelectorCoordinator.RefreshForDraftScope(preferredBackendId);
+    {
+        _chatSelectorCoordinator.RefreshForDraftScope(preferredBackendId);
+        _threadWorkspaceView?.SyncChatSelectorItems(_threadWorkspaceViewModel);
+    }
+
     private void RefreshChatSelectorsForThread(OpenThreadState tab)
-        => _chatSelectorCoordinator.RefreshForThread(tab);
+    {
+        _chatSelectorCoordinator.RefreshForThread(tab);
+        _threadWorkspaceView?.SyncChatSelectorItems(_threadWorkspaceViewModel);
+    }
     private void OnChatBackendSelectionChanged(int newIndex)
         => _chatSelectorCoordinator.OnBackendSelectionChanged(newIndex);
     private void OnChatModelSelectionChanged(int newIndex)

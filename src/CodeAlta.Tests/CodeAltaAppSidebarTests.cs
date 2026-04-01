@@ -5,11 +5,14 @@ using CodeAlta.Presentation.Sidebar;
 using CodeAlta.ViewModels;
 using CodeAlta.Views;
 using XenoAtom.Terminal;
+using XenoAtom.Terminal.Backends;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Geometry;
+using XenoAtom.Terminal.UI.Hosting;
 using XenoAtom.Terminal.UI.Input;
 using XenoAtom.Terminal.UI.Layout;
+using System.Reflection;
 
 namespace CodeAlta.Tests;
 
@@ -363,6 +366,50 @@ public sealed class CodeAltaAppSidebarTests
     }
 
     [TestMethod]
+    public void SidebarView_KeyNavigationNotifiesSelectedTargetChanged()
+    {
+        var project = CreateProject("project-1", "CodeAlta", @"C:\repo");
+        var thread = CreateThread("thread-1", "Recovered thread", WorkThreadKind.ProjectThread, project.Id, AgentBackendIds.Codex.Value, project.ProjectPath, DateTimeOffset.Parse("2026-03-29T10:04:00+00:00"));
+        var projection = BuildProjection(
+            [project],
+            [thread],
+            [project.Id],
+            nowUtc: DateTimeOffset.Parse("2026-03-29T10:05:00+00:00"));
+        var observedTargets = new List<SidebarSelectionTarget?>();
+        var view = new SidebarView(new SidebarViewModel(), static () => { }, static () => { }, static () => { }, static () => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, static _ => { }, target => observedTargets.Add(target));
+
+        view.ApplyProjection(projection);
+
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(80, 20)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var app = new TerminalApp(
+            view.Root,
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+                EnableMouse = true,
+                MouseMode = TerminalMouseMode.Move,
+            });
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            TickTerminalApp(app);
+
+            var backend = (InMemoryTerminalBackend)session.Instance.Backend;
+            backend.PushEvent(new TerminalKeyEvent { Key = TerminalKey.Down });
+            backend.PushEvent(new TerminalKeyEvent { Key = TerminalKey.Down });
+            TickTerminalApp(app);
+
+            Assert.AreEqual(SidebarSelectionTarget.Project(project.Id), observedTargets.Last());
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
     public void SidebarNodeViewModel_InlineRenameBlocksWhitespaceCommit()
     {
         var row = new SidebarNodeViewModel("project:project-1", SidebarNodeKind.Project, SidebarSelectionTarget.Project("project-1"));
@@ -481,5 +528,19 @@ public sealed class CodeAltaAppSidebarTests
             UpdatedAt = lastActiveAt,
             LastActiveAt = lastActiveAt,
         };
+    }
+
+    private static void TickTerminalApp(TerminalApp app)
+    {
+        var tickMethod = typeof(TerminalApp).GetMethod("Tick", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(tickMethod);
+        tickMethod.Invoke(app, [null]);
+    }
+
+    private static void InvokeTerminalApp(TerminalApp app, string methodName)
+    {
+        var method = typeof(TerminalApp).GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(method);
+        method.Invoke(app, null);
     }
 }

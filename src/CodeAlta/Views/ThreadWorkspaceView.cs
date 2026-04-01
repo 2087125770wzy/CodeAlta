@@ -96,8 +96,9 @@ internal sealed class ThreadWorkspaceView
         };
 
         ThreadTabControl = new TabControl()
-            .Style(TabControlStyle.NoBorder)
-            .SelectedIndex(workspaceViewModel.Bind.SelectedTabIndex);
+            .Style(TabControlStyle.NoBorder);
+        ThreadTabControl.KeyDown((_, _) => onSelectedTabChanged(ThreadTabControl.SelectedIndex));
+        ThreadTabControl.PointerReleased((_, _) => onSelectedTabChanged(ThreadTabControl.SelectedIndex));
 
         Visual? threadInfoButton = null;
         ThreadInput = CreatePromptEditor(
@@ -258,14 +259,7 @@ internal sealed class ThreadWorkspaceView
         threadPaneLayout.Cell(ThreadBodySplitter, 1, 0);
 
         ThreadPaneLayout = threadPaneLayout;
-        Root = new ZStack(
-            ThreadPaneLayout,
-            CreateSelectItemsObserver(() => workspaceViewModel.BackendOptions, ChatBackendSelect),
-            CreateSelectItemsObserver(() => workspaceViewModel.ModelOptions, ChatModelSelect),
-            CreateSelectItemsObserver(() => workspaceViewModel.ReasoningOptions, ChatReasoningSelect),
-            new BindableObserver<int>(
-                () => workspaceViewModel.SelectedTabIndex,
-                onSelectedTabChanged));
+        Root = ThreadPaneLayout;
     }
 
     public Visual Root { get; }
@@ -320,16 +314,13 @@ internal sealed class ThreadWorkspaceView
     public void OpenExpandedPromptDialog()
         => OpenExpandedPromptDialog(_promptComposerViewModel, _promptTextBinding);
 
-    private static BindableObserver<IReadOnlyList<T>> CreateSelectItemsObserver<T>(
-        Func<IReadOnlyList<T>> readItems,
-        Select<T> select)
+    public void SyncChatSelectorItems(ThreadWorkspaceViewModel workspaceViewModel)
     {
-        ArgumentNullException.ThrowIfNull(readItems);
-        ArgumentNullException.ThrowIfNull(select);
+        ArgumentNullException.ThrowIfNull(workspaceViewModel);
 
-        return new BindableObserver<IReadOnlyList<T>>(
-            readItems,
-            items => ChatBackendPresentation.ReplaceSelectItems(select, items));
+        ChatBackendPresentation.ReplaceSelectItems(ChatBackendSelect, workspaceViewModel.BackendOptions);
+        ChatBackendPresentation.ReplaceSelectItems(ChatModelSelect, workspaceViewModel.ModelOptions);
+        ChatBackendPresentation.ReplaceSelectItems(ChatReasoningSelect, workspaceViewModel.ReasoningOptions);
     }
 
     private static ChatPromptEditor CreatePromptEditor(

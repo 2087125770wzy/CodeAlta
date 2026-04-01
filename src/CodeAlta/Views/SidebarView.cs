@@ -69,6 +69,8 @@ internal sealed class SidebarView
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Stretch,
         };
+        Tree.KeyDown((_, _) => onSelectedTargetChanged(SelectedTarget));
+        Tree.PointerPressed((_, _) => onSelectedTargetChanged(SelectedTarget));
         Tree.AddCommand(new Command
         {
             Id = "Sidebar.BeginInlineProjectRename",
@@ -129,11 +131,7 @@ internal sealed class SidebarView
             VerticalAlignment = Align.Stretch,
         };
 
-        Root = new ZStack(
-            group,
-            new BindableObserver<SidebarSelectionTarget?>(
-                () => SelectedTarget,
-                onSelectedTargetChanged));
+        Root = group;
     }
 
     public Visual Root { get; }

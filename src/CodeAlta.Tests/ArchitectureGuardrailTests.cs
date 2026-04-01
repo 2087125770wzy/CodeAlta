@@ -487,7 +487,7 @@ public sealed class ArchitectureGuardrailTests
 
         AssertSourceDoesNotContain(sourceFiles, "RegisterDynamicUpdate(");
         AssertSourceDoesNotContain(sourceFiles, "BindingManager.");
-        Assert.IsTrue(workspaceSource.Contains(".SelectedIndex(workspaceViewModel.Bind.SelectedTabIndex)", StringComparison.Ordinal));
+        AssertSourceDoesNotContain(sourceFiles, "BindableObserver<");
         Assert.IsTrue(workspaceSource.Contains("QueuedPromptListView.Build(", StringComparison.Ordinal));
     }
 

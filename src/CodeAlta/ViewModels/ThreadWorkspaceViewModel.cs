@@ -10,7 +10,6 @@ public sealed partial class ThreadWorkspaceViewModel
     {
         BackendStatusMarkup = string.Empty;
         AutoScroll = true;
-        SelectedTabIndex = -1;
         SelectedBackendIndex = -1;
         SelectedModelIndex = -1;
         SelectedReasoningIndex = -1;
@@ -55,9 +54,6 @@ public sealed partial class ThreadWorkspaceViewModel
 
     [Bindable]
     public partial int SelectedReasoningIndex { get; set; }
-
-    [Bindable]
-    public partial int SelectedTabIndex { get; set; }
 
     [Bindable]
     public partial bool HasQueuedPrompts { get; set; }
