@@ -95,8 +95,7 @@ internal sealed class ThreadWorkspaceView
             HorizontalAlignment = Align.Stretch,
         };
 
-        ThreadTabControl = new TabControl()
-            .Style(TabControlStyle.NoBorder);
+        ThreadTabControl = new TabControl();
         ThreadTabControl.KeyDown((_, _) => onSelectedTabChanged(ThreadTabControl.SelectedIndex));
         ThreadTabControl.PointerReleased((_, _) => onSelectedTabChanged(ThreadTabControl.SelectedIndex));
 
