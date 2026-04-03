@@ -50,6 +50,7 @@
     <PackageReference Include="XenoAtom.Logging.Terminal" />
     <PackageReference Include="XenoAtom.Terminal.UI" />
     <PackageReference Include="XenoAtom.Terminal.UI.Extensions.Markdown" />
+    <PackageReference Include="XenoAtom.Terminal.UI.Extensions.Screenshot" />
   </ItemGroup>
 
   <ItemGroup>

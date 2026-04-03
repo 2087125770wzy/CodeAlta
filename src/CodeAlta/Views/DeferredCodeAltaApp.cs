@@ -3,6 +3,7 @@ using CodeAlta.ViewModels;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
+using XenoAtom.Terminal.UI.Extensions.Screenshot;
 
 namespace CodeAlta.Views;
 
@@ -28,6 +29,7 @@ internal sealed class DeferredCodeAltaApp : IAsyncDisposable
                 _sidebarHost,
                 _workspaceHost,
                 _commandBarHost).Root);
+        _rootHost.RegisterClipboardScreenshotCommand();
     }
 
     public ValueTask<TerminalInstance> RunAsync(CancellationToken cancellationToken)
