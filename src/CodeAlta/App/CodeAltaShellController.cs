@@ -174,10 +174,10 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
 
         await UiDispatcher.InvokeAsync(
-                () => _shell.SetStatus($"Opening folder '{folderPath}'...", showSpinner: true))
+                () => _shell.SetStatus($"Opening '{folderPath}'...", showSpinner: true))
             .ConfigureAwait(false);
 
-        var project = await _projectCatalog.UpsertFromPathAsync(folderPath, cancellationToken).ConfigureAwait(false);
+        var project = await ResolveOpenProjectAsync(folderPath, cancellationToken).ConfigureAwait(false);
         var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
         var threads = await _recoverableThreadSource.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
 
@@ -187,6 +187,7 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
                     _shell.ApplyRecoveredCatalogState(projects, threads);
                     _shell.SelectProjectScope(project.Id);
                     _shell.SetReadyStatusForCurrentSelection();
+                    _shell.FocusPromptEditor();
                 })
             .ConfigureAwait(false);
 
@@ -301,6 +302,33 @@ internal sealed class CodeAltaShellController : IAsyncDisposable
 
     internal Task InitializeAsync(CancellationToken cancellationToken)
         => RunInitializationAsync(cancellationToken);
+
+    private async Task<ProjectDescriptor> ResolveOpenProjectAsync(string folderPathOrProjectReference, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderPathOrProjectReference);
+
+        if (OpenProjectRequestResolver.LooksLikePath(folderPathOrProjectReference))
+        {
+            var normalizedPath = OpenProjectRequestResolver.NormalizePath(folderPathOrProjectReference);
+            if (!Directory.Exists(normalizedPath))
+            {
+                throw new InvalidOperationException($"The folder '{normalizedPath}' does not exist.");
+            }
+
+            return await _projectCatalog.UpsertFromPathAsync(normalizedPath, cancellationToken).ConfigureAwait(false);
+        }
+
+        var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var project = OpenProjectRequestResolver.ResolveProjectReference(projects, folderPathOrProjectReference);
+        if (!project.Archived)
+        {
+            return project;
+        }
+
+        project.Archived = false;
+        await _projectCatalog.SaveAsync(project, cancellationToken).ConfigureAwait(false);
+        return project;
+    }
 
     private async Task RunInitializationAsync(CancellationToken cancellationToken)
     {

@@ -1,3 +1,5 @@
+using CodeAlta.App;
+using CodeAlta.Catalog;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Text;
 
@@ -6,12 +8,16 @@ namespace CodeAlta.Views;
 internal sealed class DirectoryPathCompletionProvider
 {
     private readonly string _currentDirectory;
+    private readonly IReadOnlyList<string> _projectCandidates;
 
-    public DirectoryPathCompletionProvider(string? currentDirectory = null)
+    public DirectoryPathCompletionProvider(
+        string? currentDirectory = null,
+        IEnumerable<ProjectDescriptor>? projects = null)
     {
         _currentDirectory = Path.GetFullPath(string.IsNullOrWhiteSpace(currentDirectory)
             ? Environment.CurrentDirectory
             : currentDirectory);
+        _projectCandidates = BuildProjectCandidates(projects);
     }
 
     public PromptEditorCompletion Complete(in PromptEditorCompletionRequest request)
@@ -43,7 +49,13 @@ internal sealed class DirectoryPathCompletionProvider
     {
         if (string.IsNullOrEmpty(currentText))
         {
-            candidates = GetRootCandidates();
+            candidates = GetDefaultCandidates();
+            return candidates.Count > 0;
+        }
+
+        if (!OpenProjectRequestResolver.LooksLikePath(currentText))
+        {
+            candidates = GetProjectMatches(currentText);
             return candidates.Count > 0;
         }
 
@@ -107,6 +119,33 @@ internal sealed class DirectoryPathCompletionProvider
         return [AppendTrailingSeparator(Path.GetPathRoot(_currentDirectory) ?? Path.DirectorySeparatorChar.ToString())];
     }
 
+    private IReadOnlyList<string> GetDefaultCandidates()
+    {
+        var rootCandidates = GetRootCandidates();
+        if (_projectCandidates.Count == 0)
+        {
+            return rootCandidates;
+        }
+
+        var candidates = new List<string>(_projectCandidates.Count + rootCandidates.Count);
+        candidates.AddRange(_projectCandidates);
+        candidates.AddRange(rootCandidates);
+        return candidates;
+    }
+
+    private IReadOnlyList<string> GetProjectMatches(string currentText)
+    {
+        var trimmed = currentText.Trim();
+        if (trimmed.Length == 0)
+        {
+            return _projectCandidates;
+        }
+
+        return _projectCandidates
+            .Where(candidate => candidate.StartsWith(trimmed, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+    }
+
     private bool TryResolveSearchContext(string currentText, out string searchRoot, out string prefix)
     {
         var pathText = currentText.Trim();
@@ -123,6 +162,13 @@ internal sealed class DirectoryPathCompletionProvider
             pathText[1] == ':')
         {
             searchRoot = AppendTrailingSeparator(pathText);
+            prefix = string.Empty;
+            return true;
+        }
+
+        if (string.Equals(pathText, "~", StringComparison.Ordinal))
+        {
+            searchRoot = NormalizeDirectoryPath(pathText);
             prefix = string.Empty;
             return true;
         }
@@ -144,12 +190,18 @@ internal sealed class DirectoryPathCompletionProvider
 
     private string NormalizeDirectoryPath(string path)
     {
+        var effectiveInput = path.Trim();
+        if (effectiveInput.StartsWith("~", StringComparison.Ordinal))
+        {
+            return OpenProjectRequestResolver.NormalizePath(effectiveInput);
+        }
+
         var effectivePath = OperatingSystem.IsWindows() &&
-                            path.Length == 2 &&
-                            char.IsLetter(path[0]) &&
-                            path[1] == ':'
-            ? AppendTrailingSeparator(path)
-            : path;
+                            effectiveInput.Length == 2 &&
+                            char.IsLetter(effectiveInput[0]) &&
+                            effectiveInput[1] == ':'
+            ? AppendTrailingSeparator(effectiveInput)
+            : effectiveInput;
 
         return Path.GetFullPath(Path.IsPathRooted(effectivePath)
             ? effectivePath
@@ -178,5 +230,37 @@ internal sealed class DirectoryPathCompletionProvider
         }
 
         return string.Create(snapshot.Length, snapshot, static (span, source) => source.CopyTo(0, span));
+    }
+
+    private static IReadOnlyList<string> BuildProjectCandidates(IEnumerable<ProjectDescriptor>? projects)
+    {
+        if (projects is null)
+        {
+            return [];
+        }
+
+        var candidates = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var project in projects
+                     .OrderBy(static candidate => candidate.DisplayName, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(static candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(static candidate => candidate.Slug, StringComparer.OrdinalIgnoreCase))
+        {
+            AddCandidate(candidates, seen, project.DisplayName);
+            AddCandidate(candidates, seen, project.Name);
+            AddCandidate(candidates, seen, project.Slug);
+        }
+
+        return candidates;
+    }
+
+    private static void AddCandidate(List<string> candidates, HashSet<string> seen, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || !seen.Add(value))
+        {
+            return;
+        }
+
+        candidates.Add(value);
     }
 }

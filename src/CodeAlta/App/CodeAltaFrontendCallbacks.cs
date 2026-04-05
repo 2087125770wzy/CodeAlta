@@ -57,4 +57,5 @@ internal sealed class CodeAltaFrontendCallbacks
     public required Action<string> RestorePromptText { get; init; }
     public required Func<Task> PersistViewStateAsync { get; init; }
     public required Func<WorkThreadDescriptor, Task> RegisterCreatedThreadAsync { get; init; }
+    public required Func<Visual?> GetPromptFocusTarget { get; init; }
 }

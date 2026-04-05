@@ -47,6 +47,9 @@ internal sealed class CodeAltaShellBridge : ICodeAltaShell
     public void OpenThread(string threadId)
         => _app.OpenThread(threadId);
 
+    public void FocusPromptEditor()
+        => _app.FocusPromptEditor();
+
     public void SetInitialized(bool isInitialized)
         => _app.SetShellInitialized(isInitialized);
 }

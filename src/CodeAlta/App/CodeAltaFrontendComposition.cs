@@ -125,6 +125,7 @@ internal sealed class CodeAltaFrontendComposition
             catalogOptions,
             shellController,
             threadStateCoordinator,
+            callbacks.GetPromptFocusTarget,
             callbacks.RefreshCatalogAndThreadWorkspace,
             callbacks.SetStatus,
             callbacks.SetReadyStatusForCurrentSelection);

@@ -1,4 +1,5 @@
 using CodeAlta.Views;
+using CodeAlta.Catalog;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Text;
@@ -66,5 +67,70 @@ public sealed class DirectoryPathCompletionProviderTests
         Assert.IsTrue(result.Handled);
         Assert.IsNotNull(result.Candidates);
         Assert.IsTrue(result.Candidates.Count > 0);
+    }
+
+    [TestMethod]
+    public void Complete_ProjectReference_OffersMatchingProjects()
+    {
+        var provider = new DirectoryPathCompletionProvider(
+            Environment.CurrentDirectory,
+            projects:
+            [
+                CreateProject("codealta", "CodeAlta"),
+                CreateProject("codex-cli", "Codex CLI"),
+                CreateProject("other", "Other"),
+            ]);
+        var snapshot = new TextDocument("Cod").CurrentSnapshot;
+
+        var result = provider.Complete(new PromptEditorCompletionRequest(
+            snapshot,
+            CaretIndex: snapshot.Length,
+            SelectionStart: snapshot.Length,
+            SelectionLength: 0,
+            Modifiers: TerminalModifiers.None));
+
+        Assert.IsTrue(result.Handled);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "CodeAlta",
+                "Codex CLI",
+                "codex-cli",
+            },
+            result.Candidates!.ToArray());
+    }
+
+    [TestMethod]
+    public void Complete_BlankInput_IncludesProjectsBeforeRoots()
+    {
+        var provider = new DirectoryPathCompletionProvider(
+            Environment.CurrentDirectory,
+            projects: [CreateProject("codealta", "CodeAlta")]);
+        var snapshot = new TextDocument(string.Empty).CurrentSnapshot;
+
+        var result = provider.Complete(new PromptEditorCompletionRequest(
+            snapshot,
+            CaretIndex: 0,
+            SelectionStart: 0,
+            SelectionLength: 0,
+            Modifiers: TerminalModifiers.None));
+
+        Assert.IsTrue(result.Handled);
+        Assert.IsNotNull(result.Candidates);
+        Assert.AreEqual("CodeAlta", result.Candidates[0]);
+        Assert.IsTrue(result.Candidates.Contains(Path.GetPathRoot(Environment.CurrentDirectory)!));
+    }
+
+    private static ProjectDescriptor CreateProject(string slug, string displayName)
+    {
+        return new ProjectDescriptor
+        {
+            Id = $"project-{slug}",
+            Slug = slug,
+            Name = displayName,
+            DisplayName = displayName,
+            ProjectPath = Path.Combine(Path.GetTempPath(), slug),
+            DefaultBranch = "main",
+        };
     }
 }

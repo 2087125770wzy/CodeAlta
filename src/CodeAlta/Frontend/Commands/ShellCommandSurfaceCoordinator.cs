@@ -27,6 +27,7 @@ internal sealed class ShellCommandSurfaceCoordinator
     private readonly ThreadCommandCoordinator _threadCommandCoordinator;
     private readonly Func<Rectangle?> _getHelpBounds;
     private readonly Func<Visual?> _getHelpFocusTarget;
+    private readonly Func<IReadOnlyList<ProjectDescriptor>> _getProjects;
     private readonly Func<string, Task> _openFolderAsync;
     private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
     private readonly Func<WorkThreadDescriptor, OpenThreadState> _ensureThreadTab;
@@ -42,6 +43,7 @@ internal sealed class ShellCommandSurfaceCoordinator
         PromptComposerViewModel promptComposerViewModel,
         ThreadWorkspaceViewModel threadWorkspaceViewModel,
         ThreadCommandCoordinator threadCommandCoordinator,
+        Func<IReadOnlyList<ProjectDescriptor>> getProjects,
         Func<string, Task> openFolderAsync,
         Func<string?> getPromptText,
         Func<Task> closeCurrentTabAsync,
@@ -57,6 +59,7 @@ internal sealed class ShellCommandSurfaceCoordinator
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
         ArgumentNullException.ThrowIfNull(threadWorkspaceViewModel);
         ArgumentNullException.ThrowIfNull(threadCommandCoordinator);
+        ArgumentNullException.ThrowIfNull(getProjects);
         ArgumentNullException.ThrowIfNull(openFolderAsync);
         ArgumentNullException.ThrowIfNull(getPromptText);
         ArgumentNullException.ThrowIfNull(closeCurrentTabAsync);
@@ -72,6 +75,7 @@ internal sealed class ShellCommandSurfaceCoordinator
         _promptComposerViewModel = promptComposerViewModel;
         _threadWorkspaceViewModel = threadWorkspaceViewModel;
         _threadCommandCoordinator = threadCommandCoordinator;
+        _getProjects = getProjects;
         _openFolderAsync = openFolderAsync;
         _getHelpBounds = getHelpBounds;
         _getHelpFocusTarget = getHelpFocusTarget;
@@ -103,7 +107,7 @@ internal sealed class ShellCommandSurfaceCoordinator
         return
         [
             CreateCommandBinding("CodeAlta.Shell.Help", () => ObserveUiTask(ShowHelpAsync(), "show help")),
-            CreateCommandBinding("CodeAlta.Project.OpenFolder", () => ObserveUiTask(ShowOpenFolderDialogAsync(), "open a folder")),
+            CreateCommandBinding("CodeAlta.Project.OpenFolder", () => ObserveUiTask(ShowOpenFolderDialogAsync(), "open a project")),
             CreateCommandBinding("CodeAlta.Thread.SessionUsage", _openSessionUsage),
             CreateCommandBinding("CodeAlta.Thread.Info", _openThreadInfo),
             CreateCommandBinding("CodeAlta.Thread.ExpandPrompt", _openExpandedPromptEditor),
@@ -149,18 +153,16 @@ internal sealed class ShellCommandSurfaceCoordinator
     public Task ShowOpenFolderDialogAsync(string? initialPath = null)
     {
         new DirectoryPathDialog(
-            "Open Folder",
-            "Type a folder path to add it to the navigator as a project scope.",
+            "Open Project",
+            "Type a rooted folder path or an existing project id, slug, name, or display name.",
             "Open",
-            path =>
-            {
-                ObserveUiTask(_openFolderAsync(path), "open a folder");
-                return Task.CompletedTask;
-            },
+            _openFolderAsync,
             _getHelpBounds,
             _getHelpFocusTarget,
+            _getHelpFocusTarget,
+            _getProjects(),
             initialPath,
-            placeholder: "C:\\code\\SomeFolder")
+            placeholder: "C:\\code\\SomeFolder or CodeAlta")
             .Show();
         return Task.CompletedTask;
     }

@@ -13,6 +13,7 @@ internal sealed class NavigatorActionCoordinator
     private readonly ShellThreadStateCoordinator _threadStateCoordinator;
     private readonly Func<Rectangle?> _getDialogBounds;
     private readonly Func<Visual?> _getFocusTarget;
+    private readonly Func<Visual?> _getPromptFocusTarget;
     private readonly Action<string, bool, StatusTone> _setStatus;
     private readonly Action _setReadyStatusForCurrentSelection;
 
@@ -21,6 +22,7 @@ internal sealed class NavigatorActionCoordinator
         ShellThreadStateCoordinator threadStateCoordinator,
         Func<Rectangle?> getDialogBounds,
         Func<Visual?> getFocusTarget,
+        Func<Visual?> getPromptFocusTarget,
         Action<string, bool, StatusTone> setStatus,
         Action setReadyStatusForCurrentSelection)
     {
@@ -28,6 +30,7 @@ internal sealed class NavigatorActionCoordinator
         ArgumentNullException.ThrowIfNull(threadStateCoordinator);
         ArgumentNullException.ThrowIfNull(getDialogBounds);
         ArgumentNullException.ThrowIfNull(getFocusTarget);
+        ArgumentNullException.ThrowIfNull(getPromptFocusTarget);
         ArgumentNullException.ThrowIfNull(setStatus);
         ArgumentNullException.ThrowIfNull(setReadyStatusForCurrentSelection);
 
@@ -35,6 +38,7 @@ internal sealed class NavigatorActionCoordinator
         _threadStateCoordinator = threadStateCoordinator;
         _getDialogBounds = getDialogBounds;
         _getFocusTarget = getFocusTarget;
+        _getPromptFocusTarget = getPromptFocusTarget;
         _setStatus = setStatus;
         _setReadyStatusForCurrentSelection = setReadyStatusForCurrentSelection;
     }
@@ -171,13 +175,15 @@ internal sealed class NavigatorActionCoordinator
     public void OpenFolder()
     {
         new DirectoryPathDialog(
-            "Open Folder",
-            "Type a folder path to add it to the navigator as a project scope.",
+            "Open Project",
+            "Type a rooted folder path or an existing project id, slug, name, or display name.",
             "Open",
             OpenFolderAsync,
             _getDialogBounds,
             _getFocusTarget,
-            placeholder: "C:\\code\\SomeFolder")
+            _getPromptFocusTarget,
+            _threadStateCoordinator.Projects,
+            placeholder: "C:\\code\\SomeFolder or CodeAlta")
             .Show();
     }
 
@@ -260,14 +266,7 @@ internal sealed class NavigatorActionCoordinator
 
     private async Task OpenFolderAsync(string folderPath)
     {
-        try
-        {
-            await _shellController.OpenFolderAsync(folderPath, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            _setStatus($"Failed to open folder: {ex.Message}", false, StatusTone.Error);
-        }
+        await _shellController.OpenFolderAsync(folderPath, CancellationToken.None);
     }
 
     private static ProjectDescriptor CloneProject(ProjectDescriptor project)

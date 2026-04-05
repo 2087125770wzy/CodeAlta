@@ -34,12 +34,13 @@ internal static class ShellCommandCatalog
             Gesture: new KeyGesture(TerminalChar.CtrlP, TerminalModifiers.Ctrl)),
         new(
             "CodeAlta.Project.OpenFolder",
-            "Open Folder",
-            "Open a folder picker dialog and add that directory to the project list.",
+            "Open Project",
+            "Open a rooted path or switch to a known project from the same dialog.",
             ShellCommandHelpCategory.General,
             ShellCommandScope.AnyShell,
             ShellCommandAvailability.Always,
             Gesture: new KeyGesture(TerminalChar.CtrlO, TerminalModifiers.Ctrl),
+            CommandName: "open_folder",
             Aliases: ["open"],
             ShowInCommandBar: false),
         new(

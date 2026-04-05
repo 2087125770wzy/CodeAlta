@@ -205,6 +205,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 RestorePromptText = prompt => DispatchToUi(() => _promptDraftUiCoordinator!.PromptText = prompt),
                 PersistViewStateAsync = PersistViewStateAsync,
                 RegisterCreatedThreadAsync = RegisterCreatedThreadAsync,
+                GetPromptFocusTarget = () => ThreadInput,
             });
         _backendPreferences = composition.BackendPreferences;
         _shellController = composition.ShellController;
@@ -247,6 +248,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             _promptComposerViewModel,
             _threadWorkspaceViewModel,
             _threadCommandCoordinator,
+            () => _threadStateCoordinator.Projects,
             OpenFolderAsync,
             () => ReadBindableState(() => _promptDraftUiCoordinator.PromptText),
             CloseCurrentShellTabAsync,
@@ -706,14 +708,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     private async Task OpenFolderAsync(string folderPath)
     {
-        try
-        {
-            await _shellController.OpenFolderAsync(folderPath, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            SetStatus($"Failed to open folder: {ex.Message}", false, StatusTone.Error);
-        }
+        await _shellController.OpenFolderAsync(folderPath, CancellationToken.None);
     }
 
     private bool GetAutoApproveEnabled()
@@ -740,6 +735,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable
 
     internal void OpenThread(string threadId)
         => _threadStateCoordinator.OpenThread(threadId);
+
+    internal void FocusPromptEditor()
+        => ThreadPaneLayout?.App?.Focus(ThreadInput);
 
     private async Task CloseSelectedThreadAsync()
         => await _threadStateCoordinator.CloseSelectedThreadAsync();

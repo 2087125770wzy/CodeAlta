@@ -28,5 +28,7 @@ internal interface ICodeAltaShell
 
     void OpenThread(string threadId);
 
+    void FocusPromptEditor();
+
     void SetInitialized(bool isInitialized);
 }

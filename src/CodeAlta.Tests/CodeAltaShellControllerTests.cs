@@ -250,22 +250,109 @@ public sealed class CodeAltaShellControllerTests
             new FakeWorkThreadDeleter(log));
         controller.AttachUiDispatcher(dispatcher);
 
-        var project = await controller.OpenFolderAsync(@"C:\repo", CancellationToken.None);
+        var projectPath = Path.Combine(Path.GetTempPath(), "codealta-open-folder-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(projectPath);
 
-        Assert.AreEqual(@"C:\repo", project.ProjectPath);
+        try
+        {
+            var project = await controller.OpenFolderAsync(projectPath, CancellationToken.None);
+
+            Assert.AreEqual(projectPath, project.ProjectPath);
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    $"Shell.Status:Opening '{projectPath}'...:True:Info",
+                    $"ProjectCatalog.UpsertFromPath:{projectPath}",
+                    "ProjectCatalog.Load",
+                    "ThreadSource.List",
+                    "Shell.ApplyRecoveredCatalogState:1:1",
+                    $"Shell.SelectProjectScope:{project.Id}",
+                    "Shell.SetReadyStatus",
+                    "Shell.FocusPromptEditor",
+                },
+                log);
+            Assert.AreEqual(2, dispatcher.InvokeCallCount);
+        }
+        finally
+        {
+            Directory.Delete(projectPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task OpenFolderAsync_ProjectReference_SelectsExistingProjectAndFocusesPrompt()
+    {
+        var log = new List<string>();
+        var shell = new FakeShell(log);
+        var existingProject = new ProjectDescriptor
+        {
+            Id = "project-1",
+            Slug = "codealta",
+            Name = "CodeAlta",
+            DisplayName = "CodeAlta",
+            ProjectPath = @"C:\repo",
+            DefaultBranch = "main",
+        };
+        var catalog = new FakeProjectCatalogStore(log, [existingProject]);
+        var dispatcher = new FakeUiDispatcher();
+        var controller = new CodeAltaShellController(
+            shell,
+            new FakeImporter(log),
+            catalog,
+            new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]),
+            new FakeWorkThreadDeleter(log));
+        controller.AttachUiDispatcher(dispatcher);
+
+        var project = await controller.OpenFolderAsync("CodeAlta", CancellationToken.None);
+
+        Assert.AreSame(existingProject, project);
         CollectionAssert.AreEqual(
             new[]
             {
-                "Shell.Status:Opening folder 'C:\\repo'...:True:Info",
-                "ProjectCatalog.UpsertFromPath:C:\\repo",
+                "Shell.Status:Opening 'CodeAlta'...:True:Info",
+                "ProjectCatalog.Load",
                 "ProjectCatalog.Load",
                 "ThreadSource.List",
                 "Shell.ApplyRecoveredCatalogState:1:1",
-                $"Shell.SelectProjectScope:{project.Id}",
+                "Shell.SelectProjectScope:project-1",
                 "Shell.SetReadyStatus",
+                "Shell.FocusPromptEditor",
             },
             log);
-        Assert.AreEqual(2, dispatcher.InvokeCallCount);
+    }
+
+    [TestMethod]
+    public async Task OpenFolderAsync_TildePath_ExpandsHomeDirectoryBeforeUpsert()
+    {
+        var log = new List<string>();
+        var shell = new FakeShell(log);
+        var homeDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(homeDirectory));
+
+        var controller = new CodeAltaShellController(
+            shell,
+            new FakeImporter(log),
+            new FakeProjectCatalogStore(log, []),
+            new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]),
+            new FakeWorkThreadDeleter(log));
+        controller.AttachUiDispatcher(new FakeUiDispatcher());
+
+        var tempProject = Path.Combine(homeDirectory, "codealta-open-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempProject);
+
+        try
+        {
+            var relativeHomePath = "~" + tempProject[homeDirectory.Length..];
+            var project = await controller.OpenFolderAsync(relativeHomePath, CancellationToken.None);
+
+            Assert.AreEqual(tempProject, project.ProjectPath);
+            CollectionAssert.Contains(log, $"ProjectCatalog.UpsertFromPath:{tempProject}");
+            CollectionAssert.Contains(log, "Shell.FocusPromptEditor");
+        }
+        finally
+        {
+            Directory.Delete(tempProject, recursive: true);
+        }
     }
 
     [TestMethod]
@@ -437,6 +524,9 @@ public sealed class CodeAltaShellControllerTests
 
         public void OpenThread(string threadId)
             => log.Add($"Shell.OpenThread:{threadId}");
+
+        public void FocusPromptEditor()
+            => log.Add("Shell.FocusPromptEditor");
 
         public void SetInitialized(bool isInitialized)
             => log.Add($"Shell.SetInitialized:{isInitialized}");

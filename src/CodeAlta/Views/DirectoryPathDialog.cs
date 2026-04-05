@@ -1,3 +1,4 @@
+using CodeAlta.Catalog;
 using CodeAlta.Presentation.Styling;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
@@ -13,6 +14,7 @@ internal sealed class DirectoryPathDialog
 {
     private readonly Func<string, Task> _onSubmitAsync;
     private readonly Func<Visual?> _getFocusTarget;
+    private readonly Func<Visual?> _getSubmitFocusTarget;
     private readonly PromptEditor _editor;
     private readonly Dialog _dialog;
     private readonly State<string?> _validationText = new(null);
@@ -24,6 +26,8 @@ internal sealed class DirectoryPathDialog
         Func<string, Task> onSubmitAsync,
         Func<Rectangle?> getBounds,
         Func<Visual?> getFocusTarget,
+        Func<Visual?>? getSubmitFocusTarget = null,
+        IEnumerable<ProjectDescriptor>? projects = null,
         string? initialPath = null,
         string? placeholder = null)
     {
@@ -36,10 +40,11 @@ internal sealed class DirectoryPathDialog
 
         _onSubmitAsync = onSubmitAsync;
         _getFocusTarget = getFocusTarget;
+        _getSubmitFocusTarget = getSubmitFocusTarget ?? getFocusTarget;
 
-        var completionProvider = new DirectoryPathCompletionProvider();
+        var completionProvider = new DirectoryPathCompletionProvider(projects: projects);
         _editor = new PromptEditor()
-            .PromptMarkup("[primary]Path[/] ")
+            .PromptMarkup("[primary]Project[/][dim]/[/][primary]Path[/] ")
             .Placeholder(placeholder ?? "Enter a folder path...")
             .EnterMode(PromptEditorEnterMode.EnterAccepts)
             .EscapeBehavior(PromptEditorEscapeBehavior.CancelCompletionOnly)
@@ -84,7 +89,7 @@ internal sealed class DirectoryPathDialog
             {
                 if (string.IsNullOrWhiteSpace(_validationText.Value))
                 {
-                    return new Markup("[dim]Tab completes directories · Enter opens the folder · Esc closes[/]");
+                    return new Markup("[dim]Tab completes projects and directories · Enter opens the project or path · Esc closes[/]");
                 }
 
                 return new TextBlock(() => _validationText.Value ?? string.Empty)
@@ -137,53 +142,33 @@ internal sealed class DirectoryPathDialog
 
     private async Task SubmitAsync()
     {
-        if (!TryNormalizeExistingDirectory(_editor.Text, out var normalizedPath, out var validationText))
+        if (string.IsNullOrWhiteSpace(_editor.Text))
         {
-            _validationText.Value = validationText;
+            _validationText.Value = "A project name or rooted path is required.";
             return;
-        }
-
-        Close();
-        await _onSubmitAsync(normalizedPath);
-    }
-
-    private void Close()
-    {
-        var app = _dialog.App;
-        _dialog.Close();
-        if (_getFocusTarget() is { } focusTarget)
-        {
-            app?.Focus(focusTarget);
-        }
-    }
-
-    private static bool TryNormalizeExistingDirectory(string? value, out string normalizedPath, out string? validationText)
-    {
-        normalizedPath = string.Empty;
-        validationText = null;
-
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            validationText = "Folder path is required.";
-            return false;
         }
 
         try
         {
-            normalizedPath = Path.GetFullPath(value.Trim());
+            await _onSubmitAsync(_editor.Text.Trim());
+            Close(_getSubmitFocusTarget);
         }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        catch (Exception ex)
         {
-            validationText = $"Invalid folder path: {ex.Message}";
-            return false;
+            _validationText.Value = ex.Message;
         }
+    }
 
-        if (!Directory.Exists(normalizedPath))
+    private void Close()
+        => Close(_getFocusTarget);
+
+    private void Close(Func<Visual?> getFocusTarget)
+    {
+        var app = _dialog.App;
+        _dialog.Close();
+        if (getFocusTarget() is { } focusTarget)
         {
-            validationText = "The folder does not exist.";
-            return false;
+            app?.Focus(focusTarget);
         }
-
-        return true;
     }
 }
