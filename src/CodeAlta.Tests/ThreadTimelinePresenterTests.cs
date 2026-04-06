@@ -123,6 +123,35 @@ public sealed class ThreadTimelinePresenterTests
     }
 
     [TestMethod]
+    public void OptimisticUserPrompt_PreventsDuplicateTimelineItemsWhenEchoArrives()
+    {
+        var presenter = CreatePresenter();
+        var timestamp = DateTimeOffset.UtcNow;
+
+        presenter.RenderOptimisticUserPrompt("First prompt", timestamp);
+
+        var skippedDelta = presenter.TryConsumeOptimisticUserEcho(AgentContentKind.User, "user-1", timestamp.AddSeconds(1), completed: false);
+        var skippedCompletion = presenter.TryConsumeOptimisticUserEcho(AgentContentKind.User, "user-1", timestamp.AddSeconds(2), completed: true);
+
+        Assert.IsTrue(skippedDelta);
+        Assert.IsTrue(skippedCompletion);
+        Assert.AreEqual(1, presenter.Flow.Items.Count);
+    }
+
+    [TestMethod]
+    public void RollbackOptimisticUserPrompt_RemovesPromptFromTimeline()
+    {
+        var presenter = CreatePresenter();
+
+        presenter.RenderOptimisticUserPrompt("First prompt", DateTimeOffset.UtcNow);
+        Assert.AreEqual(1, presenter.Flow.Items.Count);
+
+        presenter.RollbackOptimisticUserPrompt();
+
+        Assert.AreEqual(0, presenter.Flow.Items.Count);
+    }
+
+    [TestMethod]
     public void UpsertInteraction_ReusesExistingTimelineItem()
     {
         var presenter = CreatePresenter();

@@ -134,6 +134,8 @@ public sealed class ThreadCommandCoordinatorTests
         Assert.AreEqual(1, clearThreadInputCallCount);
         Assert.IsNotNull(threadSelection.GetSelectedThread());
         Assert.IsNotNull(threadSelection.GetSelectedThread()!.StartedAt);
+        var tab = threadSelection.EnsureThreadTab(threadSelection.GetSelectedThread()!);
+        Assert.AreEqual(1, tab.Timeline.Flow.Items.Count);
     }
 
     [TestMethod]
@@ -293,6 +295,7 @@ public sealed class ThreadCommandCoordinatorTests
         await harness.Coordinator.DispatchQueuedPromptAsync(harness.Tab, "Retry prompt", steer: false).ConfigureAwait(false);
 
         Assert.AreEqual("Retry prompt", harness.ThreadInput.Text);
+        Assert.AreEqual(2, harness.Tab.Timeline.Flow.Items.Count);
     }
 
     [TestMethod]

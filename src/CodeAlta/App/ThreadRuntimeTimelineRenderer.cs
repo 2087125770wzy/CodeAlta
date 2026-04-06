@@ -38,6 +38,11 @@ internal sealed class ThreadRuntimeTimelineRenderer
         switch (@event)
         {
             case AgentContentDeltaEvent delta:
+                if (tab.Timeline.TryConsumeOptimisticUserEcho(delta.Kind, delta.ContentId, delta.Timestamp, completed: false))
+                {
+                    break;
+                }
+
                 if (tab.Timeline.ToolCalls.TryHandleContent(delta) || !ChatMarkdownFormatter.ShouldDisplayContentDelta(delta))
                 {
                     break;
@@ -47,6 +52,11 @@ internal sealed class ThreadRuntimeTimelineRenderer
                 break;
 
             case AgentContentCompletedEvent completed:
+                if (tab.Timeline.TryConsumeOptimisticUserEcho(completed.Kind, completed.ContentId, completed.Timestamp, completed: true))
+                {
+                    break;
+                }
+
                 if (tab.Timeline.ToolCalls.TryHandleContent(completed))
                 {
                     break;

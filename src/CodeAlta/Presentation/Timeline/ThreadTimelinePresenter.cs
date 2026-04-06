@@ -21,6 +21,7 @@ internal sealed class ThreadTimelinePresenter
     private readonly Dictionary<string, ChatStatusState> _planStates = new(StringComparer.Ordinal);
     private List<DocumentFlowItem>? _bufferedHistoryItems;
     private PendingAssistantState? _pendingAssistant;
+    private OptimisticUserPromptState? _optimisticUserPrompt;
     private TruncatedHistoryState? _truncatedHistory;
     private bool _hasSeenUserPrompt;
     private string? _localFileRootPath;
@@ -107,6 +108,11 @@ internal sealed class ThreadTimelinePresenter
             {
                 ChatTimelineVisualFactory.ApplyLocalFileRootPath(pendingAssistant.Markdown, _localFileRootPath);
             }
+
+            if (_optimisticUserPrompt is { } optimisticUserPrompt)
+            {
+                ChatTimelineVisualFactory.ApplyLocalFileRootPath(optimisticUserPrompt.Entry.Markdown, _localFileRootPath);
+            }
         });
     }
 
@@ -176,6 +182,57 @@ internal sealed class ThreadTimelinePresenter
             state.Markdown.Markdown = markdown;
             Flow.ScrollToTailIfEnabled(_isAutoScrollEnabled());
         });
+    }
+
+    public void RenderOptimisticUserPrompt(string prompt, DateTimeOffset timestamp)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
+
+        RollbackOptimisticUserPrompt();
+
+        var markdown = ChatMarkdownFormatter.FormatChatContentMarkdown(AgentContentKind.User, prompt);
+        var entry = ChatTimelineVisualFactory.CreateMarkdownItem(
+            markdown,
+            ChatTimelineVisualFactory.GetContentTone(AgentContentKind.User),
+            headerOverride: ChatTimelineVisualFactory.GetContentHeader(AgentContentKind.User),
+            headerSecondary: ChatMarkdownFormatter.GetChatContentHeaderSecondary(AgentContentKind.User, prompt),
+            localFileRootPath: _localFileRootPath);
+        ChatTimelineVisualFactory.ApplyTimestamp(entry.TimestampText, timestamp);
+        var items = ChatTimelineVisualFactory.BuildUserPromptTimelineItems(entry.Item, _hasSeenUserPrompt).ToArray();
+        foreach (var item in items)
+        {
+            AppendTimelineItem(item);
+        }
+
+        _hasSeenUserPrompt = true;
+        _optimisticUserPrompt = new OptimisticUserPromptState(entry, items, prompt);
+    }
+
+    public bool TryConsumeOptimisticUserEcho(AgentContentKind kind, string contentId, DateTimeOffset timestamp, bool completed)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentId);
+
+        if (kind != AgentContentKind.User || _optimisticUserPrompt is not { } optimisticUserPrompt)
+        {
+            return false;
+        }
+
+        if (optimisticUserPrompt.EchoContentId is null)
+        {
+            optimisticUserPrompt.EchoContentId = contentId;
+            ChatTimelineVisualFactory.ApplyTimestamp(optimisticUserPrompt.Entry.TimestampText, timestamp);
+        }
+        else if (!string.Equals(optimisticUserPrompt.EchoContentId, contentId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (completed)
+        {
+            _optimisticUserPrompt = null;
+        }
+
+        return true;
     }
 
     public void FinalizeContent(AgentContentCompletedEvent completed)
@@ -338,6 +395,22 @@ internal sealed class ThreadTimelinePresenter
     public void ClearPendingAssistant()
         => _pendingAssistant = null;
 
+    public void RollbackOptimisticUserPrompt()
+    {
+        if (_optimisticUserPrompt is not { } optimisticUserPrompt)
+        {
+            return;
+        }
+
+        RemoveTimelineItems(optimisticUserPrompt.TimelineItems);
+        if (!_contentStates.Keys.Any(static key => key.StartsWith("content:User:", StringComparison.Ordinal)))
+        {
+            _hasSeenUserPrompt = false;
+        }
+
+        _optimisticUserPrompt = null;
+    }
+
     public void FlushBufferedHistoryItems()
     {
         if (_bufferedHistoryItems is not { Count: > 0 } items)
@@ -365,6 +438,7 @@ internal sealed class ThreadTimelinePresenter
         _interactionStates.Clear();
         _planStates.Clear();
         _pendingAssistant = null;
+        _optimisticUserPrompt = null;
         _truncatedHistory = null;
         _hasSeenUserPrompt = false;
     }
@@ -526,6 +600,34 @@ internal sealed class ThreadTimelinePresenter
         {
             Flow.Items.Add(item);
             Flow.ScrollToTailIfEnabled(_isAutoScrollEnabled());
+        });
+    }
+
+    private void RemoveTimelineItems(IReadOnlyList<DocumentFlowItem> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        if (_bufferedHistoryItems is not null)
+        {
+            foreach (var item in items)
+            {
+                _ = _bufferedHistoryItems.Remove(item);
+            }
+
+            return;
+        }
+
+        UiDispatch.Post(_uiDispatcher, () =>
+        {
+            foreach (var item in items)
+            {
+                _ = Flow.Items.Remove(item);
+            }
         });
     }
 }

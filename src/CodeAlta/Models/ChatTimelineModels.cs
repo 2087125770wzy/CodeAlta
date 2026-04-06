@@ -102,6 +102,17 @@ namespace CodeAlta.Models
         public string? ContentId { get; set; }
     }
 
+    internal sealed class OptimisticUserPromptState(ChatMarkdownEntry entry, IReadOnlyList<DocumentFlowItem> timelineItems, string prompt)
+    {
+        public ChatMarkdownEntry Entry { get; } = entry;
+
+        public IReadOnlyList<DocumentFlowItem> TimelineItems { get; } = timelineItems;
+
+        public string Prompt { get; } = prompt;
+
+        public string? EchoContentId { get; set; }
+    }
+
     internal sealed class ChatStatusState(DocumentFlowItem item, MarkdownControl markdown, Markup timestampText)
     {
         public DocumentFlowItem Item { get; } = item;

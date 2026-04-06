@@ -154,6 +154,11 @@ internal sealed class ThreadPromptDispatchCoordinator
             }
             else
             {
+                if (thread.StartedAt is null)
+                {
+                    tab.Timeline.RenderOptimisticUserPrompt(prompt, DateTimeOffset.UtcNow);
+                }
+
                 runId = await _runtimeService.SendAsync(
                         thread,
                         executionOptions,
