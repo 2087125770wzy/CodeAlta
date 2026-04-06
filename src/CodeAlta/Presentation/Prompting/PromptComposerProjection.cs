@@ -146,7 +146,7 @@ namespace CodeAlta.Presentation.Prompting
             };
             if (hasProjectContext)
             {
-                segments.Add("[@] project files");
+                segments.Add("[@] to reference a project file");
             }
 
             segments.Add("[ENTER] for new line");
