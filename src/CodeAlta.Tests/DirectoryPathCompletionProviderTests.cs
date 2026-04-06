@@ -62,6 +62,18 @@ public sealed class DirectoryPathCompletionProviderTests
     }
 
     [TestMethod]
+    public void GetSuggestions_WhitespaceInput_ReturnsNoSuggestions()
+    {
+        var provider = new DirectoryPathCompletionProvider(
+            Environment.CurrentDirectory,
+            projects: () => [CreateProject("codealta", "CodeAlta")]);
+
+        var result = provider.GetSuggestions(" ");
+
+        Assert.AreEqual(0, result.Count);
+    }
+
+    [TestMethod]
     public void GetSuggestions_ProjectReference_UsesDisplayNameOnly()
     {
         var projects = new[]
@@ -143,6 +155,98 @@ public sealed class DirectoryPathCompletionProviderTests
             StringAssert.Contains(output, "CodeAlta");
             StringAssert.Contains(output, projectPath);
             StringAssert.Contains(output, NerdFont.MdFolderOutline.ToString());
+            StringAssert.Contains(output, "╭");
+            StringAssert.Contains(output, "Ctrl+I hidden");
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
+    public void Dialog_WhitespaceInput_ShowsValidationMessage()
+    {
+        var dialog = new DirectoryPathDialog(
+            "Open Project",
+            "Type a project name from the sidebar or a rooted folder path.",
+            "Open",
+            (_, _) => Task.CompletedTask,
+            () => new XenoAtom.Terminal.UI.Geometry.Rectangle(0, 0, 120, 40),
+            () => null);
+
+        using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var app = new TerminalApp(
+            new TextBlock("host"),
+            terminalSession.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            dialog.Show();
+            TickTerminalApp(app);
+
+            var backend = (InMemoryTerminalBackend)terminalSession.Instance.Backend;
+            backend.PushEvent(new TerminalTextEvent { Text = " " });
+            TickTerminalApp(app);
+
+            StringAssert.Contains(backend.GetOutText(), "A project name or rooted path is required.");
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
+    public void Dialog_ToggleIncludeHiddenCommand_RefreshesSuggestions()
+    {
+        var visibleProject = CreateProject("codealta", "CodeAlta", @"C:\repo\CodeAlta");
+        var hiddenProject = CreateProject("hidden", "Hidden Project", @"C:\repo\Hidden");
+        hiddenProject.Archived = true;
+
+        var dialog = new DirectoryPathDialog(
+            "Open Project",
+            "Type a project name from the sidebar or a rooted folder path.",
+            "Open",
+            (_, _) => Task.CompletedTask,
+            () => new XenoAtom.Terminal.UI.Geometry.Rectangle(0, 0, 120, 40),
+            () => null,
+            getProjects: () => [visibleProject, hiddenProject]);
+
+        using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var app = new TerminalApp(
+            new TextBlock("host"),
+            terminalSession.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            dialog.Show();
+            TickTerminalApp(app);
+
+            var backend = (InMemoryTerminalBackend)terminalSession.Instance.Backend;
+            Assert.IsFalse(backend.GetOutText().Contains("Hidden Project", StringComparison.Ordinal));
+
+            var dialogField = typeof(DirectoryPathDialog).GetField("_dialog", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(dialogField);
+            var hostDialog = (Dialog?)dialogField.GetValue(dialog);
+            Assert.IsNotNull(hostDialog);
+            var toggleCommand = hostDialog.Commands.FirstOrDefault(static command => string.Equals(command.Id, "CodeAlta.DirectoryPathDialog.ToggleIncludeHidden", StringComparison.Ordinal));
+            Assert.IsNotNull(toggleCommand);
+
+            toggleCommand.Execute(hostDialog);
+            TickTerminalApp(app);
+
+            StringAssert.Contains(backend.GetOutText(), "Hidden Project");
         }
         finally
         {

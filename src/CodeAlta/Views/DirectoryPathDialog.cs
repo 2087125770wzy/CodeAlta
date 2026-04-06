@@ -1,3 +1,4 @@
+using CodeAlta.App;
 using CodeAlta.Catalog;
 using CodeAlta.Presentation.Prompting;
 using CodeAlta.Presentation.Sidebar;
@@ -20,13 +21,14 @@ internal sealed class DirectoryPathDialog
     private readonly Func<string, bool, Task> _onSubmitAsync;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Func<Visual?> _getSubmitFocusTarget;
-    private readonly State<string?> _validationText = new(null);
+    private readonly Func<IEnumerable<ProjectDescriptor>>? _getProjects;
+    private readonly State<ValidationMessage?> _validationMessage = new(null);
     private readonly DirectoryPathCompletionProvider _suggestionProvider;
     private readonly TextBox _editor;
     private readonly OptionList<OpenProjectSuggestion> _suggestions;
+    private readonly CheckBox _includeHiddenCheckBox;
     private readonly Dialog _dialog;
     private readonly List<OpenProjectSuggestion> _items = [];
-    private bool _includeHidden;
     private bool _suppressTextChanged;
 
     public DirectoryPathDialog(
@@ -51,12 +53,17 @@ internal sealed class DirectoryPathDialog
         _onSubmitAsync = onSubmitAsync;
         _getFocusTarget = getFocusTarget;
         _getSubmitFocusTarget = getSubmitFocusTarget ?? getFocusTarget;
+        _getProjects = getProjects;
+        _includeHiddenCheckBox = new CheckBox("Include hidden", false);
+        _includeHiddenCheckBox.KeyDown((_, e) => RefreshSuggestionsAfterToggle(e));
+        _includeHiddenCheckBox.PointerPressed((_, e) => RefreshSuggestionsAfterPointerToggle(e));
         _suggestionProvider = new DirectoryPathCompletionProvider(
-            includeHidden: () => _includeHidden,
+            includeHidden: () => _includeHiddenCheckBox.IsChecked,
             projects: getProjects);
 
+        var placeholderText = placeholder ?? "Project name from the sidebar or C:\\code\\SomeFolder";
         _editor = new TextBox()
-            .Placeholder(placeholder ?? "C:\\code\\SomeFolder or CodeAlta")
+            .Placeholder(placeholderText)
             .HorizontalAlignment(Align.Stretch)
             .Style(TextBoxStyle.Default with
             {
@@ -64,7 +71,10 @@ internal sealed class DirectoryPathDialog
             });
         _editor.TextDocument.Changed += OnEditorTextChanged;
         _editor.KeyDown((_, e) => HandleEditorKeyDown(e));
-        _editor.Text = initialPath ?? string.Empty;
+        if (!string.IsNullOrEmpty(initialPath))
+        {
+            _editor.Text = initialPath;
+        }
 
         _suggestions = new OptionList<OpenProjectSuggestion>()
             .ActivateOnClick(true)
@@ -82,8 +92,7 @@ internal sealed class DirectoryPathDialog
             .VerticalScrollEnabled(true)
             .HorizontalAlignment(Align.Stretch)
             .VerticalAlignment(Align.Stretch)
-            .MinHeight(5)
-            .MaxHeight(8);
+            .MinHeight(5);
 
         var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"))
         {
@@ -103,53 +112,46 @@ internal sealed class DirectoryPathDialog
         {
             Tone = ControlTone.Primary,
         };
-        submitButton.Click(() => _ = SubmitAsync());
+        submitButton.Click(() => _ = SubmitAsync(selectedSuggestionPreferred: true));
 
-        var includeHiddenCheckBox = new CheckBox("Include hidden", _includeHidden);
-        includeHiddenCheckBox.KeyDown((_, e) => RefreshSuggestionsAfterToggle(e));
-        includeHiddenCheckBox.PointerPressed((_, e) => RefreshSuggestionsAfterPointerToggle(e));
+        var validatedEditor = _editor.Validation(_validationMessage);
 
-        var validation = new ComputedVisual(
-            () =>
-            {
-                if (string.IsNullOrWhiteSpace(_validationText.Value))
-                {
-                    return new Markup("[dim]Type a project name or rooted folder path · Tab applies the selected suggestion · Enter opens the current input[/]");
-                }
-
-                return new TextBlock(() => _validationText.Value ?? string.Empty)
-                    .Style(TextBlockStyle.Default with { Foreground = Colors.OrangeRed })
-                    .Wrap(true);
-            });
-
-        var content = new VStack(
-            new TextBlock(description)
-            {
-                Wrap = true,
-            },
-            _editor,
-            resultsHost,
-            includeHiddenCheckBox,
-            validation,
-            new HStack(cancelButton, submitButton)
-            {
-                HorizontalAlignment = Align.End,
-                Spacing = 2,
-            })
+        var descriptionBlock = new TextBlock(description)
         {
-            HorizontalAlignment = Align.Stretch,
-            VerticalAlignment = Align.Stretch,
-            Spacing = 1,
+            Wrap = true,
         };
+        var buttonRow = new HStack(cancelButton, submitButton)
+        {
+            HorizontalAlignment = Align.End,
+            Spacing = 2,
+        };
+
+        var content = new Grid()
+            .Rows(
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = GridLength.Star(1) },
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = GridLength.Auto })
+            .Columns(new ColumnDefinition { Width = GridLength.Star(1) })
+            .Cell(descriptionBlock, 0, 0)
+            .Cell(validatedEditor, 1, 0)
+            .Cell(resultsHost, 2, 0)
+            .Cell(_includeHiddenCheckBox, 3, 0)
+            .Cell(buttonRow, 4, 0);
+        content.HorizontalAlignment = Align.Stretch;
+        content.VerticalAlignment = Align.Stretch;
+        content.RowGap = 1;
 
         _dialog = new Dialog()
             .Title(title)
             .TopRightText(closeButton)
-            .BottomRightText(new Markup("[dim]Arrows select · Tab complete[/]"))
+            .BottomRightText(new Markup("[dim]Arrows select · Enter open · Tab complete · Ctrl+I hidden[/]"))
             .IsModal(true)
             .Padding(1)
-            .Content(content);
-        ResponsiveDialogSize.Apply(_dialog, getBounds(), minWidth: 72, minHeight: 16, widthFactor: 0.56, heightFactor: 0.28);
+            .Content(content)
+            .Style(DialogStyle.Rounded);
+        ResponsiveDialogSize.Apply(_dialog, getBounds(), minWidth: 72, minHeight: 18, widthFactor: 0.56, heightFactor: 0.50);
         _dialog.AddCommand(new Command
         {
             Id = "CodeAlta.DirectoryPathDialog.Close",
@@ -159,7 +161,17 @@ internal sealed class DirectoryPathDialog
             Importance = CommandImportance.Primary,
             Execute = _ => Close(),
         });
+        _dialog.AddCommand(new Command
+        {
+            Id = "CodeAlta.DirectoryPathDialog.ToggleIncludeHidden",
+            LabelMarkup = "Toggle Include Hidden",
+            DescriptionMarkup = "Toggle archived projects in the open-project picker.",
+            Gesture = new KeyGesture(TerminalChar.CtrlI, TerminalModifiers.Ctrl),
+            Importance = CommandImportance.Secondary,
+            Execute = _ => ToggleIncludeHidden(),
+        });
 
+        _validationMessage.Value = ValidateInput(_editor.Text, requireExactProjectMatch: false);
         RefreshSuggestions();
     }
 
@@ -178,7 +190,7 @@ internal sealed class DirectoryPathDialog
             return;
         }
 
-        _validationText.Value = null;
+        _validationMessage.Value = ValidateInput(_editor.Text, requireExactProjectMatch: false);
         RefreshSuggestions();
     }
 
@@ -195,7 +207,7 @@ internal sealed class DirectoryPathDialog
             TerminalKey.Home => TryMoveSelectionToBoundary(first: true),
             TerminalKey.End => TryMoveSelectionToBoundary(first: false),
             TerminalKey.Tab => ApplySelectedSuggestion(),
-            TerminalKey.Enter => RaiseSubmit(),
+            TerminalKey.Enter => RaiseSubmit(selectedSuggestionPreferred: true),
             _ => false,
         };
 
@@ -232,7 +244,7 @@ internal sealed class DirectoryPathDialog
 
         _dialog.Dispatcher.Post(() =>
         {
-            _includeHidden = !_includeHidden;
+            _validationMessage.Value = ValidateInput(_editor.Text, requireExactProjectMatch: false);
             RefreshSuggestions();
         });
     }
@@ -246,7 +258,7 @@ internal sealed class DirectoryPathDialog
 
         _dialog.Dispatcher.Post(() =>
         {
-            _includeHidden = !_includeHidden;
+            _validationMessage.Value = ValidateInput(_editor.Text, requireExactProjectMatch: false);
             RefreshSuggestions();
         });
     }
@@ -316,7 +328,7 @@ internal sealed class DirectoryPathDialog
         _suppressTextChanged = true;
         try
         {
-            _editor.Text = value;
+            _editor.Text = string.IsNullOrEmpty(value) ? null : value;
             _editor.CaretIndex = _editor.TextDocument.CurrentSnapshot.Length;
         }
         finally
@@ -324,26 +336,28 @@ internal sealed class DirectoryPathDialog
             _suppressTextChanged = false;
         }
 
+        _validationMessage.Value = ValidateInput(_editor.Text, requireExactProjectMatch: false);
         RefreshSuggestions();
     }
 
     private async Task SubmitAsync(bool selectedSuggestionPreferred = false)
     {
         var input = ResolveSubmissionText(selectedSuggestionPreferred);
-        if (string.IsNullOrWhiteSpace(input))
+        var validationMessage = ValidateInput(input, requireExactProjectMatch: true);
+        if (validationMessage is not null)
         {
-            _validationText.Value = "A project name or rooted path is required.";
+            _validationMessage.Value = validationMessage;
             return;
         }
 
         try
         {
-            await _onSubmitAsync(input.Trim(), _includeHidden);
+            await _onSubmitAsync(input.Trim(), _includeHiddenCheckBox.IsChecked);
             Close(_getSubmitFocusTarget);
         }
         catch (Exception ex)
         {
-            _validationText.Value = ex.Message;
+            _validationMessage.Value = new ValidationMessage(ValidationSeverity.Error, ex.Message);
         }
     }
 
@@ -370,6 +384,107 @@ internal sealed class DirectoryPathDialog
         {
             app?.Focus(focusTarget);
         }
+    }
+
+    private void ToggleIncludeHidden()
+    {
+        _includeHiddenCheckBox.IsChecked = !_includeHiddenCheckBox.IsChecked;
+        _validationMessage.Value = ValidateInput(_editor.Text, requireExactProjectMatch: false);
+        RefreshSuggestions();
+    }
+
+    private ValidationMessage? ValidateInput(string? text, bool requireExactProjectMatch)
+    {
+        if (text is null || text.Length == 0)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return new ValidationMessage(ValidationSeverity.Error, "A project name or rooted path is required.");
+        }
+
+        var trimmed = text.Trim();
+        if (LooksLikePathAttempt(trimmed))
+        {
+            if (!OpenProjectRequestResolver.LooksLikePath(trimmed))
+            {
+                return new ValidationMessage(ValidationSeverity.Error, "Folder paths must be rooted, for example C:\\code\\CodeAlta or ~/repo.");
+            }
+
+            string normalizedPath;
+            try
+            {
+                normalizedPath = OpenProjectRequestResolver.NormalizePath(trimmed);
+            }
+            catch (Exception ex)
+            {
+                return new ValidationMessage(ValidationSeverity.Error, ex.Message);
+            }
+
+            if (Directory.Exists(normalizedPath) ||
+                _suggestionProvider.GetSuggestions(trimmed).Any(static suggestion => suggestion.Kind == OpenProjectSuggestionKind.Directory))
+            {
+                return null;
+            }
+
+            return new ValidationMessage(ValidationSeverity.Error, $"Folder '{normalizedPath}' was not found.");
+        }
+
+        if (_getProjects is null)
+        {
+            return null;
+        }
+
+        var availableProjects = _getProjects()
+            .Where(project => _includeHiddenCheckBox.IsChecked || !project.Archived)
+            .ToArray();
+        var exactMatches = availableProjects
+            .Where(project => string.Equals(project.DisplayName, trimmed, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (exactMatches.Length > 0)
+        {
+            try
+            {
+                _ = OpenProjectRequestResolver.ResolveProjectReference(availableProjects, trimmed);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return new ValidationMessage(ValidationSeverity.Error, ex.Message);
+            }
+        }
+
+        var hasProjectPrefixMatch = availableProjects.Any(project =>
+            project.DisplayName.StartsWith(trimmed, StringComparison.OrdinalIgnoreCase));
+        if (hasProjectPrefixMatch)
+        {
+            return requireExactProjectMatch
+                ? new ValidationMessage(ValidationSeverity.Error, "Choose a suggestion or enter the full project name.")
+                : null;
+        }
+
+        return new ValidationMessage(
+            ValidationSeverity.Error,
+            $"Project '{trimmed}' was not found. Enter a rooted path or use an existing project name from the sidebar.");
+    }
+
+    private static bool LooksLikePathAttempt(string text)
+    {
+        if (text.StartsWith("~", StringComparison.Ordinal) ||
+            text.StartsWith(".", StringComparison.Ordinal) ||
+            text.Contains(Path.DirectorySeparatorChar) ||
+            text.Contains(Path.AltDirectorySeparatorChar))
+        {
+            return true;
+        }
+
+        return OperatingSystem.IsWindows() &&
+               text.Length >= 2 &&
+               char.IsLetter(text[0]) &&
+               text[1] == ':';
     }
 
     private static Visual BuildSuggestionRow(OpenProjectSuggestion suggestion)

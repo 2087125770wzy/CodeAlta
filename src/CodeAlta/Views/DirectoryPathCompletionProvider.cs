@@ -41,6 +41,11 @@ internal sealed class DirectoryPathCompletionProvider
             return GetDefaultSuggestions();
         }
 
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return [];
+        }
+
         if (!OpenProjectRequestResolver.LooksLikePath(text))
         {
             return GetProjectMatches(text);
