@@ -16,12 +16,19 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
 {
     private readonly bool _ownsLogging;
     private readonly CodeAltaDb _db;
+    private readonly AgentBackendFactory _backendFactory;
+    private readonly CodeAltaConfigStore _configStore;
+    private readonly AcpInstalledBackendStore _installedBackendStore;
+    private readonly List<AgentBackendDescriptor> _backendDescriptors;
 
     private CodeAltaOwnedServices(
         bool ownsLogging,
         CodeAltaDb db,
+        AgentBackendFactory backendFactory,
+        CodeAltaConfigStore configStore,
+        AcpInstalledBackendStore installedBackendStore,
         CatalogOptions catalogOptions,
-        IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
+        List<AgentBackendDescriptor> backendDescriptors,
         AcpAgentRegistryService acpAgentRegistryService,
         ProjectCatalog projectCatalog,
         WorkThreadCatalog threadCatalog,
@@ -31,8 +38,11 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
     {
         _ownsLogging = ownsLogging;
         _db = db;
+        _backendFactory = backendFactory;
+        _configStore = configStore;
+        _installedBackendStore = installedBackendStore;
+        _backendDescriptors = backendDescriptors;
         CatalogOptions = catalogOptions;
-        BackendDescriptors = backendDescriptors;
         AcpAgentRegistryService = acpAgentRegistryService;
         ProjectCatalog = projectCatalog;
         ThreadCatalog = threadCatalog;
@@ -43,7 +53,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
 
     public CatalogOptions CatalogOptions { get; }
 
-    public IReadOnlyList<AgentBackendDescriptor> BackendDescriptors { get; }
+    public IReadOnlyList<AgentBackendDescriptor> BackendDescriptors => _backendDescriptors;
 
     public AcpAgentRegistryService AcpAgentRegistryService { get; }
 
@@ -120,6 +130,9 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         return new CodeAltaOwnedServices(
             ownsLogging,
             db,
+            backendFactory,
+            configStore,
+            installedBackendStore,
             catalogOptions,
             backendDescriptors,
             acpAgentRegistryService,
@@ -151,6 +164,53 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
             new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
             new AgentBackendDescriptor(AgentBackendIds.Copilot, "Copilot"),
         ];
+    }
+
+    public async Task<IReadOnlyList<AgentBackendDescriptor>> RefreshAcpBackendsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var effectiveDefinitions = _configStore.LoadEffectiveAcpBackendDefinitions(_installedBackendStore.Load());
+        var expectedBackendIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var definition in effectiveDefinitions)
+        {
+            if (!TryCreateAcpBackendOptions(CatalogOptions, definition, out var acpOptions))
+            {
+                continue;
+            }
+
+            var backendId = AcpAgentBackendFactoryExtensions.CreateBackendId(acpOptions.AgentId);
+            expectedBackendIds.Add(backendId.Value);
+
+            await AgentHub.UnloadBackendAsync(backendId, cancellationToken).ConfigureAwait(false);
+            _backendFactory.RegisterOrReplaceAcp(acpOptions);
+        }
+
+        var currentAcpDescriptors = _backendDescriptors
+            .Where(static descriptor => descriptor.BackendId.Value.StartsWith("acp:", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        foreach (var descriptor in currentAcpDescriptors)
+        {
+            if (expectedBackendIds.Contains(descriptor.BackendId.Value))
+            {
+                continue;
+            }
+
+            await AgentHub.UnloadBackendAsync(descriptor.BackendId, cancellationToken).ConfigureAwait(false);
+            _backendFactory.Unregister(descriptor.BackendId);
+        }
+
+        _backendDescriptors.RemoveAll(static descriptor => descriptor.BackendId.Value.StartsWith("acp:", StringComparison.OrdinalIgnoreCase));
+        _backendDescriptors.AddRange(
+            effectiveDefinitions
+                .Where(definition => TryCreateAcpBackendOptions(CatalogOptions, definition, out _))
+                .Select(definition => new AgentBackendDescriptor(
+                    AcpAgentBackendFactoryExtensions.CreateBackendId(definition.AgentId),
+                    definition.DisplayName ?? definition.AgentId))
+                .OrderBy(static descriptor => descriptor.DisplayName, StringComparer.OrdinalIgnoreCase));
+
+        return _backendDescriptors;
     }
 
     private static bool TryCreateAcpBackendOptions(

@@ -289,6 +289,71 @@ public sealed class AgentHub : IAsyncDisposable
     }
 
     /// <summary>
+    /// Unloads a backend runtime when it has no active sessions.
+    /// </summary>
+    /// <param name="backendId">The backend identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> when a cached backend existed and was unloaded.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the backend still owns active sessions.</exception>
+    public async Task<bool> UnloadBackendAsync(AgentBackendId backendId, CancellationToken cancellationToken = default)
+    {
+        IAgentBackend? backend = null;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_sessions.Values.Any(entry => string.Equals(entry.Backend.BackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException(
+                    $"Backend '{backendId.Value}' cannot be reloaded while it has active sessions. Close ACP threads first.");
+            }
+
+            if (_backends.TryGetValue(backendId.Value, out backend))
+            {
+                _backends.Remove(backendId.Value);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        if (backend is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            await backend.StopAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            await backend.DisposeAsync().ConfigureAwait(false);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns whether a backend currently owns any active sessions.
+    /// </summary>
+    /// <param name="backendId">The backend identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> when the backend has an active session.</returns>
+    public async Task<bool> HasActiveSessionsAsync(AgentBackendId backendId, CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return _sessions.Values.Any(entry => string.Equals(entry.Backend.BackendId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
     /// Sends input through an active agent session.
     /// </summary>
     /// <param name="agentId">Agent id.</param>

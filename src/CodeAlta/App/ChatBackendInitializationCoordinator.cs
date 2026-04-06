@@ -40,6 +40,17 @@ internal sealed class ChatBackendInitializationCoordinator
             .ConfigureAwait(false);
     }
 
+    public Task RefreshBackendAsync(AgentBackendId backendId, CancellationToken cancellationToken = default)
+    {
+        return RefreshAsync(backendId, cancellationToken);
+    }
+
+    public Task RefreshBackendsAsync(IEnumerable<AgentBackendId> backendIds, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(backendIds);
+        return Task.WhenAll(backendIds.Distinct().Select(backendId => RefreshAsync(backendId, cancellationToken)));
+    }
+
     internal static (ChatBackendAvailability Availability, string StatusMessage) ClassifyFailure(
         ChatBackendState state,
         Exception exception)

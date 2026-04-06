@@ -93,13 +93,118 @@ public sealed class CodeAltaConfigStore
     /// </summary>
     /// <returns>The configured ACP agent definitions.</returns>
     public IReadOnlyList<AcpBackendDefinition> LoadGlobalAcpBackendDefinitions()
+        => LoadGlobalAcpBackendDefinitions(includeDisabled: false);
+
+    /// <summary>
+    /// Loads globally configured ACP backend definitions.
+    /// </summary>
+    /// <param name="includeDisabled">
+    /// <see langword="true"/> to include disabled definitions; otherwise only enabled definitions are returned.
+    /// </param>
+    /// <returns>The configured ACP agent definitions.</returns>
+    public IReadOnlyList<AcpBackendDefinition> LoadGlobalAcpBackendDefinitions(bool includeDisabled)
     {
         var document = LoadGlobal();
         NormalizeDocument(document);
         return document.Acp.Agents.Values
-            .Where(static definition => definition.Enabled)
+            .Where(definition => includeDisabled || definition.Enabled)
+            .Select(CloneAcpBackendDefinition)
             .OrderBy(static definition => definition.DisplayName ?? definition.AgentId, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    /// <summary>
+    /// Loads a globally configured ACP backend definition when present.
+    /// </summary>
+    /// <param name="agentId">The ACP agent identifier.</param>
+    /// <returns>The configured definition, or <see langword="null"/> when missing.</returns>
+    public AcpBackendDefinition? LoadGlobalAcpBackendDefinition(string agentId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(agentId);
+
+        var document = LoadGlobal();
+        NormalizeDocument(document);
+        return document.Acp.Agents.TryGetValue(agentId.Trim(), out var definition)
+            ? CloneAcpBackendDefinition(definition)
+            : null;
+    }
+
+    /// <summary>
+    /// Saves a global ACP backend definition override.
+    /// </summary>
+    /// <param name="definition">The definition to persist.</param>
+    public void SaveGlobalAcpBackendDefinition(AcpBackendDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        if (string.IsNullOrWhiteSpace(definition.AgentId))
+        {
+            throw new ArgumentException("ACP agent id is required.", nameof(definition));
+        }
+
+        var document = LoadGlobal();
+        NormalizeDocument(document);
+        var normalized = CloneAcpBackendDefinition(definition);
+        normalized.AgentId = NormalizeAcpAgentId(normalized.AgentId)
+            ?? throw new ArgumentException("ACP agent id is required.", nameof(definition));
+        normalized.RegistryId = NormalizeAcpAgentId(normalized.RegistryId);
+        normalized.DisplayName = NormalizeText(normalized.DisplayName);
+        normalized.Command = NormalizeText(normalized.Command);
+        normalized.WorkingDirectory = NormalizeText(normalized.WorkingDirectory);
+        normalized.Arguments = NormalizeList(normalized.Arguments);
+        normalized.EnvironmentVariables = NormalizeDictionary(normalized.EnvironmentVariables);
+
+        document.Acp.Agents[normalized.AgentId] = normalized;
+        SaveDocument(_options.ConfigPath, document);
+    }
+
+    /// <summary>
+    /// Deletes a global ACP backend definition override.
+    /// </summary>
+    /// <param name="agentId">The ACP agent identifier.</param>
+    /// <returns><see langword="true"/> when the definition existed and was removed.</returns>
+    public bool DeleteGlobalAcpBackendDefinition(string agentId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(agentId);
+
+        var document = LoadGlobal();
+        NormalizeDocument(document);
+        var removed = document.Acp.Agents.Remove(agentId.Trim());
+        if (removed)
+        {
+            SaveDocument(_options.ConfigPath, document);
+        }
+
+        return removed;
+    }
+
+    /// <summary>
+    /// Deletes every global ACP backend definition override.
+    /// </summary>
+    public void DeleteAllGlobalAcpBackendDefinitions()
+    {
+        var document = LoadGlobal();
+        NormalizeDocument(document);
+        if (document.Acp.Agents.Count == 0)
+        {
+            return;
+        }
+
+        document.Acp.Agents.Clear();
+        SaveDocument(_options.ConfigPath, document);
+    }
+
+    /// <summary>
+    /// Determines whether a global ACP backend definition override exists.
+    /// </summary>
+    /// <param name="agentId">The ACP agent identifier.</param>
+    /// <returns><see langword="true"/> when an override exists.</returns>
+    public bool HasGlobalAcpBackendDefinition(string agentId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(agentId);
+
+        var document = LoadGlobal();
+        NormalizeDocument(document);
+        return document.Acp.Agents.ContainsKey(agentId.Trim());
     }
 
     /// <summary>
@@ -119,12 +224,13 @@ public sealed class CodeAltaConfigStore
             }
         }
 
-        foreach (var configuredDefinition in LoadGlobalAcpBackendDefinitions())
+        foreach (var configuredDefinition in LoadGlobalAcpBackendDefinitions(includeDisabled: false))
         {
             effective[configuredDefinition.AgentId] = CloneAcpBackendDefinition(configuredDefinition);
         }
 
         return effective.Values
+            .Where(static definition => definition.Enabled)
             .OrderBy(static definition => definition.DisplayName ?? definition.AgentId, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }

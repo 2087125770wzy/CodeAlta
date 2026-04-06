@@ -51,7 +51,7 @@ namespace CodeAlta.Models
     {
         public AgentBackendId BackendId { get; } = backendId;
 
-        public string DisplayName { get; } = displayName;
+        public string DisplayName { get; set; } = displayName;
 
         public ChatBackendAvailability Availability { get; set; }
 
