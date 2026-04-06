@@ -380,6 +380,7 @@ public sealed record AgentRawEvent(
 /// <param name="ContentId">Stable content identifier.</param>
 /// <param name="ParentActivityId">Optional parent activity identifier.</param>
 /// <param name="Delta">Delta content.</param>
+/// <param name="Details">Optional structured content metadata.</param>
 public sealed record AgentContentDeltaEvent(
     AgentBackendId BackendId,
     string SessionId,
@@ -388,7 +389,8 @@ public sealed record AgentContentDeltaEvent(
     AgentContentKind Kind,
     string ContentId,
     string? ParentActivityId,
-    string Delta)
+    string Delta,
+    JsonElement? Details = null)
     : AgentEvent(BackendId, SessionId, Timestamp, RunId);
 
 /// <summary>
@@ -402,6 +404,7 @@ public sealed record AgentContentDeltaEvent(
 /// <param name="ContentId">Stable content identifier.</param>
 /// <param name="ParentActivityId">Optional parent activity identifier.</param>
 /// <param name="Content">The finalized content.</param>
+/// <param name="Details">Optional structured content metadata.</param>
 public sealed record AgentContentCompletedEvent(
     AgentBackendId BackendId,
     string SessionId,
@@ -410,7 +413,8 @@ public sealed record AgentContentCompletedEvent(
     AgentContentKind Kind,
     string ContentId,
     string? ParentActivityId,
-    string Content)
+    string Content,
+    JsonElement? Details = null)
     : AgentEvent(BackendId, SessionId, Timestamp, RunId);
 
 /// <summary>

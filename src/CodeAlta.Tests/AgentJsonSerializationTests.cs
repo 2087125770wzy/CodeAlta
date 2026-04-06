@@ -126,6 +126,64 @@ public sealed class AgentJsonSerializationTests
     }
 
     [TestMethod]
+    public void AgentSessionMetadata_ToJson_SerializesProviderIdentityAndRawApiDetails()
+    {
+        var metadata = new AgentSessionMetadata(
+            "session-1",
+            DateTimeOffset.Parse("2026-04-06T10:00:00+00:00"),
+            DateTimeOffset.Parse("2026-04-06T11:00:00+00:00"),
+            Summary: "OpenAI provider-backed session",
+            Context: new AgentSessionContext(Cwd: @"C:\code\CodeAlta"),
+            WorkspacePath: @"C:\code\CodeAlta",
+            Details: new RawApiSessionMetadataDetails(
+                ProviderDisplayName: "OpenAI",
+                ProviderBaseUri: "https://api.openai.com/v1",
+                ProviderSessionId: "resp_123",
+                Title: "Implement runtime"),
+            ProtocolFamily: "openai",
+            ProviderKey: "openai",
+            ModelId: "gpt-5.4");
+
+        using var document = JsonDocument.Parse(metadata.ToJson());
+        var root = document.RootElement;
+
+        Assert.AreEqual("openai", root.GetProperty("protocolFamily").GetString());
+        Assert.AreEqual("openai", root.GetProperty("providerKey").GetString());
+        Assert.AreEqual("gpt-5.4", root.GetProperty("modelId").GetString());
+        Assert.AreEqual("rawApi", root.GetProperty("details").GetProperty("$type").GetString());
+        Assert.AreEqual("resp_123", root.GetProperty("details").GetProperty("providerSessionId").GetString());
+    }
+
+    [TestMethod]
+    public void AgentContentCompletedEvent_ToJson_SerializesStructuredContentDetails()
+    {
+        using var detailsDocument = JsonDocument.Parse(
+            """
+            {
+              "providerItemId": "item_123",
+              "thoughtSignature": "abc"
+            }
+            """);
+        var @event = new AgentContentCompletedEvent(
+            AgentBackendIds.GoogleGenAI,
+            "session-1",
+            DateTimeOffset.Parse("2026-04-06T10:30:00+00:00"),
+            new AgentRunId("run-1"),
+            AgentContentKind.Reasoning,
+            "reasoning-1",
+            null,
+            "Reasoning complete.",
+            detailsDocument.RootElement.Clone());
+
+        using var document = JsonDocument.Parse(@event.ToJson());
+        var root = document.RootElement;
+
+        Assert.AreEqual("contentCompleted", root.GetProperty("$type").GetString());
+        Assert.AreEqual("item_123", root.GetProperty("details").GetProperty("providerItemId").GetString());
+        Assert.AreEqual("abc", root.GetProperty("details").GetProperty("thoughtSignature").GetString());
+    }
+
+    [TestMethod]
     public void AgentModelInfo_ToJson_SerializesCapabilitiesDictionary()
     {
         var model = new AgentModelInfo(

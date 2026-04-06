@@ -12,6 +12,9 @@ namespace CodeAlta.Agent;
 /// <param name="Context">Optional directory/repo context.</param>
 /// <param name="WorkspacePath">Optional backend-managed workspace path for the session.</param>
 /// <param name="Details">Optional backend-specific metadata details.</param>
+/// <param name="ProtocolFamily">Optional protocol family for provider-backed runtimes.</param>
+/// <param name="ProviderKey">Optional configured provider key for provider-backed runtimes.</param>
+/// <param name="ModelId">Optional model identifier used by the session.</param>
 public sealed record AgentSessionMetadata(
     string SessionId,
     DateTimeOffset CreatedAt,
@@ -19,7 +22,10 @@ public sealed record AgentSessionMetadata(
     string? Summary = null,
     AgentSessionContext? Context = null,
     string? WorkspacePath = null,
-    AgentSessionMetadataDetails? Details = null);
+    AgentSessionMetadataDetails? Details = null,
+    string? ProtocolFamily = null,
+    string? ProviderKey = null,
+    string? ModelId = null);
 
 /// <summary>
 /// Base type for backend-specific session metadata details.
@@ -27,6 +33,7 @@ public sealed record AgentSessionMetadata(
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
 [JsonDerivedType(typeof(CodexSessionMetadataDetails), "codex")]
 [JsonDerivedType(typeof(CopilotSessionMetadataDetails), "copilot")]
+[JsonDerivedType(typeof(RawApiSessionMetadataDetails), "rawApi")]
 public abstract record AgentSessionMetadataDetails;
 
 /// <summary>
@@ -51,5 +58,19 @@ public sealed record CodexSessionMetadataDetails(
 /// <param name="IsRemote">Whether the session is running remotely.</param>
 public sealed record CopilotSessionMetadataDetails(
     bool IsRemote = false)
+    : AgentSessionMetadataDetails;
+
+/// <summary>
+/// Provider-backed local-runtime session metadata details.
+/// </summary>
+/// <param name="ProviderDisplayName">The configured provider display name.</param>
+/// <param name="ProviderBaseUri">The configured provider base URI when applicable.</param>
+/// <param name="ProviderSessionId">The provider-native session or response identifier when available.</param>
+/// <param name="Title">The latest locally persisted session title when available.</param>
+public sealed record RawApiSessionMetadataDetails(
+    string? ProviderDisplayName = null,
+    string? ProviderBaseUri = null,
+    string? ProviderSessionId = null,
+    string? Title = null)
     : AgentSessionMetadataDetails;
 

@@ -6,6 +6,11 @@ namespace CodeAlta.Agent;
 public class AgentSessionCreateOptions
 {
     /// <summary>
+    /// Gets or initializes the configured provider key.
+    /// </summary>
+    public string? ProviderKey { get; init; }
+
+    /// <summary>
     /// Gets or initializes the model identifier.
     /// </summary>
     public string? Model { get; init; }
