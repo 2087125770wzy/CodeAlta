@@ -82,6 +82,18 @@ public static class LocalAgentBuiltInToolFactory
         }
         """);
 
+    private static readonly JsonElement ApplyPatchSchema = ParseSchema(
+        """
+        {
+          "type": "object",
+          "properties": {
+            "input": { "type": "string", "description": "Full apply_patch envelope text." }
+          },
+          "required": ["input"],
+          "additionalProperties": false
+        }
+        """);
+
     private static readonly JsonElement ViewImageSchema = ParseSchema(
         """
         {
@@ -174,6 +186,12 @@ public static class LocalAgentBuiltInToolFactory
                     "Execute a local shell command using the platform-appropriate shell after permission approval.",
                     ShellCommandSchema),
                 (invocation, cancellationToken) => ShellCommandAsync(options, invocation, cancellationToken)),
+            new AgentToolDefinition(
+                new AgentToolSpec(
+                    "apply_patch",
+                    "Apply a structured file patch using the Codex-style apply_patch grammar.",
+                    ApplyPatchSchema),
+                (invocation, cancellationToken) => ApplyPatchAsync(options, invocation, cancellationToken)),
             new AgentToolDefinition(
                 new AgentToolSpec(
                     "view_image",
@@ -494,6 +512,41 @@ Done:
         }
 
         return new AgentToolResult(true, [new AgentToolResultItem.Text(output)]);
+    }
+
+    private static async Task<AgentToolResult> ApplyPatchAsync(
+        LocalAgentBuiltInToolOptions options,
+        AgentToolInvocation invocation,
+        CancellationToken cancellationToken)
+    {
+        var workingDirectory = options.WorkingDirectory ?? Environment.CurrentDirectory;
+        var patchInput = GetRequiredString(invocation.Arguments, "input");
+        var touchedPaths = LocalAgentApplyPatch.GetTouchedPaths(patchInput, workingDirectory);
+        var permissionRequest = new AgentFileChangePermissionRequest(
+            options.BackendId,
+            options.SessionId,
+            DateTimeOffset.UtcNow,
+            RunId: null,
+            InteractionId: invocation.ToolCallId,
+            GrantRoot: workingDirectory,
+            Reason: touchedPaths.Count == 0
+                ? "The agent requested filesystem edits via apply_patch."
+                : $"The agent requested filesystem edits via apply_patch affecting {touchedPaths.Count} path(s).");
+        var decision = await options.OnPermissionRequest(permissionRequest, cancellationToken).ConfigureAwait(false);
+        switch (decision.Kind)
+        {
+            case AgentPermissionDecisionKind.AllowOnce:
+            case AgentPermissionDecisionKind.AllowForSession:
+                break;
+            case AgentPermissionDecisionKind.Deny:
+                return Failure("apply_patch was denied by the host.");
+            case AgentPermissionDecisionKind.Cancel:
+                return Failure("apply_patch was canceled by the host.");
+            default:
+                return Failure($"Unsupported permission decision '{decision.Kind}'.");
+        }
+
+        return LocalAgentApplyPatch.Apply(patchInput, workingDirectory);
     }
 
     private static Task<AgentToolResult> ViewImageAsync(

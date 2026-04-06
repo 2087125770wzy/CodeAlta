@@ -201,6 +201,88 @@ public sealed class LocalAgentToolsTests
         Assert.IsTrue(declarations.All(static declaration => declaration is not null));
     }
 
+    [TestMethod]
+    public async Task ApplyPatchTool_CreatesUpdatesMovesAndDeletesFiles()
+    {
+        using var temp = TestTempDirectory.Create();
+        Directory.CreateDirectory(Path.Combine(temp.Path, "src"));
+        await File.WriteAllTextAsync(Path.Combine(temp.Path, "src", "Program.cs"), "console.log(\"old\");" + Environment.NewLine).ConfigureAwait(false);
+        await File.WriteAllTextAsync(Path.Combine(temp.Path, "obsolete.txt"), "obsolete" + Environment.NewLine).ConfigureAwait(false);
+
+        AgentPermissionRequest? observedRequest = null;
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(
+            temp.Path,
+            onPermissionRequest: (request, _) =>
+            {
+                observedRequest = request;
+                return Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce));
+            }));
+        var tool = tools.Single(static tool => tool.Spec.Name == "apply_patch");
+        using var args = JsonDocument.Parse(
+            """
+            {
+              "input": "*** Begin Patch\n*** Add File: notes.txt\n+hello\n*** Update File: src/Program.cs\n*** Move to: src/Main.cs\n@@\n-console.log(\"old\");\n+console.log(\"new\");\n*** Delete File: obsolete.txt\n*** End Patch"
+            }
+            """);
+
+        var result = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    args.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsNotNull(observedRequest);
+        Assert.AreEqual("fileChange", observedRequest.Kind);
+        Assert.IsTrue(result.Success);
+        Assert.IsTrue(File.Exists(Path.Combine(temp.Path, "notes.txt")));
+        Assert.AreEqual("hello" + Environment.NewLine, await File.ReadAllTextAsync(Path.Combine(temp.Path, "notes.txt")).ConfigureAwait(false));
+        Assert.IsFalse(File.Exists(Path.Combine(temp.Path, "src", "Program.cs")));
+        Assert.AreEqual(
+            "console.log(\"new\");" + Environment.NewLine,
+            await File.ReadAllTextAsync(Path.Combine(temp.Path, "src", "Main.cs")).ConfigureAwait(false));
+        Assert.IsFalse(File.Exists(Path.Combine(temp.Path, "obsolete.txt")));
+
+        var output = Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value;
+        StringAssert.Contains(output, "A notes.txt");
+        StringAssert.Contains(output, "R src/Program.cs -> src/Main.cs");
+        StringAssert.Contains(output, "D obsolete.txt");
+    }
+
+    [TestMethod]
+    public async Task ApplyPatchTool_RespectsDeniedPermissionDecision()
+    {
+        using var temp = TestTempDirectory.Create();
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(
+            temp.Path,
+            onPermissionRequest: static (_, _) =>
+                Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.Deny))));
+        var tool = tools.Single(static tool => tool.Spec.Name == "apply_patch");
+        using var args = JsonDocument.Parse(
+            """
+            {
+              "input": "*** Begin Patch\n*** Add File: notes.txt\n+hello\n*** End Patch"
+            }
+            """);
+
+        var result = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    args.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsFalse(result.Success);
+        Assert.AreEqual("apply_patch was denied by the host.", result.Error);
+        Assert.IsFalse(File.Exists(Path.Combine(temp.Path, "notes.txt")));
+    }
+
     private static LocalAgentBuiltInToolOptions CreateOptions(
         string workingDirectory,
         HttpClient? httpClient = null,
