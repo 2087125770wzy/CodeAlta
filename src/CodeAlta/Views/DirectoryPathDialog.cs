@@ -52,6 +52,7 @@ internal sealed class DirectoryPathDialog
             .EnterMode(PromptEditorEnterMode.EnterAccepts)
             .EscapeBehavior(PromptEditorEscapeBehavior.CancelCompletionOnly)
             .EnableWordHints(false)
+            .LineMode(PromptEditorLineMode.SingleLine)
             .CompletionPresentation(PromptEditorCompletionPresentation.PopupList)
             .CompletionHandler(completionProvider.Complete)
             .MinHeight(1)
