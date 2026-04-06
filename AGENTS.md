@@ -57,3 +57,10 @@ All tests must pass and docs must be updated before submitting.
 
 - Commits: commit after each self-contained logical step; imperative subject, < 72 chars; one logical change per commit; reference issues when relevant; don't delete unrelated local files.
 - Checklist: each self-contained step is committed; build+tests pass; docs updated if behavior changed; repository-wide development guidance updated in `doc/development-guide.md` when needed; public APIs have XML docs; changes covered by unit tests.
+
+## Local References
+
+- This project is using several packages with source code that can be available locally for code inspection / documentation:
+  - `XenoAtom` libraries (`XenoAtom.Glob`, `XenoAtom.Terminal.UI`...etc.) at `../XenoAtom/` (e.g. `../XenoAtom/XenoAtom.Glob/`).
+  - `SharpYaml` at `../SharpYaml/`
+  - `Tomlyn` at `../Tomlyn/`
