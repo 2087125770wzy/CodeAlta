@@ -1,4 +1,8 @@
+#pragma warning disable OPENAI001
+
 using CodeAlta.Agent.LocalRuntime;
+using OpenAI.Chat;
+using OpenAI.Responses;
 
 namespace CodeAlta.Agent.OpenAI;
 
@@ -54,6 +58,16 @@ public sealed class OpenAIProviderOptions
     public Uri? BaseUri { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional OpenAI organization header value.
+    /// </summary>
+    public string? OrganizationId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional OpenAI project header value.
+    /// </summary>
+    public string? ProjectId { get; set; }
+
+    /// <summary>
     /// Gets or sets whether this provider is the default registration for the backend.
     /// </summary>
     public bool IsDefault { get; set; }
@@ -62,4 +76,10 @@ public sealed class OpenAIProviderOptions
     /// Gets or sets the compatibility profile for the provider.
     /// </summary>
     public LocalAgentProviderProfile? Profile { get; set; }
+
+    internal Func<string?, OpenAIResponseClient>? ResponsesClientFactory { get; set; }
+
+    internal Func<string?, ChatClient>? ChatClientFactory { get; set; }
+
+    internal Func<CancellationToken, Task<IReadOnlyList<AgentModelInfo>>>? ModelListAsync { get; set; }
 }

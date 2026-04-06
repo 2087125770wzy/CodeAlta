@@ -20,6 +20,7 @@
     <ProjectReference Include="..\CodeAlta.Agent.Codex\CodeAlta.Agent.Codex.csproj" />
     <ProjectReference Include="..\CodeAlta.Agent.Copilot\CodeAlta.Agent.Copilot.csproj" />
     <ProjectReference Include="..\CodeAlta.Agent.GoogleGenAI\CodeAlta.Agent.GoogleGenAI.csproj" />
+    <ProjectReference Include="..\CodeAlta.Agent.OpenAI\CodeAlta.Agent.OpenAI.csproj" />
     <ProjectReference Include="..\CodeAlta.Acp\CodeAlta.Acp.csproj" />
     <ProjectReference Include="..\CodeAlta.Acp.Generator\CodeAlta.Acp.Generator.csproj" />
     <ProjectReference Include="..\CodeAlta.CodexSdk\CodeAlta.CodexSdk.csproj" />

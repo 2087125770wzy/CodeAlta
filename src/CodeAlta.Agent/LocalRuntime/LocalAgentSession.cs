@@ -668,11 +668,11 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
     private static JsonElement SerializeLocalMessage(LocalAgentConversationMessage message)
         => JsonSerializer.SerializeToElement(message, AgentJsonSerializerContext.Default.LocalAgentConversationMessage);
 
-    private static JsonElement CreateReasoningDetails(LocalAgentMessagePart.Reasoning reasoning)
+    private static JsonElement? CreateReasoningDetails(LocalAgentMessagePart.Reasoning reasoning)
     {
         if (string.IsNullOrWhiteSpace(reasoning.ProtectedData))
         {
-            return default;
+            return null;
         }
 
         using var stream = new MemoryStream();

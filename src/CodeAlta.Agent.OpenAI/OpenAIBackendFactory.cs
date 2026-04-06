@@ -11,7 +11,7 @@ internal static class OpenAIBackendFactory
             "openai-responses",
             LocalAgentTransportKind.OpenAIResponses,
             options,
-            static provider => throw new NotSupportedException("OpenAI Responses execution is not implemented yet."));
+            static provider => new OpenAIResponsesTurnExecutor(provider));
 
     public static IAgentBackend CreateChatBackend(OpenAIChatAgentBackendOptions options)
         => CreateBackend(
@@ -20,7 +20,7 @@ internal static class OpenAIBackendFactory
             "openai-chat",
             LocalAgentTransportKind.OpenAIChatCompletions,
             options,
-            static provider => throw new NotSupportedException("OpenAI Chat execution is not implemented yet."));
+            static provider => new OpenAIChatTurnExecutor(provider));
 
     private static IAgentBackend CreateBackend(
         AgentBackendId backendId,

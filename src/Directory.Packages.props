@@ -22,7 +22,7 @@
     <PackageVersion Include="NJsonSchema" Version="11.5.2" />
     <PackageVersion Include="NJsonSchema.CodeGeneration.CSharp" Version="11.5.2" />
     <PackageVersion Include="Google.GenAI" Version="1.6.1" />
-    <PackageVersion Include="OpenAI" Version="2.2.0" />
+    <PackageVersion Include="OpenAI" Version="2.7.0" />
     <PackageVersion Include="SharpYaml" Version="3.7.0" />
     <PackageVersion Include="Tomlyn" Version="2.3.0" />
     <PackageVersion Include="XenoAtom.CommandLine.Terminal" Version="2.0.2" />
