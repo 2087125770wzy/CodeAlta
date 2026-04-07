@@ -154,6 +154,45 @@ public sealed class CodexMessageParserTests
     }
 
     [TestMethod]
+    public void ParseServerMessage_HandlesPermissionsApprovalRequest()
+    {
+        var options = CodexClient.CreateJsonSerializerOptions();
+
+        var request = CodexMessageParser.ParseServerMessage(
+            "item/permissions/requestApproval",
+            ParseJsonElement("""{ "itemId": "item_1", "threadId": "thr_123", "turnId": "turn_456", "permissions": { "network": { "enabled": true } } }"""),
+            new RequestId.IntegerValue { Value = 61 },
+            options);
+
+        Assert.IsInstanceOfType(request, typeof(ServerRequest.ItemPermissionsRequestApprovalRequest));
+        var typed = (ServerRequest.ItemPermissionsRequestApprovalRequest)request!;
+        Assert.AreEqual(61L, ((RequestId.IntegerValue)typed.Id).Value);
+        Assert.AreEqual("thr_123", typed.Params.ThreadId);
+        Assert.AreEqual("turn_456", typed.Params.TurnId);
+        Assert.IsTrue(typed.Params.Permissions.Network?.Enabled);
+    }
+
+    [TestMethod]
+    public void ParseServerMessage_HandlesMcpServerElicitationRequest()
+    {
+        var options = CodexClient.CreateJsonSerializerOptions();
+
+        var request = CodexMessageParser.ParseServerMessage(
+            "mcpServer/elicitation/request",
+            ParseJsonElement("""{ "threadId": "thr_123", "turnId": "turn_456", "serverName": "docs", "mode": "form", "message": "Choose a language", "requestedSchema": { "type": "object", "properties": { "language": { "type": "string", "enum": ["csharp", "fsharp"] } }, "required": ["language"] } }"""),
+            new RequestId.IntegerValue { Value = 62 },
+            options);
+
+        Assert.IsInstanceOfType(request, typeof(ServerRequest.McpServerElicitationRequestRequest));
+        var typed = (ServerRequest.McpServerElicitationRequestRequest)request!;
+        Assert.AreEqual(62L, ((RequestId.IntegerValue)typed.Id).Value);
+        Assert.AreEqual("thr_123", typed.Params.ThreadId);
+        Assert.AreEqual("turn_456", typed.Params.TurnId);
+        Assert.AreEqual("docs", typed.Params.ServerName);
+        Assert.IsInstanceOfType(typed.Params, typeof(McpServerElicitationRequestParams.Form));
+    }
+
+    [TestMethod]
     public void ParseServerMessage_UnknownRequest_PreservesRawPayload()
     {
         var options = CodexClient.CreateJsonSerializerOptions();

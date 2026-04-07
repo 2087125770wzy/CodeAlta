@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 
 namespace CodeAlta.CodexSdk;
@@ -31,46 +32,22 @@ internal static class CodexMessageParser
         ArgumentNullException.ThrowIfNull(requestId);
         ArgumentNullException.ThrowIfNull(jsonOptions);
 
-        return method switch
+        try
         {
-            "item/commandExecution/requestApproval" =>
-                new ServerRequest.ItemCommandExecutionRequestApprovalRequest
-                {
-                    Id = requestId,
-                    Params = parameters.Deserialize<CommandExecutionRequestApprovalParams>(jsonOptions)!
-                },
-            "item/fileChange/requestApproval" =>
-                new ServerRequest.ItemFileChangeRequestApprovalRequest
-                {
-                    Id = requestId,
-                    Params = parameters.Deserialize<FileChangeRequestApprovalParams>(jsonOptions)!
-                },
-            "item/tool/requestUserInput" =>
-                new ServerRequest.ItemToolRequestUserInputRequest
-                {
-                    Id = requestId,
-                    Params = parameters.Deserialize<ToolRequestUserInputParams>(jsonOptions)!
-                },
-            "mcpServer/elicitation/request" =>
-                new ServerRequest.McpServerElicitationRequestRequest
-                {
-                    Id = requestId,
-                    Params = parameters.Deserialize<McpServerElicitationRequestParams>(jsonOptions)!
-                },
-            "item/tool/call" =>
-                new ServerRequest.ItemToolCallRequest
-                {
-                    Id = requestId,
-                    Params = parameters.Deserialize<DynamicToolCallParams>(jsonOptions)!
-                },
-            "account/chatgptAuthTokens/refresh" =>
-                new ServerRequest.AccountChatgptAuthTokensRefreshRequest
-                {
-                    Id = requestId,
-                    Params = parameters.Deserialize<ChatgptAuthTokensRefreshParams>(jsonOptions)!
-                },
-            _ => new CodexUnknownServerRequest(requestId, method, parameters)
-        };
+            var envelope = CreateServerRequestEnvelope(method, parameters, requestId);
+            var request = envelope.Deserialize<ServerRequest>(jsonOptions);
+            return request is not null
+                ? request
+                : new CodexUnknownServerRequest(requestId, method, parameters);
+        }
+        catch (JsonException)
+        {
+            return new CodexUnknownServerRequest(requestId, method, parameters);
+        }
+        catch (NotSupportedException)
+        {
+            return new CodexUnknownServerRequest(requestId, method, parameters);
+        }
     }
 
     internal static CodexNotification? ParseNotification(
@@ -240,5 +217,26 @@ internal static class CodexMessageParser
             ThreadId = threadIdProp.GetString()!,
             RequestId = requestId
         };
+    }
+
+    private static JsonElement CreateServerRequestEnvelope(
+        string method,
+        JsonElement parameters,
+        RequestId requestId)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("method", method);
+            writer.WritePropertyName("id");
+            JsonSerializer.Serialize(writer, requestId, CodexJsonSerializerContext.Default.RequestId);
+            writer.WritePropertyName("params");
+            parameters.WriteTo(writer);
+            writer.WriteEndObject();
+        }
+
+        using var document = JsonDocument.Parse(stream.ToArray());
+        return document.RootElement.Clone();
     }
 }

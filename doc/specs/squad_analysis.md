@@ -270,7 +270,7 @@ This aligns directly with CodeAlta's new file-backed catalog direction.
 CodeAlta should preserve and strengthen:
 
 - portable durable catalog under `~/.codealta/`
-- machine-local state under `~/.codealta/machine/`
+- machine-local state under `~/.codealta/local/`
 - file-defined agents, skills, workspaces, and projects
 - export/import or sync workflows
 - consult/copy/extract patterns
@@ -546,7 +546,7 @@ This fits naturally with:
 
 - `~/.codealta/` as portable catalog root
 - workspace/project-specific overlays
-- machine-local state under `~/.codealta/machine/`
+- machine-local state under `~/.codealta/local/`
 
 CodeAlta can likely do better than Squad here because it is already rethinking its durable storage model. Consult/extract should be designed into that model now, not retrofitted later.
 

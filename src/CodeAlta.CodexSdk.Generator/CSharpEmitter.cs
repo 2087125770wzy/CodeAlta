@@ -175,6 +175,18 @@ public class CSharpEmitter
         sb.AppendLine($"public abstract partial record {def.Name}");
         sb.AppendLine("{");
 
+        var baseProps = GetTaggedUnionBaseProperties(
+            schema,
+            disc.PropertyName,
+            def.CsNamespace,
+            def.Name);
+        baseProps = FixPropertyNameCollisions(baseProps, def.Name);
+        if (baseProps.Count > 0)
+        {
+            WriteProperties(sb, baseProps, "    ");
+            sb.AppendLine();
+        }
+
         // Emit each variant as a nested record
         foreach (var v in disc.Variants)
         {
@@ -209,6 +221,18 @@ public class CSharpEmitter
 
         sb.AppendLine("}");
         return sb.ToString();
+    }
+
+    private List<PropertyInfo> GetTaggedUnionBaseProperties(
+        JsonSchema schema,
+        string discriminatorProp,
+        string contextNamespace,
+        string ownerTypeName)
+    {
+        var props = GetObjectProperties(schema, contextNamespace, ownerTypeName);
+        return props
+            .Where(p => !string.Equals(p.JsonName, discriminatorProp, StringComparison.Ordinal))
+            .ToList();
     }
 
     private string SanitizeVariantTitle(string title, string parentName)
@@ -711,14 +735,6 @@ public class CSharpEmitter
         WriteFileHeader(sb, def.CsNamespace);
         WriteDescription(sb, schema.Description);
 
-        // For anyOf with refs (like JSONRPCMessage, ContentBlock), emit abstract record
-        var hasRefs = schema.AnyOf.Any(a => a.HasReference);
-        if (hasRefs)
-        {
-            sb.AppendLine($"public abstract partial record {def.Name};");
-            return sb.ToString();
-        }
-
         // Check if it's a key-discriminated enum (serde untagged with distinct keys)
         var keyVariants = DetectKeyDiscriminated(schema.AnyOf);
         if (keyVariants != null)
@@ -737,12 +753,7 @@ public class CSharpEmitter
             return r.Title ?? "?";
         }));
         _warnings.Add($"anyOf without $ref variants: {def.CsNamespace}.{def.Name} - emitted as JsonElement wrapper. Variants: [{variantSummary}]");
-
-        sb.AppendLine($"public partial struct {def.Name}");
-        sb.AppendLine("{");
-        sb.AppendLine($"    public JsonElement Value {{ get; set; }}");
-        sb.AppendLine("}");
-        return sb.ToString();
+        return EmitJsonElementWrapper(def, schema);
     }
 
     #endregion
@@ -969,6 +980,21 @@ public class CSharpEmitter
         };
         _warnings.Add($"JsonElement wrapper: {def.CsNamespace}.{def.Name} - {reason}");
 
+        sb.AppendLine($"internal sealed class {def.Name}JsonConverter : JsonConverter<{def.Name}>");
+        sb.AppendLine("{");
+        sb.AppendLine($"    public override {def.Name} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        using var document = JsonDocument.ParseValue(ref reader);");
+        sb.AppendLine($"        return new {def.Name} {{ Value = document.RootElement.Clone() }};");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine($"    public override void Write(Utf8JsonWriter writer, {def.Name} value, JsonSerializerOptions options)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        value.Value.WriteTo(writer);");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        sb.AppendLine();
+        sb.AppendLine($"[JsonConverter(typeof({def.Name}JsonConverter))]");
         sb.AppendLine($"public partial record struct {def.Name}");
         sb.AppendLine("{");
         sb.AppendLine($"    public JsonElement Value {{ get; set; }}");

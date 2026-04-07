@@ -37,7 +37,7 @@ CodeAlta should be built around a **host-owned orchestrator** plus a **filesyste
 That means:
 
 - durable state lives in plain text under `~/.codealta/`
-- machine-local operational state lives under `~/.codealta/machine/`
+- machine-local operational state lives under `~/.codealta/local/`
 - the orchestrator, written in C#, owns routing, dispatch, lifecycle, and recovery
 - Copilot and Codex are execution backends, not the owners of orchestration
 - the MVP works without mandatory workspaces
@@ -167,7 +167,7 @@ flowchart LR
     end
 
     subgraph MACHINE[Machine State]
-        MROOT["~/.codealta/machine/"]
+        MROOT["~/.codealta/local/"]
         DB[(codealta.db)]
         CACHE[Cache / Logs / Overrides]
     end
@@ -192,7 +192,7 @@ Key reading:
 
 - `~/.codealta/` is the global durable root
 - `{projectPath}/.codealta/` is the project-local overlay
-- `~/.codealta/machine/` is local runtime/index/cache state
+- `~/.codealta/local/` is local runtime/index/cache state
 - the host orchestrator is the hub for all thread and session communication
 
 ## 4.2 Projects

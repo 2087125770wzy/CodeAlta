@@ -23,7 +23,15 @@ async ValueTask<int> ExecuteAsync(GeneratorCliOptions options)
     // Default schema location: next to the running executable
     var exeDir = AppContext.BaseDirectory;
     var schemaDir = Path.Combine(exeDir, schemaFolderName);
-    var codexPath = CodexProcessHelper.ResolveCodexExecutable(tryFnmLookup: true);
+    var progress = new Progress<CodexInstallProgress>(value => Terminal.WriteLine(value.Message));
+    var codexInstall = await CodexReleaseInstaller.EnsureInstalledAsync(
+            new CodexProcessOptions
+            {
+                ReleaseTag = CodexPinnedRelease.DefaultTag,
+                Progress = progress,
+            })
+        .ConfigureAwait(false);
+    var codexPath = codexInstall.ExecutablePath;
     var codexVersionInfo = await CodexVersionDetector.DetectAsync(codexPath).ConfigureAwait(false);
 
     if (schemaFile is null)
@@ -35,35 +43,15 @@ async ValueTask<int> ExecuteAsync(GeneratorCliOptions options)
 
         Terminal.WriteLine($"Schema bundle: {schemaBundle}");
         Terminal.WriteLine($"Experimental:  {includeExperimentalApi}");
+        Terminal.WriteLine($"Codex tag:     {codexInstall.Tag}");
         Terminal.WriteLine();
         Terminal.WriteLine("Generating schema via: codex app-server generate-json-schema ...");
 
         Directory.CreateDirectory(schemaDir);
 
-        // Resolve the codex executable. On Windows it may be a .ps1/.cmd shim
-        // installed via fnm/npm, so fall back to invoking through the shell.
         var experimentalFlag = includeExperimentalApi ? " --experimental" : "";
         var codexArgs = $"app-server generate-json-schema --out \"{schemaDir}\"{experimentalFlag}";
-        ProcessStartInfo psi;
-        if (codexPath != null)
-        {
-            psi = CodexProcessHelper.CreateCommandProcessStartInfo(
-                codexPath,
-                codexArgs);
-        }
-        else if (OperatingSystem.IsWindows())
-        {
-            // Use pwsh to resolve PATH shims (.ps1 / .cmd wrappers)
-            psi = CodexProcessHelper.CreateCommandProcessStartInfo(
-                "pwsh",
-                $"-NoProfile -NonInteractive -Command \"codex {codexArgs.Replace('\"', '\'')}\"");
-        }
-        else
-        {
-            psi = CodexProcessHelper.CreateCommandProcessStartInfo(
-                "/bin/sh",
-                $"-c \"codex {codexArgs.Replace('\"', '\'')}\"");
-        }
+        var psi = CodexProcessHelper.CreateCommandProcessStartInfo(codexPath, codexArgs);
 
         using var proc = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start codex process.");
@@ -98,6 +86,7 @@ async ValueTask<int> ExecuteAsync(GeneratorCliOptions options)
     Terminal.WriteLine($"Schema:    {schemaFile}");
     Terminal.WriteLine($"Output:    {outputDir}");
     Terminal.WriteLine($"Namespace: {rootNamespace}");
+    Terminal.WriteLine($"Tag:       {codexInstall.Tag}");
     Terminal.WriteLine(
         $"Codex:     {(codexVersionInfo.IsDetected ? codexVersionInfo.Version.ToString() : "unknown")} " +
         $"(raw: {codexVersionInfo.RawOutput})");
@@ -149,25 +138,7 @@ async ValueTask<int> ExecuteAsync(GeneratorCliOptions options)
 
         var experimentalFlag = includeExperimentalApi ? " --experimental" : "";
         var codexArgs = $"app-server generate-json-schema --out \"{schemaDir}\"{experimentalFlag}";
-        ProcessStartInfo psi;
-        if (codexPath != null)
-        {
-            psi = CodexProcessHelper.CreateCommandProcessStartInfo(
-                codexPath,
-                codexArgs);
-        }
-        else if (OperatingSystem.IsWindows())
-        {
-            psi = CodexProcessHelper.CreateCommandProcessStartInfo(
-                "pwsh",
-                $"-NoProfile -NonInteractive -Command \"codex {codexArgs.Replace('\"', '\'')}\"");
-        }
-        else
-        {
-            psi = CodexProcessHelper.CreateCommandProcessStartInfo(
-                "/bin/sh",
-                $"-c \"codex {codexArgs.Replace('\"', '\'')}\"");
-        }
+        var psi = CodexProcessHelper.CreateCommandProcessStartInfo(codexPath, codexArgs);
 
         using var proc = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start codex process.");
@@ -229,7 +200,7 @@ async ValueTask<int> ExecuteAsync(GeneratorCliOptions options)
     totalFiles++;
 
     // Generate CodexClient partial metadata
-    var codexClientCode = EmitCodexClientVersionPartial(rootNamespace, codexVersionInfo);
+    var codexClientCode = EmitCodexClientVersionPartial(rootNamespace, codexVersionInfo, codexInstall.Tag);
     var codexClientPath = Path.Combine(outputDir, "CodexClient.gen.cs");
     await File.WriteAllTextAsync(codexClientPath, codexClientCode).ConfigureAwait(false);
     totalFiles++;
@@ -252,11 +223,13 @@ async ValueTask<int> ExecuteAsync(GeneratorCliOptions options)
     return 0;
 }
 
-static string EmitCodexClientVersionPartial(string rootNamespace, CodexVersionInfo versionInfo)
+static string EmitCodexClientVersionPartial(string rootNamespace, CodexVersionInfo versionInfo, string releaseTag)
 {
     ArgumentNullException.ThrowIfNull(rootNamespace);
+    ArgumentException.ThrowIfNullOrWhiteSpace(releaseTag);
 
     var escapedRawOutput = EscapeStringLiteral(versionInfo.RawOutput);
+    var escapedReleaseTag = EscapeStringLiteral(releaseTag);
     var version = versionInfo.Version;
     var versionCtor = version.Revision >= 0
         ? $"new Version({version.Major}, {version.Minor}, {version.Build}, {version.Revision})"
@@ -281,6 +254,11 @@ static string EmitCodexClientVersionPartial(string rootNamespace, CodexVersionIn
     builder.AppendLine("    /// Gets the raw output reported by <c>codex --version</c> during generation.");
     builder.AppendLine("    /// </summary>");
     builder.AppendLine($"    public const string CompiledAgainstVersionRaw = \"{escapedRawOutput}\";");
+    builder.AppendLine();
+    builder.AppendLine("    /// <summary>");
+    builder.AppendLine("    /// Gets the Codex release tag used when generating this SDK.");
+    builder.AppendLine("    /// </summary>");
+    builder.AppendLine($"    public const string CompiledAgainstReleaseTag = \"{escapedReleaseTag}\";");
     builder.AppendLine("}");
     return builder.ToString();
 }

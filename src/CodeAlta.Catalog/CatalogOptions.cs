@@ -66,9 +66,15 @@ public sealed class CatalogOptions
     public string AcpStateRoot => Path.Combine(AcpRoot, "state");
 
     /// <summary>
-    /// Gets the machine-local runtime root path under the global catalog.
+    /// Gets the local runtime root path under the global catalog.
     /// </summary>
-    public string MachineRoot => Path.Combine(GlobalRoot, "machine");
+    public string LocalRoot => Path.Combine(GlobalRoot, "local");
+
+    /// <summary>
+    /// Gets the legacy machine-local runtime root path under the global catalog.
+    /// </summary>
+    [Obsolete("Use LocalRoot. The machine root path was renamed to local.")]
+    public string MachineRoot => LocalRoot;
 
     /// <summary>
     /// Gets the internal thread linkage root path under the global catalog.

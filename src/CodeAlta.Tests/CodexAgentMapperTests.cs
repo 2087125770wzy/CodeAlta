@@ -404,6 +404,53 @@ public sealed class CodexAgentMapperTests
     }
 
     [TestMethod]
+    public void TryGetThreadId_UsesPermissionsApprovalRequest()
+    {
+        var request = new ServerRequest.ItemPermissionsRequestApprovalRequest
+        {
+            Id = new RequestId.IntegerValue { Value = 61 },
+            Params = new PermissionsRequestApprovalParams
+            {
+                ItemId = "item-1",
+                ThreadId = "thread-1",
+                TurnId = "turn-1",
+                Permissions = new RequestPermissionProfile()
+            }
+        };
+
+        var result = CodexAgentMapper.TryGetThreadId(request, out var threadId);
+
+        Assert.IsTrue(result);
+        Assert.AreEqual("thread-1", threadId);
+    }
+
+    [TestMethod]
+    public void TryGetThreadId_UsesMcpServerElicitationRequest()
+    {
+        var schema = JsonSerializer.Deserialize(
+            """{ "type": "object", "properties": { "language": { "type": "string", "enum": ["csharp", "fsharp"] } } }""",
+            CodexJsonSerializerContext.Default.McpElicitationSchema);
+
+        var request = new ServerRequest.McpServerElicitationRequestRequest
+        {
+            Id = new RequestId.IntegerValue { Value = 62 },
+            Params = new McpServerElicitationRequestParams.Form
+            {
+                ThreadId = "thread-1",
+                TurnId = "turn-1",
+                ServerName = "docs",
+                Message = "Choose a language",
+                RequestedSchema = schema!
+            }
+        };
+
+        var result = CodexAgentMapper.TryGetThreadId(request, out var threadId);
+
+        Assert.IsTrue(result);
+        Assert.AreEqual("thread-1", threadId);
+    }
+
+    [TestMethod]
     public void ToAgentEvent_MapsReasoningPlanAndCommandLifecycle()
     {
         var timestamp = DateTimeOffset.Parse("2026-02-25T10:00:00+00:00");
@@ -947,6 +994,68 @@ public sealed class CodexAgentMapperTests
         Assert.AreEqual("api.example.com", command.Network!.Host);
         Assert.AreEqual(AgentNetworkPolicyAction.Allow, command.ProposedNetworkPolicyAmendments![0].Action);
         Assert.AreEqual(AgentCommandPreviewKind.Search, command.Actions![0].Kind);
+    }
+
+    [TestMethod]
+    public void ToPermissionsApprovalResponse_MapsAllowForSessionToFullGrantedSubset()
+    {
+        var request = new PermissionsRequestApprovalParams
+        {
+            ItemId = "item-1",
+            ThreadId = "thread-1",
+            TurnId = "turn-1",
+            Permissions = new RequestPermissionProfile
+            {
+                FileSystem = new AdditionalFileSystemPermissions
+                {
+                    Read = [@"C:\repo\input"],
+                    Write = [@"C:\repo\output"]
+                },
+                Network = new AdditionalNetworkPermissions
+                {
+                    Enabled = true
+                }
+            }
+        };
+
+        var response = CodexAgentMapper.ToPermissionsApprovalResponse(
+            new AgentPermissionDecision(AgentPermissionDecisionKind.AllowForSession),
+            request);
+
+        Assert.AreEqual(PermissionGrantScope.Session, response.Scope);
+        CollectionAssert.AreEqual(
+            new[] { @"C:\repo\input" },
+            response.Permissions.FileSystem!.Read!.Select(static x => x.Value).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { @"C:\repo\output" },
+            response.Permissions.FileSystem.Write!.Select(static x => x.Value).ToArray());
+        Assert.IsTrue(response.Permissions.Network!.Enabled);
+    }
+
+    [TestMethod]
+    public void ToPermissionsApprovalResponse_MapsDenyToEmptyGrantedSubset()
+    {
+        var request = new PermissionsRequestApprovalParams
+        {
+            ItemId = "item-1",
+            ThreadId = "thread-1",
+            TurnId = "turn-1",
+            Permissions = new RequestPermissionProfile
+            {
+                Network = new AdditionalNetworkPermissions
+                {
+                    Enabled = true
+                }
+            }
+        };
+
+        var response = CodexAgentMapper.ToPermissionsApprovalResponse(
+            new AgentPermissionDecision(AgentPermissionDecisionKind.Deny),
+            request);
+
+        Assert.AreEqual(PermissionGrantScope.Turn, response.Scope);
+        Assert.IsNull(response.Permissions.FileSystem);
+        Assert.IsNull(response.Permissions.Network);
     }
 
 }

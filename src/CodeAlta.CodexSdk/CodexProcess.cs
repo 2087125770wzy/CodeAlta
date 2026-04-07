@@ -41,8 +41,8 @@ public sealed class CodexProcess : IAsyncDisposable
     /// Starts a new codex app-server process in stdio mode.
     /// </summary>
     /// <param name="options">
-    /// Options that control executable resolution.  When <see langword="null"/>, defaults are used
-    /// (PATH lookup with fnm fallback enabled).
+    /// Options that control executable resolution. When <see langword="null"/>, the
+    /// pinned SDK release is installed into the local CodeAlta cache if needed.
     /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <param name="logger">The logger</param>
@@ -53,17 +53,28 @@ public sealed class CodexProcess : IAsyncDisposable
     /// <exception cref="InvalidOperationException">
     /// Thrown when the process fails to start.
     /// </exception>
-    public static CodexProcess Start(CodexProcessOptions? options = null, CancellationToken cancellationToken = default, Logger? logger = null)
+    public static async Task<CodexProcess> StartAsync(
+        CodexProcessOptions? options = null,
+        CancellationToken cancellationToken = default,
+        Logger? logger = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         options ??= new CodexProcessOptions();
 
-        var exePath = options.CodexPath
-                      ?? CodexProcessHelper.ResolveCodexExecutable(options.TryFnmLookup)
-                      ?? throw new FileNotFoundException(
-                          "Could not find the 'codex' executable on PATH. " +
-                          "Ensure codex is installed (e.g., via npm) and available in your PATH, " +
-                          "or provide an explicit path via CodexProcessOptions.CodexPath.");
+        var exePath = options.CodexPath;
+        if (string.IsNullOrWhiteSpace(exePath))
+        {
+            options.ReleaseTag ??= CodexClient.CompiledAgainstReleaseTag;
+            var installation = await CodexReleaseInstaller.EnsureInstalledAsync(options, cancellationToken).ConfigureAwait(false);
+            exePath = installation.ExecutablePath;
+        }
+
+        if (!File.Exists(exePath))
+        {
+            throw new FileNotFoundException(
+                $"The configured Codex executable does not exist: {exePath}",
+                exePath);
+        }
 
         if (logger is not null && logger.IsEnabled(LogLevel.Debug))
         {
@@ -133,38 +144,4 @@ public sealed class CodexProcess : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Searches the system PATH for an executable, respecting Windows shim extensions.
-    /// </summary>
-    /// <param name="name">The executable name without extension.</param>
-    /// <returns>The full path to the executable, or <see langword="null"/> if not found.</returns>
-    internal static string? FindExecutable(string name)
-    {
-        return CodexProcessHelper.FindExecutable(name);
-    }
-
-    /// <summary>
-    /// Attempts to locate an executable managed by <c>fnm</c> (Fast Node Manager)
-    /// without modifying the current process's <c>PATH</c>.
-    /// </summary>
-    /// <param name="name">The executable name without extension (e.g. <c>"codex"</c>).</param>
-    /// <returns>The full path to the executable, or <see langword="null"/> if fnm is not installed
-    /// or the executable is not present in the fnm-managed directory.</returns>
-    /// <remarks>
-    /// Runs <c>fnm env --shell cmd</c>, extracts the <c>FNM_MULTISHELL_PATH</c> variable,
-    /// and probes that single directory for the requested executable.
-    /// </remarks>
-    internal static string? FindExecutableViaFnm(string name)
-    {
-        return CodexProcessHelper.FindExecutableViaFnm(name);
-    }
-
-    /// <summary>
-    /// Parses the output of <c>fnm env --shell cmd</c> and returns the
-    /// <c>FNM_MULTISHELL_PATH</c> value, or <see langword="null"/> if not found.
-    /// </summary>
-    internal static string? ParseFnmMultishellPath(string fnmEnvOutput)
-    {
-        return CodexProcessHelper.ParseFnmMultishellPath(fnmEnvOutput);
-    }
 }

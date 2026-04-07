@@ -16,4 +16,9 @@ public sealed partial class CodexClient
     /// Gets the raw output reported by <c>codex --version</c> during generation.
     /// </summary>
     public const string CompiledAgainstVersionRaw = "codex-cli 0.118.0";
+
+    /// <summary>
+    /// Gets the Codex release tag used when generating this SDK.
+    /// </summary>
+    public const string CompiledAgainstReleaseTag = "rust-v0.118.0";
 }

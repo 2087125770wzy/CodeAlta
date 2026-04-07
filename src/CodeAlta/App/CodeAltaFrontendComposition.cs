@@ -52,7 +52,8 @@ internal sealed class CodeAltaFrontendComposition
         ICodeAltaShell shell,
         KnownProjectImporter knownProjectImporter,
         State<float> welcomePhase01,
-        CodeAltaFrontendCallbacks callbacks)
+        CodeAltaFrontendCallbacks callbacks,
+        CodexInstallProgressReporter? codexInstallProgress = null)
     {
         ArgumentNullException.ThrowIfNull(projectCatalog);
         ArgumentNullException.ThrowIfNull(threadCatalog);
@@ -187,7 +188,8 @@ internal sealed class CodeAltaFrontendComposition
             backendDescriptors,
             chatBackendStates,
             callbacks.DispatchToUi,
-            callbacks.RefreshHeaderAndThreadWorkspace);
+            callbacks.RefreshHeaderAndThreadWorkspace,
+            codexInstallProgress);
         var threadRuntimeEventCoordinator = new ThreadRuntimeEventCoordinator(
             threadId => threadStateCoordinator.FindThread(threadId),
             threadId => threadStateCoordinator.FindOpenThread(threadId),

@@ -1,5 +1,10 @@
-using CodeAlta.CodexSdk.Generator;
+extern alias CodexSdkGenerator;
+
 using NJsonSchema;
+using CSharpEmitter = CodexSdkGenerator::CodeAlta.CodexSdk.Generator.CSharpEmitter;
+using OutputDirectoryCleaner = CodexSdkGenerator::CodeAlta.CodexSdk.Generator.OutputDirectoryCleaner;
+using SchemaWalker = CodexSdkGenerator::CodeAlta.CodexSdk.Generator.SchemaWalker;
+using TypeDef = CodexSdkGenerator::CodeAlta.CodexSdk.Generator.TypeDef;
 
 namespace CodeAlta.Tests;
 
@@ -351,5 +356,176 @@ public sealed class CodexSdkGeneratorTests
             "[JsonSerializable(typeof(Dictionary<string, string?>), TypeInfoPropertyName = \"DictionarystringstringNullable\")]");
         Assert.IsFalse(contextCode.Contains("CodeAlta.CodexSdk.string?", StringComparison.Ordinal));
         Assert.IsFalse(contextCode.Contains("Dictionarystringstring?", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task EmitType_TaggedUnionWithSharedProperties_EmitsBaseProperties()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"CodeAlta.Tests.{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var schemaPath = Path.Combine(root, "schema.json");
+
+        await File.WriteAllTextAsync(
+                schemaPath,
+                """
+                {
+                  "$schema": "http://json-schema.org/draft-07/schema#",
+                  "title": "Test",
+                  "type": "object",
+                  "definitions": {
+                    "McpElicitationSchema": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string" },
+                        "properties": {
+                          "type": "object",
+                          "additionalProperties": true
+                        }
+                      }
+                    },
+                    "McpServerElicitationRequestParams": {
+                      "type": "object",
+                      "required": ["serverName", "threadId"],
+                      "properties": {
+                        "serverName": { "type": "string" },
+                        "threadId": { "type": "string" },
+                        "turnId": { "type": ["string", "null"] }
+                      },
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "required": ["message", "mode", "requestedSchema"],
+                          "properties": {
+                            "mode": { "type": "string", "enum": ["form"] },
+                            "message": { "type": "string" },
+                            "requestedSchema": { "$ref": "#/definitions/McpElicitationSchema" }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "required": ["elicitationId", "message", "mode", "url"],
+                          "properties": {
+                            "mode": { "type": "string", "enum": ["url"] },
+                            "elicitationId": { "type": "string" },
+                            "message": { "type": "string" },
+                            "url": { "type": "string" }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+                """)
+            .ConfigureAwait(false);
+
+        try
+        {
+            var defs = await SchemaWalker.LoadDefinitionsAsync(
+                    schemaPath,
+                    "CodeAlta.CodexSdk")
+                .ConfigureAwait(false);
+            var def = defs.Single(static x => x.Name == "McpServerElicitationRequestParams");
+            var emitter = new CSharpEmitter(defs, "CodeAlta.CodexSdk");
+
+            var code = emitter.EmitType(def);
+
+            Assert.IsNotNull(code);
+            StringAssert.Contains(code, "public string ServerName { get; set; } = string.Empty;");
+            StringAssert.Contains(code, "public string ThreadId { get; set; } = string.Empty;");
+            StringAssert.Contains(code, "public string? TurnId { get; set; }");
+            StringAssert.Contains(code, "public sealed partial record Form : McpServerElicitationRequestParams");
+            StringAssert.Contains(code, "public sealed partial record Url : McpServerElicitationRequestParams");
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(root))
+                {
+                    Directory.Delete(root, recursive: true);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    [TestMethod]
+    public async Task EmitType_AnyOfWithRefs_EmitsRawJsonConverterWrapper()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"CodeAlta.Tests.{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var schemaPath = Path.Combine(root, "schema.json");
+
+        await File.WriteAllTextAsync(
+                schemaPath,
+                """
+                {
+                  "$schema": "http://json-schema.org/draft-07/schema#",
+                  "title": "Test",
+                  "type": "object",
+                  "definitions": {
+                    "A": {
+                      "type": "object",
+                      "properties": {
+                        "kind": { "type": "string" },
+                        "value": { "type": "string" }
+                      }
+                    },
+                    "B": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": { "type": "string" }
+                        },
+                        "title": { "type": "string" }
+                      }
+                    },
+                    "Primitive": {
+                      "anyOf": [
+                        { "$ref": "#/definitions/A" },
+                        { "$ref": "#/definitions/B" }
+                      ]
+                    }
+                  }
+                }
+                """)
+            .ConfigureAwait(false);
+
+        try
+        {
+            var defs = await SchemaWalker.LoadDefinitionsAsync(
+                    schemaPath,
+                    "CodeAlta.CodexSdk")
+                .ConfigureAwait(false);
+            var def = defs.Single(static x => x.Name == "Primitive");
+            var emitter = new CSharpEmitter(defs, "CodeAlta.CodexSdk");
+
+            var code = emitter.EmitType(def);
+
+            Assert.IsNotNull(code);
+            StringAssert.Contains(code, "JsonConverter(typeof(PrimitiveJsonConverter))");
+            StringAssert.Contains(code, "public partial record struct Primitive");
+            StringAssert.Contains(code, "public JsonElement Value { get; set; }");
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(root))
+                {
+                    Directory.Delete(root, recursive: true);
+                }
+            }
+            catch
+            {
+            }
+        }
     }
 }

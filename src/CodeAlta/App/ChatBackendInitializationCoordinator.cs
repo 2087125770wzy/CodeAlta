@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using CodeAlta.Agent;
+using CodeAlta.CodexSdk;
 using CodeAlta.Models;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Presentation.Chat;
@@ -13,13 +14,15 @@ internal sealed class ChatBackendInitializationCoordinator
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
     private readonly Action<Action> _dispatchToUi;
     private readonly Action _refreshHeaderAndThreadWorkspace;
+    private readonly CodexInstallProgressReporter? _codexInstallProgress;
 
     public ChatBackendInitializationCoordinator(
         AgentHub agentHub,
         IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
         Dictionary<string, ChatBackendState> chatBackendStates,
         Action<Action> dispatchToUi,
-        Action refreshHeaderAndThreadWorkspace)
+        Action refreshHeaderAndThreadWorkspace,
+        CodexInstallProgressReporter? codexInstallProgress = null)
     {
         ArgumentNullException.ThrowIfNull(agentHub);
         ArgumentNullException.ThrowIfNull(backendDescriptors);
@@ -32,6 +35,7 @@ internal sealed class ChatBackendInitializationCoordinator
         _chatBackendStates = chatBackendStates;
         _dispatchToUi = dispatchToUi;
         _refreshHeaderAndThreadWorkspace = refreshHeaderAndThreadWorkspace;
+        _codexInstallProgress = codexInstallProgress;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
@@ -90,6 +94,7 @@ internal sealed class ChatBackendInitializationCoordinator
                 _refreshHeaderAndThreadWorkspace();
             });
 
+        using var codexProgressSubscription = SubscribeCodexProgressIfNeeded(backendId, state);
         try
         {
             // Backend discovery is explicit background I/O. Any state mutation after this point
@@ -124,5 +129,22 @@ internal sealed class ChatBackendInitializationCoordinator
                     _refreshHeaderAndThreadWorkspace();
                 });
         }
+    }
+
+    private IDisposable? SubscribeCodexProgressIfNeeded(AgentBackendId backendId, ChatBackendState state)
+    {
+        if (_codexInstallProgress is null || backendId != AgentBackendIds.Codex)
+        {
+            return null;
+        }
+
+        return _codexInstallProgress.Subscribe(progress =>
+            _dispatchToUi(
+                () =>
+                {
+                    state.Availability = ChatBackendAvailability.Connecting;
+                    state.StatusMessage = progress.Message;
+                    _refreshHeaderAndThreadWorkspace();
+                }));
     }
 }

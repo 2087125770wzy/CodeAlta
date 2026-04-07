@@ -14,12 +14,12 @@ internal sealed class ThreadPromptDraftPersistenceCoordinator : IAsyncDisposable
     public ThreadPromptDraftPersistenceCoordinator(CatalogOptions catalogOptions, TimeSpan? saveDelay = null)
     {
         ArgumentNullException.ThrowIfNull(catalogOptions);
-        if (string.IsNullOrWhiteSpace(catalogOptions.MachineRoot))
+        if (string.IsNullOrWhiteSpace(catalogOptions.LocalRoot))
         {
-            throw new ArgumentException("Machine root is required.", nameof(catalogOptions));
+            throw new ArgumentException("Local root is required.", nameof(catalogOptions));
         }
 
-        _promptDraftsRoot = Path.Combine(catalogOptions.MachineRoot, "saved_prompts");
+        _promptDraftsRoot = Path.Combine(catalogOptions.LocalRoot, "saved_prompts");
         _saveDelay = saveDelay ?? TimeSpan.FromMilliseconds(500);
     }
 

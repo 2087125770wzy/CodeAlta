@@ -293,6 +293,24 @@ internal static class CodexAgentMapper
         };
     }
 
+    public static PermissionsRequestApprovalResponse ToPermissionsApprovalResponse(
+        AgentPermissionDecision decision,
+        PermissionsRequestApprovalParams request)
+    {
+        ArgumentNullException.ThrowIfNull(decision);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return new PermissionsRequestApprovalResponse
+        {
+            Permissions = decision.Kind is AgentPermissionDecisionKind.AllowOnce or AgentPermissionDecisionKind.AllowForSession
+                ? ToGrantedPermissionProfile(request.Permissions)
+                : new GrantedPermissionProfile(),
+            Scope = decision.Kind == AgentPermissionDecisionKind.AllowForSession
+                ? PermissionGrantScope.Session
+                : PermissionGrantScope.Turn
+        };
+    }
+
     public static AgentUserInputRequest ToAgentUserInputRequest(ToolRequestUserInputParams parameters)
     {
         ArgumentNullException.ThrowIfNull(parameters);
@@ -345,6 +363,132 @@ internal static class CodexAgentMapper
             Answers = answers
         };
     }
+
+    public static AgentUserInputRequest ToAgentUserInputRequest(
+        string sessionId,
+        string interactionId,
+        string message,
+        JsonElement schema,
+        string? turnId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(interactionId);
+
+        var required = GetRequiredProperties(schema);
+        var prompts = new List<AgentUserInputPrompt>();
+        if (schema.TryGetProperty("properties", out var properties) &&
+            properties.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in properties.EnumerateObject())
+            {
+                var prompt = ToUserInputPrompt(property.Name, property.Value, message, required);
+                if (prompt is not null)
+                {
+                    prompts.Add(prompt);
+                }
+            }
+        }
+
+        if (prompts.Count == 0)
+        {
+            prompts.Add(new AgentUserInputPrompt(
+                Id: "value",
+                Question: message,
+                Header: schema.TryGetProperty("title", out var titleProperty) && titleProperty.ValueKind == JsonValueKind.String
+                    ? titleProperty.GetString()
+                    : null,
+                AllowFreeform: true));
+        }
+
+        return new AgentUserInputRequest(
+            AgentBackendIds.Codex,
+            sessionId,
+            DateTimeOffset.UtcNow,
+            turnId is null ? null : new AgentRunId(turnId),
+            interactionId,
+            new AgentUserInputForm(prompts));
+    }
+
+    public static McpServerElicitationRequestResponse ToAcceptedMcpElicitationResponse(
+        JsonElement schema,
+        AgentUserInputResponse response)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+
+        var content = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        if (schema.TryGetProperty("properties", out var properties) &&
+            properties.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in properties.EnumerateObject())
+            {
+                if (!response.Answers.TryGetValue(property.Name, out var value) ||
+                    string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                content[property.Name] = ConvertUserInputValue(property.Name, value, property.Value);
+            }
+        }
+
+        return CreateAcceptedMcpElicitationResponse(
+            CreateObjectElement(writer =>
+            {
+                foreach (var pair in content)
+                {
+                    writer.WritePropertyName(pair.Key);
+                    pair.Value.WriteTo(writer);
+                }
+            }));
+    }
+
+    public static McpServerElicitationRequestResponse CreateAcceptedMcpElicitationResponse(
+        JsonElement? content = null,
+        JsonElement? meta = null)
+        => new()
+        {
+            Action = McpServerElicitationAction.Accept,
+            Content = content,
+            Meta = meta
+        };
+
+    public static McpServerElicitationRequestResponse CreateDeclinedMcpElicitationResponse()
+        => new()
+        {
+            Action = McpServerElicitationAction.Decline
+        };
+
+    public static McpServerElicitationRequestResponse CreateCanceledMcpElicitationResponse()
+        => new()
+        {
+            Action = McpServerElicitationAction.Cancel
+        };
+
+    public static JsonElement SerializeMcpElicitationSchema(McpElicitationSchema? schema)
+        => schema is null
+            ? CreateNullElement()
+            : JsonSerializer.SerializeToElement(schema, CodexJsonSerializerContext.Default.McpElicitationSchema);
+
+    public static bool IsMcpToolApprovalElicitation(McpServerElicitationRequestParams.Form parameters)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        return TryGetMetaString(parameters.Meta, "codex_approval_kind") == "mcp_tool_call" &&
+            IsNullOrEmptyObjectSchema(SerializeMcpElicitationSchema(parameters.RequestedSchema));
+    }
+
+    public static bool SupportsSessionPersistence(McpServerElicitationRequestParams.Form parameters)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+
+        return MetaContainsValue(parameters.Meta, "persist", "session");
+    }
+
+    public static JsonElement CreateMcpSessionPersistenceMeta()
+        => CreateObjectElement(writer => writer.WriteString("persist", "session"));
+
+    public static JsonElement CreateEmptyObjectElement()
+        => CreateObjectElement(static _ => { });
 
     public static DynamicToolCallResponse ToDynamicToolCallResponse(AgentToolResult result)
     {
@@ -1434,9 +1578,24 @@ internal static class CodexAgentMapper
             ServerRequest.ItemCommandExecutionRequestApprovalRequest value => value.Params.ThreadId,
             ServerRequest.ItemFileChangeRequestApprovalRequest value => value.Params.ThreadId,
             ServerRequest.ItemToolRequestUserInputRequest value => value.Params.ThreadId,
+            ServerRequest.McpServerElicitationRequestRequest value => value.Params.ThreadId,
+            ServerRequest.ItemPermissionsRequestApprovalRequest value => value.Params.ThreadId,
             ServerRequest.ItemToolCallRequest value => value.Params.ThreadId,
             _ => null
         };
+
+        return threadId is not null;
+    }
+
+    public static bool TryGetThreadId(CodexUnknownServerRequest request, out string? threadId)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        threadId = request.Params.ValueKind == JsonValueKind.Object &&
+                   request.Params.TryGetProperty("threadId", out var threadIdProp) &&
+                   threadIdProp.ValueKind == JsonValueKind.String
+            ? threadIdProp.GetString()
+            : null;
 
         return threadId is not null;
     }
@@ -1483,6 +1642,23 @@ internal static class CodexAgentMapper
             data.ItemId,
             data.GrantRoot,
             data.Reason);
+    }
+
+    public static AgentPermissionRequest ToPermissionRequest(
+        string sessionId,
+        PermissionsRequestApprovalParams data)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+        ArgumentNullException.ThrowIfNull(data);
+
+        return new AgentGenericPermissionRequest(
+            AgentBackendIds.Codex,
+            sessionId,
+            DateTimeOffset.UtcNow,
+            new AgentRunId(data.TurnId),
+            data.ItemId,
+            Kind: "permissionsRequestApproval",
+            JsonSerializer.SerializeToElement(data, CodexJsonSerializerContext.Default.PermissionsRequestApprovalParams));
     }
 
     public static AgentRunId? TryGetTurnId(CodexNotification notification)
@@ -1680,6 +1856,259 @@ internal static class CodexAgentMapper
 
             writer.WriteEndArray();
         });
+    }
+
+    private static ISet<string>? GetRequiredProperties(JsonElement schema)
+    {
+        if (!schema.TryGetProperty("required", out var requiredProperty) ||
+            requiredProperty.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        return requiredProperty
+            .EnumerateArray()
+            .Where(static entry => entry.ValueKind == JsonValueKind.String)
+            .Select(static entry => entry.GetString()!)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static AgentUserInputPrompt? ToUserInputPrompt(
+        string propertyName,
+        JsonElement schema,
+        string message,
+        ISet<string>? required)
+    {
+        var type = TryGetStringProperty(schema, "type");
+        var header = schema.TryGetProperty("title", out var titleProperty) && titleProperty.ValueKind == JsonValueKind.String
+            ? titleProperty.GetString()
+            : null;
+        var description = schema.TryGetProperty("description", out var descriptionProperty) && descriptionProperty.ValueKind == JsonValueKind.String
+            ? descriptionProperty.GetString()
+            : null;
+
+        var question = description ?? header ?? propertyName;
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            question = $"{message}{Environment.NewLine}{question}";
+        }
+
+        return type switch
+        {
+            "boolean" => new AgentUserInputPrompt(
+                propertyName,
+                question,
+                Header: header,
+                Options:
+                [
+                    new AgentUserInputOption("true"),
+                    new AgentUserInputOption("false"),
+                ],
+                AllowFreeform: false),
+            "string" => new AgentUserInputPrompt(
+                propertyName,
+                question,
+                Header: header,
+                Options: GetStringOptions(schema),
+                AllowFreeform: GetStringOptions(schema) is null,
+                IsSecret: false),
+            "integer" or "number" => new AgentUserInputPrompt(
+                propertyName,
+                required is not null && required.Contains(propertyName)
+                    ? $"{question}{Environment.NewLine}A value is required."
+                    : question,
+                Header: header,
+                AllowFreeform: true),
+            "array" => new AgentUserInputPrompt(
+                propertyName,
+                $"{question}{Environment.NewLine}Provide a comma-separated list.",
+                Header: header,
+                Options: GetMultiSelectOptions(schema),
+                AllowFreeform: true),
+            _ => null,
+        };
+    }
+
+    private static IReadOnlyList<AgentUserInputOption>? GetStringOptions(JsonElement schema)
+    {
+        if (schema.TryGetProperty("oneOf", out var oneOf) &&
+            oneOf.ValueKind == JsonValueKind.Array)
+        {
+            var options = new List<AgentUserInputOption>();
+            foreach (var entry in oneOf.EnumerateArray())
+            {
+                var label = entry.TryGetProperty("title", out var titleProperty) && titleProperty.ValueKind == JsonValueKind.String
+                    ? titleProperty.GetString()
+                    : null;
+                var value = entry.TryGetProperty("const", out var valueProperty) && valueProperty.ValueKind == JsonValueKind.String
+                    ? valueProperty.GetString()
+                    : null;
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                options.Add(new AgentUserInputOption(value!, label));
+            }
+
+            return options.Count == 0 ? null : options;
+        }
+
+        if (!schema.TryGetProperty("enum", out var enumValues) ||
+            enumValues.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var enumOptions = enumValues
+            .EnumerateArray()
+            .Where(static entry => entry.ValueKind == JsonValueKind.String)
+            .Select(static entry => new AgentUserInputOption(entry.GetString()!))
+            .ToArray();
+        return enumOptions.Length == 0 ? null : enumOptions;
+    }
+
+    private static IReadOnlyList<AgentUserInputOption>? GetMultiSelectOptions(JsonElement schema)
+    {
+        if (!schema.TryGetProperty("items", out var items) ||
+            items.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (items.TryGetProperty("oneOf", out var oneOf) &&
+            oneOf.ValueKind == JsonValueKind.Array)
+        {
+            var options = new List<AgentUserInputOption>();
+            foreach (var entry in oneOf.EnumerateArray())
+            {
+                var label = entry.TryGetProperty("title", out var titleProperty) && titleProperty.ValueKind == JsonValueKind.String
+                    ? titleProperty.GetString()
+                    : null;
+                var value = entry.TryGetProperty("const", out var valueProperty) && valueProperty.ValueKind == JsonValueKind.String
+                    ? valueProperty.GetString()
+                    : null;
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                options.Add(new AgentUserInputOption(value!, label));
+            }
+
+            return options.Count == 0 ? null : options;
+        }
+
+        if (!items.TryGetProperty("enum", out var enumValues) ||
+            enumValues.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var enumOptions = enumValues
+            .EnumerateArray()
+            .Where(static entry => entry.ValueKind == JsonValueKind.String)
+            .Select(static entry => new AgentUserInputOption(entry.GetString()!))
+            .ToArray();
+        return enumOptions.Length == 0 ? null : enumOptions;
+    }
+
+    private static JsonElement ConvertUserInputValue(string propertyName, string value, JsonElement schema)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
+
+        return TryGetStringProperty(schema, "type") switch
+        {
+            "boolean" => CreateBoolElement(ParseBoolean(value, propertyName)),
+            "integer" => CreateInt64Element(ParseInt64(value, propertyName)),
+            "number" => CreateNumberElement(ParseDouble(value, propertyName)),
+            "array" => CreateStringArrayElement(
+                value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)),
+            _ => CreateStringElement(value),
+        };
+    }
+
+    private static bool ParseBoolean(string value, string propertyName)
+    {
+        if (bool.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "yes" or "y" or "1" => true,
+            "no" or "n" or "0" => false,
+            _ => throw new InvalidOperationException(
+                $"The elicitation response for '{propertyName}' must be a boolean value."),
+        };
+    }
+
+    private static long ParseInt64(string value, string propertyName)
+    {
+        if (long.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new InvalidOperationException(
+            $"The elicitation response for '{propertyName}' must be an integer value.");
+    }
+
+    private static double ParseDouble(string value, string propertyName)
+    {
+        if (double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new InvalidOperationException(
+            $"The elicitation response for '{propertyName}' must be a numeric value.");
+    }
+
+    private static bool IsNullOrEmptyObjectSchema(JsonElement schema)
+    {
+        if (schema.ValueKind == JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        return schema.ValueKind == JsonValueKind.Object &&
+            string.Equals(TryGetStringProperty(schema, "type"), "object", StringComparison.Ordinal) &&
+            schema.TryGetProperty("properties", out var propertiesProperty) &&
+            propertiesProperty.ValueKind == JsonValueKind.Object &&
+            !propertiesProperty.EnumerateObject().Any();
+    }
+
+    private static string? TryGetMetaString(JsonElement? meta, string propertyName)
+    {
+        if (meta is not { ValueKind: JsonValueKind.Object } metaValue ||
+            !metaValue.TryGetProperty(propertyName, out var property) ||
+            property.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        return property.GetString();
+    }
+
+    private static bool MetaContainsValue(JsonElement? meta, string propertyName, string expectedValue)
+    {
+        if (meta is not { ValueKind: JsonValueKind.Object } metaValue ||
+            !metaValue.TryGetProperty(propertyName, out var property))
+        {
+            return false;
+        }
+
+        return property.ValueKind switch
+        {
+            JsonValueKind.String => string.Equals(property.GetString(), expectedValue, StringComparison.Ordinal),
+            JsonValueKind.Array => property
+                .EnumerateArray()
+                .Any(value => value.ValueKind == JsonValueKind.String &&
+                              string.Equals(value.GetString(), expectedValue, StringComparison.Ordinal)),
+            _ => false
+        };
     }
 
     private static JsonElement CreateMcpToolCallDetails(ThreadItem.McpToolCallThreadItem item)
@@ -2138,6 +2567,28 @@ internal static class CodexAgentMapper
             : null;
     }
 
+    private static GrantedPermissionProfile ToGrantedPermissionProfile(RequestPermissionProfile requestedPermissions)
+    {
+        ArgumentNullException.ThrowIfNull(requestedPermissions);
+
+        return new GrantedPermissionProfile
+        {
+            FileSystem = requestedPermissions.FileSystem is null
+                ? null
+                : new AdditionalFileSystemPermissions
+                {
+                    Read = requestedPermissions.FileSystem.Read is null ? null : [.. requestedPermissions.FileSystem.Read],
+                    Write = requestedPermissions.FileSystem.Write is null ? null : [.. requestedPermissions.FileSystem.Write]
+                },
+            Network = requestedPermissions.Network is null
+                ? null
+                : new AdditionalNetworkPermissions
+                {
+                    Enabled = requestedPermissions.Network.Enabled
+                }
+        };
+    }
+
     private static JsonElement CreateObjectElement(Action<Utf8JsonWriter> writeProperties)
     {
         ArgumentNullException.ThrowIfNull(writeProperties);
@@ -2462,12 +2913,36 @@ internal static class CodexAgentMapper
         return document.RootElement.Clone();
     }
 
+    private static JsonElement CreateNullElement()
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteNullValue();
+        }
+
+        using var document = JsonDocument.Parse(stream.ToArray());
+        return document.RootElement.Clone();
+    }
+
     private static JsonElement CreateBoolElement(bool value)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
             writer.WriteBooleanValue(value);
+        }
+
+        using var document = JsonDocument.Parse(stream.ToArray());
+        return document.RootElement.Clone();
+    }
+
+    private static JsonElement CreateInt64Element(long value)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteNumberValue(value);
         }
 
         using var document = JsonDocument.Parse(stream.ToArray());

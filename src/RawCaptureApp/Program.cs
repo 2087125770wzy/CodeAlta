@@ -328,10 +328,51 @@ static async Task RespondToServerRequestAsync(
             writer.WriteMarker($"CODEX after RespondToRequestAsync {request.GetType().Name}");
             break;
 
+        case ServerRequest.ItemPermissionsRequestApprovalRequest permissionsApproval:
+            writer.WriteMarker($"CODEX before RespondToRequestAsync {request.GetType().Name}");
+            var permissionsResponse = new PermissionsRequestApprovalResponse {
+                Permissions = new GrantedPermissionProfile {
+                    FileSystem = permissionsApproval.Params.Permissions.FileSystem,
+                    Network = permissionsApproval.Params.Permissions.Network
+                },
+                Scope = PermissionGrantScope.Turn
+            };
+            await client.RespondToRequestAsync(permissionsApproval.Id, permissionsResponse, cancellationToken).ConfigureAwait(false);
+            writer.WriteMarker($"CODEX after RespondToRequestAsync {request.GetType().Name}");
+            break;
+
+        case ServerRequest.McpServerElicitationRequestRequest elicitationRequest:
+            writer.WriteMarker($"CODEX before RespondToRequestAsync {request.GetType().Name}");
+            await client.RespondToRequestAsync(
+                elicitationRequest.Id,
+                CreateMcpElicitationResponse(elicitationRequest.Params),
+                cancellationToken).ConfigureAwait(false);
+            writer.WriteMarker($"CODEX after RespondToRequestAsync {request.GetType().Name}");
+            break;
+
         default:
+            writer.WriteMarker($"CODEX before RespondToRequestErrorAsync {request.GetType().Name}");
+            await client.RespondToRequestErrorAsync(
+                GetRequestId(request),
+                code: -32601,
+                message: $"Unsupported server request {request.GetType().Name}",
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            writer.WriteMarker($"CODEX after RespondToRequestErrorAsync {request.GetType().Name}");
             break;
     }
 }
+
+static RequestId GetRequestId(ServerRequest request) =>
+    request switch {
+        ServerRequest.ItemCommandExecutionRequestApprovalRequest value => value.Id,
+        ServerRequest.ItemFileChangeRequestApprovalRequest value => value.Id,
+        ServerRequest.ItemToolRequestUserInputRequest value => value.Id,
+        ServerRequest.McpServerElicitationRequestRequest value => value.Id,
+        ServerRequest.ItemPermissionsRequestApprovalRequest value => value.Id,
+        ServerRequest.ItemToolCallRequest value => value.Id,
+        ServerRequest.AccountChatgptAuthTokensRefreshRequest value => value.Id,
+        _ => throw new ArgumentOutOfRangeException(nameof(request), request, "Unsupported server request type.")
+    };
 
 static ToolRequestUserInputResponse CreateEmptyUserInputResponse(ToolRequestUserInputParams parameters) {
     var answers = parameters.Questions.ToDictionary(
@@ -345,6 +386,44 @@ static ToolRequestUserInputResponse CreateEmptyUserInputResponse(ToolRequestUser
         Answers = answers
     };
 }
+
+static McpServerElicitationRequestResponse CreateMcpElicitationResponse(McpServerElicitationRequestParams parameters) =>
+    parameters switch {
+        McpServerElicitationRequestParams.Form form when IsMcpApprovalRequest(form) => new McpServerElicitationRequestResponse {
+            Action = McpServerElicitationAction.Accept,
+            Meta = SupportsSessionPersistence(form)
+                ? JsonSerializer.SerializeToElement(new Dictionary<string, string>(StringComparer.Ordinal) { ["persist"] = "session" })
+                : null
+        },
+        McpServerElicitationRequestParams.Form form when IsEmptyObjectSchema(form.RequestedSchema) => new McpServerElicitationRequestResponse {
+            Action = McpServerElicitationAction.Accept,
+            Content = JsonSerializer.SerializeToElement(new Dictionary<string, JsonElement>(StringComparer.Ordinal))
+        },
+        McpServerElicitationRequestParams.Url => new McpServerElicitationRequestResponse {
+            Action = McpServerElicitationAction.Accept
+        },
+        _ => new McpServerElicitationRequestResponse {
+            Action = McpServerElicitationAction.Decline
+        }
+    };
+
+static bool IsMcpApprovalRequest(McpServerElicitationRequestParams.Form form) =>
+    form.Meta is { ValueKind: JsonValueKind.Object } meta &&
+    meta.TryGetProperty("codex_approval_kind", out var kind) &&
+    kind.ValueKind == JsonValueKind.String &&
+    string.Equals(kind.GetString(), "mcp_tool_call", StringComparison.Ordinal) &&
+    IsEmptyObjectSchema(form.RequestedSchema);
+
+static bool SupportsSessionPersistence(McpServerElicitationRequestParams.Form form) =>
+    form.Meta is { ValueKind: JsonValueKind.Object } meta &&
+    meta.TryGetProperty("persist", out var persist) &&
+    (persist.ValueKind == JsonValueKind.String && string.Equals(persist.GetString(), "session", StringComparison.Ordinal) ||
+     persist.ValueKind == JsonValueKind.Array && persist.EnumerateArray().Any(static value => value.ValueKind == JsonValueKind.String && string.Equals(value.GetString(), "session", StringComparison.Ordinal)));
+
+static bool IsEmptyObjectSchema(McpElicitationSchema? schema) =>
+    schema is not null &&
+    schema.Type == McpElicitationObjectType.Object &&
+    schema.Properties.Count == 0;
 
 static async Task WaitForCompletionAsync(Task task, string backendName, CancellationToken cancellationToken) {
     await WaitForCompletionCoreAsync(task, backendName, cancellationToken).ConfigureAwait(false);

@@ -165,6 +165,7 @@ public static class SchemaWalker
         yield return (Path.Combine(schemaDir, "ServerRequest.json"), true);
         yield return (Path.Combine(schemaDir, "CommandExecutionRequestApprovalResponse.json"), false);
         yield return (Path.Combine(schemaDir, "FileChangeRequestApprovalResponse.json"), false);
+        yield return (Path.Combine(schemaDir, "PermissionsRequestApprovalResponse.json"), false);
         yield return (Path.Combine(schemaDir, "ToolRequestUserInputResponse.json"), false);
         yield return (Path.Combine(schemaDir, "DynamicToolCallResponse.json"), false);
         yield return (Path.Combine(schemaDir, "ChatgptAuthTokensRefreshResponse.json"), false);

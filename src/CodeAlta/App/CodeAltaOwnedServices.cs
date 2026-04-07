@@ -8,6 +8,7 @@ using CodeAlta.Agent.OpenAI;
 using CodeAlta.Acp;
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Roles;
+using CodeAlta.CodexSdk;
 using CodeAlta.Orchestration.Runtime;
 using CodeAlta.Persistence;
 using CodeAlta.Search;
@@ -23,6 +24,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
     private readonly CodeAltaConfigStore _configStore;
     private readonly AcpInstalledBackendStore _installedBackendStore;
     private readonly List<AgentBackendDescriptor> _backendDescriptors;
+    private readonly CodexInstallProgressReporter _codexInstallProgress;
 
     private CodeAltaOwnedServices(
         bool ownsLogging,
@@ -30,6 +32,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         AgentBackendFactory backendFactory,
         CodeAltaConfigStore configStore,
         AcpInstalledBackendStore installedBackendStore,
+        CodexInstallProgressReporter codexInstallProgress,
         CatalogOptions catalogOptions,
         List<AgentBackendDescriptor> backendDescriptors,
         AcpAgentRegistryService acpAgentRegistryService,
@@ -44,6 +47,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         _backendFactory = backendFactory;
         _configStore = configStore;
         _installedBackendStore = installedBackendStore;
+        _codexInstallProgress = codexInstallProgress;
         _backendDescriptors = backendDescriptors;
         CatalogOptions = catalogOptions;
         AcpAgentRegistryService = acpAgentRegistryService;
@@ -57,6 +61,8 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
     public CatalogOptions CatalogOptions { get; }
 
     public IReadOnlyList<AgentBackendDescriptor> BackendDescriptors => _backendDescriptors;
+
+    public CodexInstallProgressReporter CodexInstallProgress => _codexInstallProgress;
 
     public AcpAgentRegistryService AcpAgentRegistryService { get; }
 
@@ -78,13 +84,15 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         Directory.CreateDirectory(homeRoot);
         var ownsLogging = CodeAltaLogging.Initialize(homeRoot);
 
-        var machineRoot = Path.Combine(homeRoot, "machine");
-        Directory.CreateDirectory(machineRoot);
+        var localRoot = Path.Combine(homeRoot, "local");
+        MigrateLegacyMachineRoot(homeRoot, localRoot);
+        Directory.CreateDirectory(localRoot);
+        var codexInstallProgress = new CodexInstallProgressReporter();
 
         var db = new CodeAltaDb(
             new CodeAltaDbOptions
             {
-                DatabasePath = Path.Combine(machineRoot, "codealta.db"),
+                DatabasePath = Path.Combine(localRoot, "codealta.db"),
             });
         await db.InitializeAsync(cancellationToken).ConfigureAwait(false);
 
@@ -104,14 +112,23 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         var acpAgentRegistryService = new AcpAgentRegistryService(catalogOptions, installedBackendStore);
 
         var backendFactory = new AgentBackendFactory();
-        backendFactory.RegisterCodex(new CodexAgentBackendOptions());
+        backendFactory.RegisterCodex(
+            new CodexAgentBackendOptions
+            {
+                ProcessOptions = new CodexProcessOptions
+                {
+                    LocalRootPath = localRoot,
+                    ReleaseTag = CodexClient.CompiledAgainstReleaseTag,
+                    Progress = codexInstallProgress,
+                },
+            });
         backendFactory.RegisterCopilot(new CopilotAgentBackendOptions());
         var backendDescriptors = new List<AgentBackendDescriptor>(CreateBuiltInBackendDescriptors());
         backendDescriptors.AddRange(
             RawApiBackendRegistrar.RegisterConfiguredBackends(
                 backendFactory,
                 configStore,
-                Path.Combine(machineRoot, "agents")));
+                Path.Combine(localRoot, "agents")));
         foreach (var definition in configStore.LoadEffectiveAcpBackendDefinitions(installedBackendStore.Load()))
         {
             if (TryCreateAcpBackendOptions(catalogOptions, definition, out var acpOptions))
@@ -141,6 +158,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
             backendFactory,
             configStore,
             installedBackendStore,
+            codexInstallProgress,
             catalogOptions,
             backendDescriptors,
             acpAgentRegistryService,
@@ -149,6 +167,20 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
             agentHub,
             runtimeService,
             projectFileSearchService);
+    }
+
+    private static void MigrateLegacyMachineRoot(string homeRoot, string localRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(homeRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(localRoot);
+
+        var legacyRoot = Path.Combine(homeRoot, "machine");
+        if (!Directory.Exists(legacyRoot) || Directory.Exists(localRoot))
+        {
+            return;
+        }
+
+        Directory.Move(legacyRoot, localRoot);
     }
 
     public async ValueTask DisposeAsync()

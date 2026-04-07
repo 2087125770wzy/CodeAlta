@@ -7,7 +7,7 @@ public sealed class LocalAgentBackendOptions
 {
     /// <summary>
     /// Gets or initializes the machine-scoped agents root path.
-    /// Defaults to <c>~/.codealta/machine/agents</c>.
+    /// Defaults to <c>~/.codealta/local/agents</c>.
     /// </summary>
     public string? StateRootPath { get; init; }
 

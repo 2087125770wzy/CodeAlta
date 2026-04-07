@@ -67,8 +67,8 @@ public sealed partial class CodexClient : IAsyncDisposable
     /// Optional list of exact notification method names to suppress for this connection.
     /// </param>
     /// <param name="processOptions">
-    /// Options controlling how the codex executable is located and started.
-    /// When <see langword="null"/>, defaults are used (PATH lookup with fnm fallback).
+    /// Options controlling how the pinned codex executable is located, installed, and started.
+    /// When <see langword="null"/>, defaults are used and the SDK-matched release tag is auto-installed locally.
     /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>An initialized <see cref="CodexClient"/> instance.</returns>
@@ -85,7 +85,7 @@ public sealed partial class CodexClient : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(clientInfo);
 
         var logger = LogManager.GetLogger(LoggerName);
-        var process = CodexProcess.Start(processOptions, cancellationToken, logger);
+        var process = await CodexProcess.StartAsync(processOptions, cancellationToken, logger).ConfigureAwait(false);
         var jsonOptions = CreateJsonSerializerOptions();
         var transport = new JsonRpcTransport(process.StandardOutput, process.StandardInput, jsonOptions, logger);
 
@@ -216,6 +216,34 @@ public sealed partial class CodexClient : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(requestId);
         ObjectDisposedException.ThrowIf(_disposed, this);
         await _transport.SendResponseAsync(requestId, result, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Responds to a server-initiated request with a JSON-RPC error.
+    /// </summary>
+    /// <param name="requestId">The JSON-RPC request id from the received request.</param>
+    /// <param name="code">The JSON-RPC error code.</param>
+    /// <param name="message">The JSON-RPC error message.</param>
+    /// <param name="data">Optional structured error payload.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="requestId"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="message"/> is null, empty, or whitespace.
+    /// </exception>
+    /// <exception cref="ObjectDisposedException">Thrown when the client has been disposed.</exception>
+    public async Task RespondToRequestErrorAsync(
+        RequestId requestId,
+        int code,
+        string message,
+        JsonElement? data = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(requestId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await _transport.SendErrorResponseAsync(requestId, code, message, data, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1321,6 +1349,7 @@ public sealed partial class CodexClient : IAsyncDisposable
     {
         return new JsonSerializerOptions
         {
+            AllowOutOfOrderMetadataProperties = true,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             TypeInfoResolver = CodexJsonSerializerContext.Default

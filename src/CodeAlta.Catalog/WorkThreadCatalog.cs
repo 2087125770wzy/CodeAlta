@@ -1,7 +1,7 @@
 namespace CodeAlta.Catalog;
 
 /// <summary>
-/// Stores machine-local thread UI state and optional host-owned internal thread linkage metadata.
+/// Stores local thread UI state and optional host-owned internal thread linkage metadata.
 /// </summary>
 public sealed class WorkThreadCatalog
 {
@@ -80,7 +80,7 @@ public sealed class WorkThreadCatalog
     }
 
     /// <summary>
-    /// Loads the machine-local thread view state.
+    /// Loads the local thread view state.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The view state, or an empty one when the file is missing.</returns>
@@ -99,7 +99,7 @@ public sealed class WorkThreadCatalog
     }
 
     /// <summary>
-    /// Saves the machine-local thread view state.
+    /// Saves the local thread view state.
     /// </summary>
     /// <param name="viewState">The view state to save.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -116,7 +116,7 @@ public sealed class WorkThreadCatalog
 
     private string GetViewStatePath()
     {
-        return Path.Combine(_options.MachineRoot, "ui-state.yaml");
+        return Path.Combine(_options.LocalRoot, "ui-state.yaml");
     }
 
     private static string GetInternalDirectoryName(string threadId)

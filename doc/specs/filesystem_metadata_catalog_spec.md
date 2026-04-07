@@ -113,7 +113,7 @@ Rules:
 Recommended initial `.gitignore`:
 
 ```gitignore
-/machine/
+/local/
 ```
 
 ## 4. Runtime root behavior
@@ -477,7 +477,7 @@ Adopt the following model:
 
 - durable metadata is filesystem-first
 - `~/.codealta/` is the portable git-backed root
-- `~/.codealta/machine/` is reserved for machine-local state
+- `~/.codealta/local/` is reserved for machine-local state
 - projects are first-class catalog entities
 - project/global threads are backend-owned and should be recovered from backend history
 - CodeAlta-owned thread records should be limited to genuinely host-owned linkage metadata

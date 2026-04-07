@@ -120,7 +120,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             ownedServices.AgentHub,
             ownedServices.ProjectFileSearchService,
             new KnownProjectImporter(ownedServices.AgentHub, ownedServices.BackendDescriptors, ownedServices.ProjectCatalog),
-            ownedServices);
+            ownedServices,
+            ownedServices.CodexInstallProgress);
     }
 
     private CodeAltaApp(
@@ -132,7 +133,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         AgentHub agentHub,
         IProjectFileSearchService projectFileSearchService,
         KnownProjectImporter? knownProjectImporter,
-        CodeAltaOwnedServices? ownedServices)
+        CodeAltaOwnedServices? ownedServices,
+        CodexInstallProgressReporter? codexInstallProgress = null)
     {
         ArgumentNullException.ThrowIfNull(projectCatalog);
         ArgumentNullException.ThrowIfNull(threadCatalog);
@@ -212,7 +214,8 @@ internal sealed class CodeAltaApp : IAsyncDisposable
                 PersistViewStateAsync = PersistViewStateAsync,
                 RegisterCreatedThreadAsync = RegisterCreatedThreadAsync,
                 GetPromptFocusTarget = () => ThreadInput,
-            });
+            },
+            codexInstallProgress);
         _backendPreferences = composition.BackendPreferences;
         _shellController = composition.ShellController;
         _runtimeEventPump = composition.RuntimeEventPump;

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using System.Text.Json;
 using CodeAlta.CodexSdk;
 
 namespace CodeAlta.Agent.Codex;
@@ -434,6 +435,175 @@ public sealed class CodexAgentSession : ICodexAgentSession
                         $"User input resolved ({responsePayload.Answers.Count} answer(s))."));
                 break;
             }
+            case ServerRequest.McpServerElicitationRequestRequest elicitationRequest:
+            {
+                switch (elicitationRequest.Params)
+                {
+                    case McpServerElicitationRequestParams.Form form when CodexAgentMapper.IsMcpToolApprovalElicitation(form):
+                    {
+                        var response = CodexAgentMapper.CreateAcceptedMcpElicitationResponse(
+                            meta: CodexAgentMapper.SupportsSessionPersistence(form)
+                                ? CodexAgentMapper.CreateMcpSessionPersistenceMeta()
+                                : null);
+                        await _backend.Client.RespondToRequestAsync(
+                                elicitationRequest.Id,
+                                response,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        Publish(
+                            new AgentInteractionEvent(
+                                AgentBackendIds.Codex,
+                                ThreadId,
+                                DateTimeOffset.UtcNow,
+                                form.TurnId is null ? null : new AgentRunId(form.TurnId),
+                                AgentInteractionKind.UserInputResolved,
+                                $"mcp-elicitation:{FormatRequestId(elicitationRequest.Id)}",
+                                "MCP tool approval auto-accepted."));
+                        break;
+                    }
+                    case McpServerElicitationRequestParams.Url url:
+                    {
+                        await _backend.Client.RespondToRequestAsync(
+                                elicitationRequest.Id,
+                                CodexAgentMapper.CreateAcceptedMcpElicitationResponse(),
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        Publish(
+                            new AgentInteractionEvent(
+                                AgentBackendIds.Codex,
+                                ThreadId,
+                                DateTimeOffset.UtcNow,
+                                url.TurnId is null ? null : new AgentRunId(url.TurnId),
+                                AgentInteractionKind.UserInputResolved,
+                                $"mcp-elicitation:{FormatRequestId(elicitationRequest.Id)}",
+                                "MCP URL elicitation auto-accepted."));
+                        break;
+                    }
+                    case McpServerElicitationRequestParams.Form form:
+                    {
+                        var schema = CodexAgentMapper.SerializeMcpElicitationSchema(form.RequestedSchema);
+                        if (IsEmptyFormSchema(schema))
+                        {
+                            await _backend.Client.RespondToRequestAsync(
+                                    elicitationRequest.Id,
+                                    CodexAgentMapper.CreateAcceptedMcpElicitationResponse(CodexAgentMapper.CreateEmptyObjectElement()),
+                                    cancellationToken)
+                                .ConfigureAwait(false);
+                            Publish(
+                                new AgentInteractionEvent(
+                                    AgentBackendIds.Codex,
+                                    ThreadId,
+                                    DateTimeOffset.UtcNow,
+                                    form.TurnId is null ? null : new AgentRunId(form.TurnId),
+                                    AgentInteractionKind.UserInputResolved,
+                                    $"mcp-elicitation:{FormatRequestId(elicitationRequest.Id)}",
+                                    "MCP elicitation resolved without additional input."));
+                            break;
+                        }
+
+                        var handler = GetUserInputHandler();
+                        if (handler is null)
+                        {
+                            await _backend.Client.RespondToRequestAsync(
+                                    elicitationRequest.Id,
+                                    CodexAgentMapper.CreateDeclinedMcpElicitationResponse(),
+                                    cancellationToken)
+                                .ConfigureAwait(false);
+                            PublishHandlerError("MCP elicitation", new InvalidOperationException("No AgentUserInputRequestHandler is configured for this session."));
+                            break;
+                        }
+
+                        var mappedRequest = CodexAgentMapper.ToAgentUserInputRequest(
+                            ThreadId,
+                            $"mcp-elicitation:{FormatRequestId(elicitationRequest.Id)}",
+                            string.IsNullOrWhiteSpace(form.Message) ? "Provide the requested MCP input." : form.Message,
+                            schema,
+                            form.TurnId);
+                        Publish(mappedRequest);
+
+                        AgentUserInputResponse responsePayload;
+                        McpServerElicitationRequestResponse mappedResponse;
+                        try
+                        {
+                            responsePayload = await handler.Invoke(mappedRequest, cancellationToken).ConfigureAwait(false);
+                            mappedResponse = CodexAgentMapper.ToAcceptedMcpElicitationResponse(schema, responsePayload);
+                        }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                        {
+                            await _backend.Client.RespondToRequestAsync(
+                                    elicitationRequest.Id,
+                                    CodexAgentMapper.CreateCanceledMcpElicitationResponse(),
+                                    cancellationToken)
+                                .ConfigureAwait(false);
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            PublishHandlerError("MCP elicitation", ex);
+                            await _backend.Client.RespondToRequestAsync(
+                                    elicitationRequest.Id,
+                                    CodexAgentMapper.CreateDeclinedMcpElicitationResponse(),
+                                    cancellationToken)
+                                .ConfigureAwait(false);
+                            break;
+                        }
+
+                        await _backend.Client.RespondToRequestAsync(
+                                elicitationRequest.Id,
+                                mappedResponse,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+                        Publish(
+                            new AgentInteractionEvent(
+                                AgentBackendIds.Codex,
+                                ThreadId,
+                                DateTimeOffset.UtcNow,
+                                mappedRequest.RunId,
+                                AgentInteractionKind.UserInputResolved,
+                                mappedRequest.InteractionId,
+                                $"User input resolved ({responsePayload.Answers.Count} answer(s))."));
+                        break;
+                    }
+                }
+
+                break;
+            }
+            case ServerRequest.ItemPermissionsRequestApprovalRequest permissionsApproval:
+            {
+                var permissionRequest = CodexAgentMapper.ToPermissionRequest(
+                    ThreadId,
+                    permissionsApproval.Params);
+                Publish(permissionRequest);
+
+                PermissionsRequestApprovalResponse response;
+                AgentPermissionDecision decision;
+                try
+                {
+                    decision = await GetPermissionHandler()
+                        .Invoke(permissionRequest, cancellationToken)
+                        .ConfigureAwait(false);
+
+                    response = CodexAgentMapper.ToPermissionsApprovalResponse(decision, permissionsApproval.Params);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    PublishHandlerError("permissions approval", ex);
+                    decision = new AgentPermissionDecision(AgentPermissionDecisionKind.Deny);
+                    response = CodexAgentMapper.ToPermissionsApprovalResponse(decision, permissionsApproval.Params);
+                }
+
+                await _backend.Client.RespondToRequestAsync(
+                        permissionsApproval.Id,
+                        response,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                PublishPermissionResolved(permissionRequest, decision);
+                break;
+            }
             case ServerRequest.ItemToolCallRequest toolCall:
             {
                 var runId = new AgentRunId(toolCall.Params.TurnId);
@@ -490,6 +660,18 @@ public sealed class CodexAgentSession : ICodexAgentSession
                         toolCall.Params.TurnId,
                         toolCall.Params.Tool,
                         success ? "Dynamic tool call resolved." : "Dynamic tool call failed."));
+                break;
+            }
+            default:
+            {
+                var message = $"Unhandled Codex server request '{request.GetType().Name}'.";
+                Publish(new AgentErrorEvent(AgentBackendIds.Codex, ThreadId, DateTimeOffset.UtcNow, message));
+                await _backend.Client.RespondToRequestErrorAsync(
+                        GetRequestId(request),
+                        code: -32601,
+                        message: message,
+                        cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
                 break;
             }
         }
@@ -571,6 +753,36 @@ public sealed class CodexAgentSession : ICodexAgentSession
                 request.InteractionId,
                 $"Permission resolved: {decision.Kind}."));
     }
+
+    private static RequestId GetRequestId(ServerRequest request)
+        => request switch
+        {
+            ServerRequest.ItemCommandExecutionRequestApprovalRequest value => value.Id,
+            ServerRequest.ItemFileChangeRequestApprovalRequest value => value.Id,
+            ServerRequest.ItemToolRequestUserInputRequest value => value.Id,
+            ServerRequest.McpServerElicitationRequestRequest value => value.Id,
+            ServerRequest.ItemPermissionsRequestApprovalRequest value => value.Id,
+            ServerRequest.ItemToolCallRequest value => value.Id,
+            ServerRequest.AccountChatgptAuthTokensRefreshRequest value => value.Id,
+            _ => throw new ArgumentOutOfRangeException(nameof(request), request, "Unsupported server request type.")
+        };
+
+    private static string FormatRequestId(RequestId requestId)
+        => requestId switch
+        {
+            RequestId.StringValue value => value.Value,
+            RequestId.IntegerValue value => value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            _ => requestId.GetType().Name
+        };
+
+    private static bool IsEmptyFormSchema(JsonElement schema)
+        => schema.ValueKind == JsonValueKind.Object &&
+           schema.TryGetProperty("type", out var typeProperty) &&
+           typeProperty.ValueKind == JsonValueKind.String &&
+           string.Equals(typeProperty.GetString(), "object", StringComparison.Ordinal) &&
+           schema.TryGetProperty("properties", out var propertiesProperty) &&
+           propertiesProperty.ValueKind == JsonValueKind.Object &&
+           !propertiesProperty.EnumerateObject().Any();
 
     private sealed class Unsubscriber(Action unsubscribe) : IDisposable
     {

@@ -277,6 +277,10 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
                     case ServerRequest request:
                         await DispatchServerRequestAsync(request, cancellationToken).ConfigureAwait(false);
                         break;
+
+                    case CodexUnknownServerRequest unknownRequest:
+                        await DispatchUnknownServerRequestAsync(unknownRequest, cancellationToken).ConfigureAwait(false);
+                        break;
                 }
             }
         }
@@ -330,12 +334,89 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
     private async Task DispatchServerRequestAsync(ServerRequest request, CancellationToken cancellationToken)
     {
         if (!CodexAgentMapper.TryGetThreadId(request, out var threadId) || threadId is null)
+        {
+            await RejectServerRequestAsync(
+                    TryGetRequestId(request),
+                    threadId: null,
+                    $"Unsupported or unroutable Codex server request '{request.GetType().Name}'.",
+                    cancellationToken)
+                .ConfigureAwait(false);
             return;
+        }
 
         if (!_sessions.TryGetValue(threadId, out var session))
+        {
+            await RejectServerRequestAsync(
+                    TryGetRequestId(request),
+                    threadId,
+                    $"Received Codex server request '{request.GetType().Name}' for unknown thread '{threadId}'.",
+                    cancellationToken)
+                .ConfigureAwait(false);
             return;
+        }
 
         await session.HandleServerRequestAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task DispatchUnknownServerRequestAsync(
+        CodexUnknownServerRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var threadId = CodexAgentMapper.TryGetThreadId(request, out var extractedThreadId)
+            ? extractedThreadId
+            : null;
+        await RejectServerRequestAsync(
+                request.RequestId,
+                threadId,
+                $"Unsupported Codex server request method '{request.Method}'.",
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task RejectServerRequestAsync(
+        RequestId requestId,
+        string? threadId,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (!string.IsNullOrWhiteSpace(threadId) && _sessions.TryGetValue(threadId, out var session))
+        {
+            session.Publish(new AgentErrorEvent(AgentBackendIds.Codex, threadId, now, message));
+        }
+        else
+        {
+            foreach (var activeSession in _sessions.Values)
+            {
+                activeSession.Publish(new AgentErrorEvent(AgentBackendIds.Codex, activeSession.SessionId, now, message));
+            }
+        }
+
+        await Client.RespondToRequestErrorAsync(
+                requestId,
+                code: -32601,
+                message,
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static RequestId TryGetRequestId(ServerRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return request switch
+        {
+            ServerRequest.ItemCommandExecutionRequestApprovalRequest value => value.Id,
+            ServerRequest.ItemFileChangeRequestApprovalRequest value => value.Id,
+            ServerRequest.ItemToolRequestUserInputRequest value => value.Id,
+            ServerRequest.McpServerElicitationRequestRequest value => value.Id,
+            ServerRequest.ItemPermissionsRequestApprovalRequest value => value.Id,
+            ServerRequest.ItemToolCallRequest value => value.Id,
+            ServerRequest.AccountChatgptAuthTokensRefreshRequest value => value.Id,
+            _ => throw new ArgumentOutOfRangeException(nameof(request), request, "Unsupported server request type.")
+        };
     }
 
     private async Task StopCoreAsync()

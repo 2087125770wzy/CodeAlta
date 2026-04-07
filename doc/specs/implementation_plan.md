@@ -138,7 +138,7 @@ Work:
   - global agents
   - project-local agents/skills
 - make `~/.codealta/` the clear global root
-- keep machine-only state under `~/.codealta/machine/`
+- keep machine-only state under `~/.codealta/local/`
 - define automatic project discovery from:
   - current working directory
   - previously known backend sessions

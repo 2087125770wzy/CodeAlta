@@ -24,7 +24,7 @@
     <ProjectReference Include="..\CodeAlta.Acp\CodeAlta.Acp.csproj" />
     <ProjectReference Include="..\CodeAlta.Acp.Generator\CodeAlta.Acp.Generator.csproj" />
     <ProjectReference Include="..\CodeAlta.CodexSdk\CodeAlta.CodexSdk.csproj" />
-    <ProjectReference Include="..\CodeAlta.CodexSdk.Generator\CodeAlta.CodexSdk.Generator.csproj" />
+    <ProjectReference Include="..\CodeAlta.CodexSdk.Generator\CodeAlta.CodexSdk.Generator.csproj" Aliases="CodexSdkGenerator" />
     <ProjectReference Include="..\RawCaptureApp\RawCaptureApp.csproj" />
   </ItemGroup>
 

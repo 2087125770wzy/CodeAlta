@@ -173,4 +173,25 @@ public class JsonRpcTransportTests
         Assert.IsTrue(written.Contains("\"method\":\"initialized\""), $"Expected method in: {written}");
         Assert.IsFalse(written.Contains("\"id\""), $"Notification should not have id: {written}");
     }
+
+    [TestMethod]
+    public async Task SendErrorResponse_WritesJsonRpcErrorEnvelope()
+    {
+        var serverOutput = new MemoryStream();
+        var clientInput = new MemoryStream();
+
+        await using var transport = new JsonRpcTransport(serverOutput, clientInput, CreateOptions());
+
+        await transport.SendErrorResponseAsync(
+            new RequestId.IntegerValue { Value = 77 },
+            code: -32601,
+            message: "Unsupported request");
+
+        clientInput.Position = 0;
+        var written = Encoding.UTF8.GetString(clientInput.ToArray());
+        Assert.IsTrue(written.Contains("\"id\":77"), $"Expected id in: {written}");
+        Assert.IsTrue(written.Contains("\"error\""), $"Expected error in: {written}");
+        Assert.IsTrue(written.Contains("\"code\":-32601"), $"Expected code in: {written}");
+        Assert.IsTrue(written.Contains("\"message\":\"Unsupported request\""), $"Expected message in: {written}");
+    }
 }

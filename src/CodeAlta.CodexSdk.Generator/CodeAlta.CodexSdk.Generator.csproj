@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <Compile Include="..\CodeAlta.CodexSdk\CodexProcessHelper.cs" Link="CodexProcessHelper.cs" />
+    <Compile Include="..\CodeAlta.CodexSdk\CodexProcessOptions.cs" Link="CodexProcessOptions.cs" />
+    <Compile Include="..\CodeAlta.CodexSdk\CodexReleaseInstaller.cs" Link="CodexReleaseInstaller.cs" />
   </ItemGroup>
 
 </Project>

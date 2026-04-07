@@ -26,17 +26,17 @@ Default: `~/.codealta/` (platform-specific HOME).
 Proposed subfolders:
 - `~/.codealta/`  
   Git-backed portable metadata catalog.
-- `~/.codealta/machine/`  
+- `~/.codealta/local/`  
   Machine-local state: SQLite database, caches, download models, logs. Not committed.
-- `~/.codealta/machine/codealta.db`  
+- `~/.codealta/local/codealta.db`  
   Main SQLite database.
-- `~/.codealta/machine/models/`  
+- `~/.codealta/local/models/`  
   Downloaded embedding models (GGUF).
-- `~/.codealta/machine/extensions/`  
+- `~/.codealta/local/extensions/`  
   Native extensions like sqlite-vec (`.dll`/`.so`).
-- `~/.codealta/machine/logs/`  
+- `~/.codealta/local/logs/`  
   Rolling diagnostic logs.
-- `~/.codealta/machine/cache/`  
+- `~/.codealta/local/cache/`  
   Rebuildable local caches.
 
 ### 1.2 Repo-local root
@@ -61,7 +61,7 @@ Runtime interpretation:
 
 Project metadata lives in the portable `~/.codealta/` catalog and references local checkout paths via machine overrides:
 - `~/.codealta/projects/<projectSlug>/readme.md`
-- `~/.codealta/machine/config.yaml` (per-machine path overrides)
+- `~/.codealta/local/config.yaml` (per-machine path overrides)
 
 ## 2. Artifact file format (markdown + YAML frontmatter)
 
@@ -108,7 +108,7 @@ But it is **not** the only durable copy of “knowledge”. Any important agent-
 ### 3.2 DB location
 
 Machine-local (not in git):
-- `~/.codealta/machine/codealta.db`
+- `~/.codealta/local/codealta.db`
 
 Rationale:
 - avoids large binary diffs in the portable `~/.codealta/` git repo
@@ -202,7 +202,7 @@ Testing:
 ### 4.1 Inputs (indexable sources)
 
 First-class indexable sources (v1):
-- markdown artifacts from `.codealta/**` and `~/.codealta/**` excluding `~/.codealta/machine/**`
+- markdown artifacts from `.codealta/**` and `~/.codealta/**` excluding `~/.codealta/local/**`
 - task notes/events (exported into artifact markdown + indexed)
 - selected repo files (opt-in rules; default to `.md`, `.cs`, `.csproj`, `.slnx`, `AGENTS.md`)
 
@@ -324,7 +324,7 @@ The embedder and the vector store should be decoupled:
 ## 7. Native extension loading (sqlite-vec)
 
 We need a controlled way to load sqlite-vec:
-- store the extension binary under `~/.codealta/machine/extensions/`
+- store the extension binary under `~/.codealta/local/extensions/`
 - during DB initialization:
   - open connection
   - `EnableExtensions(true)`

@@ -8,21 +8,26 @@ public sealed class CodexProcessOptions
 {
     /// <summary>
     /// Gets or sets an explicit path to the <c>codex</c> executable.
-    /// When <see langword="null"/>, the executable is resolved from <c>PATH</c>
-    /// (and optionally via <c>fnm</c> — see <see cref="TryFnmLookup"/>).
+    /// When <see langword="null"/>, the executable is resolved from the pinned
+    /// local CodeAlta Codex install.
     /// </summary>
     public string? CodexPath { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the process should attempt to
-    /// locate codex through <c>fnm</c> (Fast Node Manager) when it is not
-    /// found on <c>PATH</c>.  Defaults to <see langword="true"/>.
+    /// Gets or sets the pinned Codex release tag to install and run when
+    /// <see cref="CodexPath"/> is not provided.
     /// </summary>
-    /// <remarks>
-    /// When enabled, <see cref="CodexProcess"/> runs <c>fnm env --shell cmd</c>,
-    /// extracts the <c>FNM_MULTISHELL_PATH</c> directory, and probes it for the
-    /// codex executable.  <c>PATH</c> is never modified; only the resolved
-    /// executable path is used.  If <c>fnm</c> is not installed this is a no-op.
-    /// </remarks>
-    public bool TryFnmLookup { get; set; } = true;
+    public string? ReleaseTag { get; set; }
+
+    /// <summary>
+    /// Gets or sets the CodeAlta local root used for pinned Codex installations.
+    /// When <see langword="null"/>, this defaults to <c>~/.codealta/local</c>.
+    /// </summary>
+    public string? LocalRootPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets an optional progress sink used while downloading or extracting
+    /// a pinned Codex release.
+    /// </summary>
+    public IProgress<CodexInstallProgress>? Progress { get; set; }
 }

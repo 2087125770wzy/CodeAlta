@@ -8,7 +8,7 @@ public sealed class LocalAgentRuntimePathLayout
     /// <summary>
     /// Initializes a new instance of the <see cref="LocalAgentRuntimePathLayout"/> class.
     /// </summary>
-    /// <param name="rootPath">Machine-scoped root path, typically <c>~/.codealta/machine/agents</c>.</param>
+    /// <param name="rootPath">Machine-scoped root path, typically <c>~/.codealta/local/agents</c>.</param>
     /// <exception cref="ArgumentException">Thrown when <paramref name="rootPath" /> is empty.</exception>
     public LocalAgentRuntimePathLayout(string rootPath)
     {

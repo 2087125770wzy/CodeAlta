@@ -1,65 +1,62 @@
-// Copyright (c) Alexandre Mutel. All rights reserved.
-// Licensed under the BSD-Clause 2 license.
-// See license.txt file in the project root for full license information.
-
+using System.Runtime.InteropServices;
 using CodeAlta.CodexSdk;
 
 namespace CodeAlta.Tests;
 
 [TestClass]
-public class CodexProcessTests
+public sealed class CodexProcessTests
 {
     [TestMethod]
-    public void ParseFnmMultishellPath_ExtractsPath()
+    public void ResolveAsset_WindowsX64_UsesWindowsZip()
     {
-        const string output = """
-            SET PATH=C:\Users\test\.cache\fnm_multishells\1234_5678;C:\Windows
-            SET FNM_MULTISHELL_PATH=C:\Users\test\.cache\fnm_multishells\1234_5678
-            SET FNM_VERSION_FILE_STRATEGY=local
-            SET FNM_DIR=C:\Users\test\AppData\Roaming\fnm
-            """;
+        var asset = CodexReleaseInstaller.ResolveAsset(CodexPlatform.Windows, Architecture.X64, "win-x64");
 
-        var result = CodexProcess.ParseFnmMultishellPath(output);
-
-        Assert.AreEqual(@"C:\Users\test\.cache\fnm_multishells\1234_5678", result);
+        Assert.AreEqual("codex-x86_64-pc-windows-msvc.exe.zip", asset.AssetName);
+        Assert.AreEqual("codex-x86_64-pc-windows-msvc.exe", asset.ExecutableName);
+        Assert.IsFalse(asset.IsMusl);
     }
 
     [TestMethod]
-    public void ParseFnmMultishellPath_ReturnsNull_WhenVariableMissing()
+    public void ResolveAsset_LinuxArm64Musl_UsesMuslTarball()
     {
-        const string output = """
-            SET PATH=C:\Windows
-            SET FNM_DIR=C:\Users\test\AppData\Roaming\fnm
-            """;
+        var asset = CodexReleaseInstaller.ResolveAsset(CodexPlatform.Linux, Architecture.Arm64, "linux-musl-arm64");
 
-        var result = CodexProcess.ParseFnmMultishellPath(output);
-
-        Assert.IsNull(result);
+        Assert.AreEqual("codex-aarch64-unknown-linux-musl.tar.gz", asset.AssetName);
+        Assert.AreEqual("codex-aarch64-unknown-linux-musl", asset.ExecutableName);
+        Assert.IsTrue(asset.IsMusl);
     }
 
     [TestMethod]
-    public void ParseFnmMultishellPath_ReturnsNull_WhenOutputEmpty()
+    public void ResolveAsset_MacOsX64_UsesDarwinTarball()
     {
-        var result = CodexProcess.ParseFnmMultishellPath("");
+        var asset = CodexReleaseInstaller.ResolveAsset(CodexPlatform.MacOS, Architecture.X64, "osx-x64");
 
-        Assert.IsNull(result);
+        Assert.AreEqual("codex-x86_64-apple-darwin.tar.gz", asset.AssetName);
+        Assert.AreEqual("codex-x86_64-apple-darwin", asset.ExecutableName);
+        Assert.IsFalse(asset.IsMusl);
     }
 
     [TestMethod]
-    public void ParseFnmMultishellPath_IsCaseInsensitive()
+    public void GetInstallDirectory_UsesLocalBinCodexTag()
     {
-        const string output = "set fnm_multishell_path=/home/user/.cache/fnm/1234\n";
+        var installDirectory = CodexReleaseInstaller.GetInstallDirectory(
+            @"C:\Users\test\.codealta\local",
+            "rust-v0.118.0");
 
-        var result = CodexProcess.ParseFnmMultishellPath(output);
-
-        Assert.AreEqual("/home/user/.cache/fnm/1234", result);
+        Assert.AreEqual(
+            Path.Combine(@"C:\Users\test\.codealta\local", "bin", "codex", "rust-v0.118.0"),
+            installDirectory);
     }
 
     [TestMethod]
-    public void FindExecutable_ReturnsNull_ForNonexistentBinary()
+    public void BuildAssetUri_UsesPinnedReleasePath()
     {
-        var result = CodexProcess.FindExecutable("this_binary_does_not_exist_12345");
+        var uri = CodexReleaseInstaller.BuildAssetUri(
+            "rust-v0.118.0",
+            "codex-x86_64-pc-windows-msvc.exe.zip");
 
-        Assert.IsNull(result);
+        Assert.AreEqual(
+            "https://github.com/openai/codex/releases/download/rust-v0.118.0/codex-x86_64-pc-windows-msvc.exe.zip",
+            uri.ToString());
     }
 }

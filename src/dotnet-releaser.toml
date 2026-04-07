@@ -6,3 +6,5 @@ project = "CodeAlta.slnx"
 [github]
 user = "CodeAlta"
 repo = "CodeAlta"
+[changelog]
+owners = ["xoofx"] # To avoid to be mentioned in the changelog

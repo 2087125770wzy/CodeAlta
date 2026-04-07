@@ -1,4 +1,6 @@
-using CodeAlta.CodexSdk.Generator;
+extern alias CodexSdkGenerator;
+
+using CodexVersionDetector = CodexSdkGenerator::CodeAlta.CodexSdk.Generator.CodexVersionDetector;
 
 namespace CodeAlta.Tests;
 

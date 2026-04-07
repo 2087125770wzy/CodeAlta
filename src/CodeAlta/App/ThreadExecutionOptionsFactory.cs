@@ -126,7 +126,7 @@ internal sealed class ThreadExecutionOptionsFactory
             ProjectRoots = projectRoots,
             Model = tab.ModelId,
             ReasoningEffort = tab.ReasoningEffort,
-            OnPermissionRequest = (request, cancellationToken) => _permissionRequests.HandleAsync(thread.ThreadId, request, cancellationToken),
+            OnPermissionRequest = CreatePermissionHandler(new AgentBackendId(thread.BackendId), thread.ThreadId),
             OnUserInputRequest = (request, cancellationToken) => _userInputRequests.HandleAsync(thread.ThreadId, request, cancellationToken),
         };
     }
@@ -149,13 +149,22 @@ internal sealed class ThreadExecutionOptionsFactory
             ProjectRoots = projectRoots,
             Model = tab.ModelId,
             ReasoningEffort = tab.ReasoningEffort,
-            OnPermissionRequest = (request, cancellationToken) => _permissionRequests.HandleAsync(threadId, request, cancellationToken),
+            OnPermissionRequest = CreatePermissionHandler(tab.BackendId, threadId),
             OnUserInputRequest = (request, cancellationToken) => _userInputRequests.HandleAsync(threadId, request, cancellationToken),
         };
     }
 
     public static string CreateTransientThreadKey(AgentBackendId backendId, string workingDirectory)
         => $"{backendId.Value}:{workingDirectory}";
+
+    private AgentPermissionRequestHandler CreatePermissionHandler(AgentBackendId backendId, string threadId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+
+        return string.Equals(backendId.Value, AgentBackendIds.Codex.Value, StringComparison.OrdinalIgnoreCase)
+            ? static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce))
+            : (request, cancellationToken) => _permissionRequests.HandleAsync(threadId, request, cancellationToken);
+    }
 
     private string ResolveWorkingDirectory(WorkThreadDescriptor thread)
     {

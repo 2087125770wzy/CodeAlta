@@ -200,6 +200,19 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
         await WriteResponseEnvelopeAsync(id, result, cancellationToken).ConfigureAwait(false);
     }
 
+    internal async Task SendErrorResponseAsync(
+        RequestId id,
+        int code,
+        string message,
+        JsonElement? data = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+
+        await WriteErrorResponseEnvelopeAsync(id, code, message, data, cancellationToken).ConfigureAwait(false);
+    }
+
     internal Task SendResponseAsync<TResult>(
         long id,
         TResult result,
@@ -294,6 +307,52 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
         {
             var json = Encoding.UTF8.GetString(bufferWriter.WrittenMemory.Span);
             _logger.Trace($"Send Response: {json}");
+        }
+
+        await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _outputStream.WriteAsync(bufferWriter.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            await _outputStream.WriteAsync(NewLine, cancellationToken).ConfigureAwait(false);
+            await _outputStream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    private async Task WriteErrorResponseEnvelopeAsync(
+        RequestId id,
+        int code,
+        string message,
+        JsonElement? data,
+        CancellationToken cancellationToken)
+    {
+        var bufferWriter = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(bufferWriter))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("id");
+            JsonSerializer.Serialize(writer, id, _jsonOptions);
+            writer.WritePropertyName("error");
+            writer.WriteStartObject();
+            writer.WriteNumber("code", code);
+            writer.WriteString("message", message);
+            if (data is { } errorData)
+            {
+                writer.WritePropertyName("data");
+                errorData.WriteTo(writer);
+            }
+
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        if (_logger is not null && _logger.IsEnabled(LogLevel.Trace))
+        {
+            var json = Encoding.UTF8.GetString(bufferWriter.WrittenMemory.Span);
+            _logger.Trace($"Send Error Response: {json}");
         }
 
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
