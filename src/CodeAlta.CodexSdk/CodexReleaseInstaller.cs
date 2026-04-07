@@ -17,7 +17,7 @@ public static class CodexPinnedRelease
     /// <summary>
     /// Gets the pinned Codex release tag used by the SDK generator.
     /// </summary>
-    public const string DefaultTag = "rust-v0.117.0-alpha.24";
+    public const string DefaultTag = "rust-v0.118.0";
 }
 
 /// <summary>
