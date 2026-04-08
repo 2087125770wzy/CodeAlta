@@ -65,7 +65,7 @@ internal sealed class LocalAgentChatClientTurnExecutor : ILocalAgentTurnExecutor
             {
                 AssistantMessage = assistantMessage,
                 AssistantPartContentIds = assistantPartContentIds,
-                Usage = CreateUsage(response),
+                Usage = CreateUsage(request, response),
                 ProviderSessionId = response.ConversationId,
                 ProviderState = CreateProviderState(response),
                 Summary = ExtractSummary(assistantMessage),
@@ -371,27 +371,22 @@ internal sealed class LocalAgentChatClientTurnExecutor : ILocalAgentTurnExecutor
         return JsonDocument.Parse(stream.ToArray()).RootElement.Clone();
     }
 
-    private static AgentSessionUsage? CreateUsage(ChatResponse response)
+    private static AgentSessionUsage? CreateUsage(LocalAgentTurnRequest request, ChatResponse response)
     {
         if (response.Usage is null)
         {
             return null;
         }
 
-        var modelId = response.ModelId;
-        return new AgentSessionUsage(
-            LastOperation: new AgentOperationUsageSnapshot(
-                Model: modelId,
-                InputTokens: response.Usage.InputTokenCount,
-                OutputTokens: response.Usage.OutputTokenCount,
-                CachedInputTokens: response.Usage.CachedInputTokenCount,
-                ReasoningTokens: response.Usage.ReasoningTokenCount,
-                Label: modelId is null
-                    ? null
-                    : $"{modelId}: {response.Usage.InputTokenCount ?? 0}/{response.Usage.OutputTokenCount ?? 0} tokens"),
-            Scope: AgentUsageScope.LastOperation,
-            Source: AgentUsageSource.RecoveredHistory,
-            UpdatedAt: response.CreatedAt ?? DateTimeOffset.UtcNow);
+        return LocalAgentUsageFactory.CreateOperationUsage(
+            modelId: response.ModelId ?? request.ModelId,
+            modelInfo: request.ModelInfo,
+            inputTokens: response.Usage.InputTokenCount,
+            outputTokens: response.Usage.OutputTokenCount,
+            totalTokens: response.Usage.TotalTokenCount,
+            cachedInputTokens: response.Usage.CachedInputTokenCount,
+            reasoningTokens: response.Usage.ReasoningTokenCount,
+            updatedAt: response.CreatedAt ?? DateTimeOffset.UtcNow);
     }
 
     private static JsonElement? CreateProviderState(ChatResponse response)

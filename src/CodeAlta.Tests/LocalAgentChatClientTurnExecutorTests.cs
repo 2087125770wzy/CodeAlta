@@ -86,6 +86,10 @@ public sealed class LocalAgentChatClientTurnExecutorTests
         Assert.IsNotNull(response.Usage);
         Assert.AreEqual(12L, response.Usage.LastOperation?.InputTokens);
         Assert.AreEqual(8L, response.Usage.LastOperation?.OutputTokens);
+        Assert.AreEqual(20L, response.Usage.CurrentTokens);
+        Assert.AreEqual(200000L, response.Usage.TokenLimit);
+        Assert.AreEqual(AgentUsageScope.CurrentWindow, response.Usage.Scope);
+        Assert.AreEqual(AgentUsageSource.LocalProviderUsage, response.Usage.Source);
         Assert.IsNotNull(response.ProviderState);
         Assert.AreEqual("response-1", response.ProviderState.Value.GetProperty("responseId").GetString());
         Assert.AreEqual("conversation-1", response.ProviderState.Value.GetProperty("conversationId").GetString());
@@ -164,6 +168,13 @@ public sealed class LocalAgentChatClientTurnExecutorTests
             SessionId = "session-1",
             RunId = new AgentRunId("run-1"),
             ModelId = "claude-test",
+            ModelInfo = new AgentModelInfo(
+                "claude-test",
+                DisplayName: "Claude Test",
+                Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["maxInputTokens"] = 200000L,
+                }),
             SystemMessage = "System instructions",
             DeveloperInstructions = "Developer instructions",
             ReasoningEffort = AgentReasoningEffort.High,

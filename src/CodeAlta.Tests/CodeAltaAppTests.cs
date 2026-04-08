@@ -1757,6 +1757,26 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void SessionUsageFormatting_ShowsCurrentTokensWhenWindowLimitIsUnknown()
+    {
+        var usage = new AgentSessionUsage(
+            Window: new AgentWindowUsageSnapshot(12450, null, 7, "Estimated active context"),
+            LastOperation: new AgentOperationUsageSnapshot(
+                InputTokens: 12000,
+                OutputTokens: 450,
+                Label: "Last API call"),
+            Scope: AgentUsageScope.CurrentWindow,
+            Source: AgentUsageSource.LocalProviderUsage,
+            UpdatedAt: DateTimeOffset.Parse("2026-04-08T10:00:00+00:00"));
+
+        var indicator = SessionUsageAggregator.BuildIndicatorMarkup(usage);
+        var summary = SessionUsageAggregator.FormatSummary(usage);
+
+        Assert.AreEqual("[dim]Context[/] [dim]12.5k tok[/]", indicator);
+        Assert.AreEqual("12,450 tokens · 7 messages", summary);
+    }
+
+    [TestMethod]
     public void MergeSessionUsage_MergesTypedBackendDetails()
     {
         var current = new AgentSessionUsage(

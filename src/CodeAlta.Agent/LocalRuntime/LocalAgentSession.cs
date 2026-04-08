@@ -27,6 +27,8 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
     private readonly List<AgentEvent> _history;
     private readonly List<LocalAgentConversationMessage> _conversation;
     private readonly string _compactionSummaryContentId = $"compaction:{Guid.CreateVersion7()}";
+    private AgentModelInfo? _resolvedModelInfo;
+    private bool _resolvedModelInfoLoaded;
     private LocalAgentSessionSummary _summary;
     private LocalAgentSessionState _state;
     private CancellationTokenSource? _activeRunCancellation;
@@ -147,6 +149,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
 
             var allTools = BuildAvailableTools();
             var toolMap = LocalAgentToolBridge.CreateDefinitionMap(allTools);
+            var modelInfo = await ResolveModelInfoAsync(linkedCts.Token).ConfigureAwait(false);
 
             while (true)
             {
@@ -158,6 +161,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                             SessionId = SessionId,
                             RunId = runId,
                             ModelId = _summary.ModelId ?? _options.Model,
+                            ModelInfo = modelInfo,
                             WorkingDirectory = _summary.WorkingDirectory,
                             SystemMessage = instructionBundle.SystemMessage,
                             DeveloperInstructions = instructionBundle.DeveloperInstructions,
@@ -428,12 +432,13 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         CancellationToken cancellationToken)
     {
         _conversation.Add(response.AssistantMessage);
+        var effectiveUsage = LocalAgentUsageFactory.AttachMessageCount(response.Usage, _conversation.Count);
 
         _state = _state with
         {
             ProviderSessionId = response.ProviderSessionId ?? _state.ProviderSessionId,
             ProviderState = response.ProviderState ?? _state.ProviderState,
-            Usage = response.Usage ?? _state.Usage,
+            Usage = effectiveUsage ?? _state.Usage,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
 
@@ -442,7 +447,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             ModelId = _summary.ModelId ?? _options.Model,
             Title = response.Title ?? _summary.Title,
             Summary = response.Summary ?? ExtractAssistantSummary(response.AssistantMessage) ?? _summary.Summary,
-            Usage = response.Usage ?? _summary.Usage,
+            Usage = effectiveUsage ?? _summary.Usage,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
 
@@ -508,7 +513,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             }
         }
 
-        if (response.Usage is not null)
+        if (effectiveUsage is not null)
         {
             events.Add(new AgentSessionUpdateEvent(
                 BackendId,
@@ -517,7 +522,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                 runId,
                 AgentSessionUpdateKind.UsageUpdated,
                 "Usage updated.",
-                Usage: response.Usage));
+                Usage: effectiveUsage));
         }
 
         await AppendEventsAsync(events, cancellationToken).ConfigureAwait(false);
@@ -876,5 +881,37 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             _disposed = true;
             dispose();
         }
+    }
+
+    private async Task<AgentModelInfo?> ResolveModelInfoAsync(CancellationToken cancellationToken)
+    {
+        if (_resolvedModelInfoLoaded)
+        {
+            return _resolvedModelInfo;
+        }
+
+        _resolvedModelInfoLoaded = true;
+        var modelId = _summary.ModelId ?? _options.Model;
+        if (string.IsNullOrWhiteSpace(modelId))
+        {
+            return null;
+        }
+
+        try
+        {
+            var models = await _turnExecutor.ListModelsAsync(Provider, cancellationToken).ConfigureAwait(false);
+            _resolvedModelInfo = models.FirstOrDefault(model =>
+                string.Equals(model.Id, modelId, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            _resolvedModelInfo = null;
+        }
+
+        return _resolvedModelInfo;
     }
 }

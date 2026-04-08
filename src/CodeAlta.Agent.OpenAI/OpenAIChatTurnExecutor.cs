@@ -139,7 +139,7 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
         {
             AssistantMessage = assistantMessage,
             AssistantPartContentIds = assistantPartContentIds,
-            Usage = CreateUsage(modelId, usage),
+            Usage = CreateUsage(request, modelId, usage),
             ProviderSessionId = string.IsNullOrWhiteSpace(completionId) ? null : completionId,
             ProviderState = CreateProviderState(completionId),
             Summary = ExtractSummary(assistantMessage),
@@ -339,26 +339,22 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
         }
     }
 
-    private static AgentSessionUsage? CreateUsage(string? modelId, ChatTokenUsage? usage)
+    private static AgentSessionUsage? CreateUsage(LocalAgentTurnRequest request, string? modelId, ChatTokenUsage? usage)
     {
         if (usage is null)
         {
             return null;
         }
 
-        return new AgentSessionUsage(
-            LastOperation: new AgentOperationUsageSnapshot(
-                Model: modelId,
-                InputTokens: usage.InputTokenCount,
-                OutputTokens: usage.OutputTokenCount,
-                CachedInputTokens: usage.InputTokenDetails?.CachedTokenCount,
-                ReasoningTokens: usage.OutputTokenDetails?.ReasoningTokenCount,
-                Label: string.IsNullOrWhiteSpace(modelId)
-                    ? null
-                    : $"{modelId}: {usage.InputTokenCount}/{usage.OutputTokenCount} tokens"),
-            Scope: AgentUsageScope.LastOperation,
-            Source: AgentUsageSource.RecoveredHistory,
-            UpdatedAt: DateTimeOffset.UtcNow);
+        return LocalAgentUsageFactory.CreateOperationUsage(
+            modelId: modelId ?? request.ModelId,
+            modelInfo: request.ModelInfo,
+            inputTokens: usage.InputTokenCount,
+            outputTokens: usage.OutputTokenCount,
+            totalTokens: usage.TotalTokenCount,
+            cachedInputTokens: usage.InputTokenDetails?.CachedTokenCount,
+            reasoningTokens: usage.OutputTokenDetails?.ReasoningTokenCount,
+            updatedAt: DateTimeOffset.UtcNow);
     }
 
     private static JsonElement? CreateProviderState(string? completionId)

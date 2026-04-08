@@ -76,7 +76,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         {
             AssistantMessage = assistantMessage,
             AssistantPartContentIds = assistantPartContentIds,
-            Usage = CreateUsage(completedResponse),
+            Usage = CreateUsage(request, completedResponse),
             ProviderSessionId = string.IsNullOrWhiteSpace(completedResponse.Id) ? null : completedResponse.Id,
             ProviderState = CreateProviderState(completedResponse),
             Summary = ExtractSummary(assistantMessage),
@@ -363,26 +363,22 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         return (new LocalAgentConversationMessage(LocalAgentConversationRole.Assistant, parts), partContentIds);
     }
 
-    private static AgentSessionUsage? CreateUsage(OpenAIResponse response)
+    private static AgentSessionUsage? CreateUsage(LocalAgentTurnRequest request, OpenAIResponse response)
     {
         if (response.Usage is null)
         {
             return null;
         }
 
-        return new AgentSessionUsage(
-            LastOperation: new AgentOperationUsageSnapshot(
-                Model: response.Model,
-                InputTokens: response.Usage.InputTokenCount,
-                OutputTokens: response.Usage.OutputTokenCount,
-                CachedInputTokens: response.Usage.InputTokenDetails?.CachedTokenCount,
-                ReasoningTokens: response.Usage.OutputTokenDetails?.ReasoningTokenCount,
-                Label: string.IsNullOrWhiteSpace(response.Model)
-                    ? null
-                    : $"{response.Model}: {response.Usage.InputTokenCount}/{response.Usage.OutputTokenCount} tokens"),
-            Scope: AgentUsageScope.LastOperation,
-            Source: AgentUsageSource.RecoveredHistory,
-            UpdatedAt: response.CreatedAt == default ? DateTimeOffset.UtcNow : response.CreatedAt);
+        return LocalAgentUsageFactory.CreateOperationUsage(
+            modelId: response.Model,
+            modelInfo: request.ModelInfo,
+            inputTokens: response.Usage.InputTokenCount,
+            outputTokens: response.Usage.OutputTokenCount,
+            totalTokens: response.Usage.TotalTokenCount,
+            cachedInputTokens: response.Usage.InputTokenDetails?.CachedTokenCount,
+            reasoningTokens: response.Usage.OutputTokenDetails?.ReasoningTokenCount,
+            updatedAt: response.CreatedAt == default ? DateTimeOffset.UtcNow : response.CreatedAt);
     }
 
     private static JsonElement? CreateProviderState(OpenAIResponse response)

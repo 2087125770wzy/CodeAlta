@@ -209,7 +209,12 @@ public enum AgentUsageSource
     /// <summary>
     /// Usage data recovered from persisted state or history.
     /// </summary>
-    RecoveredHistory
+    RecoveredHistory,
+
+    /// <summary>
+    /// Live usage data reported by a local raw-API provider.
+    /// </summary>
+    LocalProviderUsage
 }
 
 /// <summary>

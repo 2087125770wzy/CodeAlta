@@ -1,0 +1,149 @@
+namespace CodeAlta.Agent.LocalRuntime;
+
+internal static class LocalAgentUsageFactory
+{
+    private static readonly string[] ContextWindowCapabilityKeys =
+    [
+        "contextWindow",
+        "contextWindowTokens",
+        "context_length",
+        "contextLength",
+        "inputTokenLimit",
+        "maxInputTokens",
+        "tokenLimit",
+    ];
+
+    public static AgentSessionUsage CreateOperationUsage(
+        string? modelId,
+        AgentModelInfo? modelInfo,
+        long? inputTokens,
+        long? outputTokens,
+        long? totalTokens,
+        long? cachedInputTokens,
+        long? reasoningTokens,
+        DateTimeOffset updatedAt)
+    {
+        var currentTokens = totalTokens ?? Sum(inputTokens, outputTokens);
+        var tokenLimit = GetContextWindowTokenLimit(modelInfo);
+        var window = currentTokens is not null || tokenLimit is not null
+            ? new AgentWindowUsageSnapshot(
+                CurrentTokens: currentTokens,
+                TokenLimit: tokenLimit,
+                MessageCount: null,
+                Label: tokenLimit is not null ? "Active context window" : "Estimated active context")
+            : null;
+
+        return new AgentSessionUsage(
+            Window: window,
+            LastOperation: new AgentOperationUsageSnapshot(
+                Model: string.IsNullOrWhiteSpace(modelId) ? modelInfo?.Id : modelId,
+                InputTokens: inputTokens,
+                OutputTokens: outputTokens,
+                CachedInputTokens: cachedInputTokens,
+                ReasoningTokens: reasoningTokens,
+                Label: string.IsNullOrWhiteSpace(modelId)
+                    ? null
+                    : $"{modelId}: {inputTokens ?? 0}/{outputTokens ?? 0} tokens"),
+            Scope: window is null ? AgentUsageScope.LastOperation : AgentUsageScope.CurrentWindow,
+            Source: AgentUsageSource.LocalProviderUsage,
+            UpdatedAt: updatedAt);
+    }
+
+    public static AgentSessionUsage? AttachMessageCount(AgentSessionUsage? usage, int? messageCount)
+    {
+        if (usage is null || messageCount is not >= 0)
+        {
+            return usage;
+        }
+
+        var currentTokens = usage.Window?.CurrentTokens ?? Sum(usage.LastOperation?.InputTokens, usage.LastOperation?.OutputTokens);
+        var tokenLimit = usage.Window?.TokenLimit;
+        if (currentTokens is null && tokenLimit is null)
+        {
+            return usage;
+        }
+
+        var label = usage.Window?.Label ?? (tokenLimit is not null ? "Active context window" : "Estimated active context");
+        return usage with
+        {
+            Window = new AgentWindowUsageSnapshot(
+                CurrentTokens: currentTokens,
+                TokenLimit: tokenLimit,
+                MessageCount: messageCount,
+                Label: label),
+            Scope = usage.Window is null ? AgentUsageScope.CurrentWindow : usage.Scope,
+        };
+    }
+
+    private static long? GetContextWindowTokenLimit(AgentModelInfo? modelInfo)
+    {
+        if (modelInfo?.Capabilities is not { Count: > 0 } capabilities)
+        {
+            return null;
+        }
+
+        foreach (var key in ContextWindowCapabilityKeys)
+        {
+            if (!capabilities.TryGetValue(key, out var rawValue))
+            {
+                continue;
+            }
+
+            if (TryConvertToInt64(rawValue, out var value) && value > 0)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static long? Sum(long? left, long? right)
+        => left.HasValue || right.HasValue ? (left ?? 0) + (right ?? 0) : null;
+
+    private static bool TryConvertToInt64(object? value, out long converted)
+    {
+        switch (value)
+        {
+            case byte byteValue:
+                converted = byteValue;
+                return true;
+            case sbyte sbyteValue:
+                converted = sbyteValue;
+                return true;
+            case short shortValue:
+                converted = shortValue;
+                return true;
+            case ushort ushortValue:
+                converted = ushortValue;
+                return true;
+            case int intValue:
+                converted = intValue;
+                return true;
+            case uint uintValue:
+                converted = (long)uintValue;
+                return true;
+            case long longValue:
+                converted = longValue;
+                return true;
+            case ulong ulongValue when ulongValue <= long.MaxValue:
+                converted = (long)ulongValue;
+                return true;
+            case float floatValue when floatValue is >= long.MinValue and <= long.MaxValue:
+                converted = (long)floatValue;
+                return true;
+            case double doubleValue when doubleValue is >= long.MinValue and <= long.MaxValue:
+                converted = (long)doubleValue;
+                return true;
+            case decimal decimalValue when decimalValue is >= long.MinValue and <= long.MaxValue:
+                converted = (long)decimalValue;
+                return true;
+            case string stringValue when long.TryParse(stringValue, out var parsed):
+                converted = parsed;
+                return true;
+            default:
+                converted = default;
+                return false;
+        }
+    }
+}

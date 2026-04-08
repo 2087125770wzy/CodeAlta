@@ -31,6 +31,18 @@ public sealed class RawApiAgentBackendTests
                     ConversationId = "anthropic-conversation",
                     ModelId = "claude-sonnet-test",
                 },
+                new ChatResponseUpdate(ChatRole.Assistant, [new UsageContent(new UsageDetails
+                {
+                    InputTokenCount = 18,
+                    OutputTokenCount = 6,
+                    TotalTokenCount = 24,
+                })])
+                {
+                    MessageId = "anthropic-message",
+                    ResponseId = "anthropic-response",
+                    ConversationId = "anthropic-conversation",
+                    ModelId = "claude-sonnet-test",
+                },
             ]);
         await using var backend = new AnthropicAgentBackend(new AnthropicAgentBackendOptions
         {
@@ -44,7 +56,13 @@ public sealed class RawApiAgentBackendTests
                     ChatClientFactory = () => client,
                     ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
                     [
-                        new AgentModelInfo("claude-sonnet-test", DisplayName: "Claude Sonnet Test"),
+                        new AgentModelInfo(
+                            "claude-sonnet-test",
+                            DisplayName: "Claude Sonnet Test",
+                            Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                            {
+                                ["maxInputTokens"] = 200000L,
+                            }),
                     ]),
                 },
             },
@@ -69,6 +87,9 @@ public sealed class RawApiAgentBackendTests
         var history = await session.GetHistoryAsync().ConfigureAwait(false);
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Reasoning && e.Content == "thinking"));
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Assistant && e.Content == "Anthropic answer."));
+        var usageEvent = history.OfType<AgentSessionUpdateEvent>().Single(static e => e.Kind == AgentSessionUpdateKind.UsageUpdated);
+        Assert.AreEqual(24L, usageEvent.Usage?.CurrentTokens);
+        Assert.AreEqual(200000L, usageEvent.Usage?.TokenLimit);
         Assert.IsNotNull(client.LastOptions);
         StringAssert.Contains(client.LastOptions.Instructions, "System instructions");
 
@@ -102,6 +123,18 @@ public sealed class RawApiAgentBackendTests
                     ConversationId = "google-conversation",
                     ModelId = "gemini-test",
                 },
+                new ChatResponseUpdate(ChatRole.Assistant, [new UsageContent(new UsageDetails
+                {
+                    InputTokenCount = 30,
+                    OutputTokenCount = 12,
+                    TotalTokenCount = 42,
+                })])
+                {
+                    MessageId = "google-message",
+                    ResponseId = "google-response",
+                    ConversationId = "google-conversation",
+                    ModelId = "gemini-test",
+                },
             ]);
         await using var backend = new GoogleGenAIAgentBackend(new GoogleGenAIAgentBackendOptions
         {
@@ -115,7 +148,13 @@ public sealed class RawApiAgentBackendTests
                     ChatClientFactory = () => client,
                     ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
                     [
-                        new AgentModelInfo("gemini-test", DisplayName: "Gemini Test"),
+                        new AgentModelInfo(
+                            "gemini-test",
+                            DisplayName: "Gemini Test",
+                            Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                            {
+                                ["inputTokenLimit"] = 1000000L,
+                            }),
                     ]),
                 },
             },
@@ -137,6 +176,9 @@ public sealed class RawApiAgentBackendTests
         Assert.AreEqual(string.Empty, reasoningEvent.Content);
         Assert.IsTrue(reasoningEvent.Details.HasValue);
         Assert.AreEqual("google-signature", reasoningEvent.Details.Value.GetProperty("protectedData").GetString());
+        var usageEvent = history.OfType<AgentSessionUpdateEvent>().Single(static e => e.Kind == AgentSessionUpdateKind.UsageUpdated);
+        Assert.AreEqual(42L, usageEvent.Usage?.CurrentTokens);
+        Assert.AreEqual(1000000L, usageEvent.Usage?.TokenLimit);
 
         var rawAssistant = history.OfType<AgentRawEvent>().Single(static e => e.BackendEventType == "local.assistantMessage");
         var message = rawAssistant.Raw.Deserialize(AgentJsonSerializerContext.Default.LocalAgentConversationMessage);

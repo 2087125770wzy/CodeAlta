@@ -61,6 +61,11 @@ public sealed record LocalAgentTurnRequest
     public string? ModelId { get; init; }
 
     /// <summary>
+    /// Gets or initializes the resolved model metadata when available.
+    /// </summary>
+    public AgentModelInfo? ModelInfo { get; init; }
+
+    /// <summary>
     /// Gets or initializes the working directory.
     /// </summary>
     public string? WorkingDirectory { get; init; }

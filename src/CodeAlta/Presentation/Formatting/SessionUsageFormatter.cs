@@ -10,7 +10,9 @@ internal static class SessionUsageFormatter
     {
         if (usage?.WindowUsagePercentage is not { } percentage)
         {
-            return "[dim]Context --[/]";
+            return usage?.CurrentTokens is { } currentTokens
+                ? $"[dim]Context[/] [dim]{FormatCompactNumber(currentTokens)} tok[/]"
+                : "[dim]Context --[/]";
         }
 
         var clampedPercentage = Math.Clamp(percentage, 0d, 999d);
@@ -27,6 +29,13 @@ internal static class SessionUsageFormatter
         }
 
         var current = FormatNumber(window.CurrentTokens);
+        if (window.TokenLimit is not { } tokenLimit || tokenLimit <= 0)
+        {
+            return window.MessageCount is { } messageCount
+                ? $"{current} tokens · {messageCount} messages"
+                : $"{current} tokens";
+        }
+
         var limit = FormatNumber(window.TokenLimit);
         return usage.WindowUsagePercentage is { } percentage
             ? FormattableString.Invariant($"{current} / {limit} tokens ({percentage:0.#}%)")
@@ -177,6 +186,21 @@ internal static class SessionUsageFormatter
 
     public static string FormatNumber(long? value)
         => value?.ToString("#,0", CultureInfo.InvariantCulture) ?? "?";
+
+    private static string FormatCompactNumber(long value)
+    {
+        if (value >= 1_000_000)
+        {
+            return FormattableString.Invariant($"{value / 1_000_000d:0.#}M");
+        }
+
+        if (value >= 1_000)
+        {
+            return FormattableString.Invariant($"{value / 1_000d:0.#}k");
+        }
+
+        return value.ToString(CultureInfo.InvariantCulture);
+    }
 
     public static bool TryFormatUsageMetadataLine(AgentSessionUsage usage, out string metadataLine)
         => TryFormatUsageMetadataLineCore(usage, out metadataLine);

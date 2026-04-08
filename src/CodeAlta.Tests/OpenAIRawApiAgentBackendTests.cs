@@ -38,7 +38,9 @@ public sealed class OpenAIRawApiAgentBackendTests
                         modelId: "gpt-test",
                         text: "Inspection complete.",
                         reasoningText: "Looked at the file.",
-                        encryptedReasoning: "sig-1"),
+                        encryptedReasoning: "sig-1",
+                        inputTokens: 33,
+                        outputTokens: 0),
                 ],
             ]);
 
@@ -54,7 +56,13 @@ public sealed class OpenAIRawApiAgentBackendTests
                     ResponsesClientFactory = _ => responsesClient,
                     ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
                     [
-                        new AgentModelInfo("gpt-test", DisplayName: "GPT Test"),
+                        new AgentModelInfo(
+                            "gpt-test",
+                            DisplayName: "GPT Test",
+                            Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                            {
+                                ["inputTokenLimit"] = 200000L,
+                            }),
                     ]),
                 },
             },
@@ -104,6 +112,11 @@ public sealed class OpenAIRawApiAgentBackendTests
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.ToolOutput && e.Content == "README contents"));
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Reasoning && e.Content == "Looked at the file."));
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Assistant && e.Content == "Inspection complete."));
+        var usageEvent = history.OfType<AgentSessionUpdateEvent>().Single(static e => e.Kind == AgentSessionUpdateKind.UsageUpdated);
+        Assert.IsNotNull(usageEvent.Usage);
+        Assert.AreEqual(33L, usageEvent.Usage.CurrentTokens);
+        Assert.AreEqual(200000L, usageEvent.Usage.TokenLimit);
+        Assert.AreEqual(4, usageEvent.Usage.MessageCount);
 
         var metadata = (await backend.ListSessionsAsync().ConfigureAwait(false)).Single();
         var details = Assert.IsInstanceOfType<RawApiSessionMetadataDetails>(metadata.Details);
@@ -147,7 +160,13 @@ public sealed class OpenAIRawApiAgentBackendTests
                     ChatClientFactory = _ => chatClient,
                     ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
                     [
-                        new AgentModelInfo("gpt-chat-test", DisplayName: "GPT Chat Test"),
+                        new AgentModelInfo(
+                            "gpt-chat-test",
+                            DisplayName: "GPT Chat Test",
+                            Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                            {
+                                ["contextWindowTokens"] = 128000L,
+                            }),
                     ]),
                 },
             },
@@ -180,6 +199,11 @@ public sealed class OpenAIRawApiAgentBackendTests
 
         var history = await session.GetHistoryAsync().ConfigureAwait(false);
         Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Assistant && e.Content == "OpenAI chat answer."));
+        var usageEvent = history.OfType<AgentSessionUpdateEvent>().Single(static e => e.Kind == AgentSessionUpdateKind.UsageUpdated);
+        Assert.IsNotNull(usageEvent.Usage);
+        Assert.AreEqual(18L, usageEvent.Usage.CurrentTokens);
+        Assert.AreEqual(128000L, usageEvent.Usage.TokenLimit);
+        Assert.AreEqual(2, usageEvent.Usage.MessageCount);
 
         var metadata = (await backend.ListSessionsAsync().ConfigureAwait(false)).Single();
         var details = Assert.IsInstanceOfType<RawApiSessionMetadataDetails>(metadata.Details);
@@ -292,7 +316,9 @@ public sealed class OpenAIRawApiAgentBackendTests
         string modelId,
         string text,
         string reasoningText,
-        string? encryptedReasoning)
+        string? encryptedReasoning,
+        int inputTokens = 0,
+        int outputTokens = 0)
     {
         var response = OpenAIResponsesModelFactory.OpenAIResponse(
             id: responseId,
@@ -305,7 +331,14 @@ public sealed class OpenAIRawApiAgentBackendTests
                     encryptedContent: encryptedReasoning,
                     summaryText: reasoningText),
             ]);
-        return CreateCompletedUpdate(response);
+        return DeserializeStreamingResponseUpdate(
+            $$"""
+            {
+              "type": "response.completed",
+              "sequence_number": 0,
+              "response": {{SerializeResponseWithUsage(response, inputTokens, outputTokens)}}
+            }
+            """);
     }
 
     private static StreamingResponseUpdate CreateToolCallResponseUpdate(
@@ -337,6 +370,36 @@ public sealed class OpenAIRawApiAgentBackendTests
               "response": {{SerializeModel(response)}}
             }
             """);
+
+    private static string SerializeResponseWithUsage(OpenAIResponse response, int inputTokens, int outputTokens)
+    {
+        using var source = JsonDocument.Parse(SerializeModel(response));
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            foreach (var property in source.RootElement.EnumerateObject())
+            {
+                if (property.NameEquals("usage"))
+                {
+                    continue;
+                }
+
+                writer.WritePropertyName(property.Name);
+                property.Value.WriteTo(writer);
+            }
+
+            writer.WritePropertyName("usage");
+            writer.WriteStartObject();
+            writer.WriteNumber("input_tokens", inputTokens);
+            writer.WriteNumber("output_tokens", outputTokens);
+            writer.WriteNumber("total_tokens", inputTokens + outputTokens);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        return JsonDocument.Parse(stream.ToArray()).RootElement.GetRawText();
+    }
 
     private static StreamingResponseUpdate DeserializeStreamingResponseUpdate(string json)
     {
