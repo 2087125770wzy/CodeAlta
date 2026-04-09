@@ -23,6 +23,7 @@ internal sealed record LocalAgentTokenEstimate(
 internal sealed record LocalAgentCompactionPreparation(
     LocalAgentCompactionTrigger Trigger,
     IReadOnlyList<LocalAgentConversationMessage> MessagesToSummarize,
+    IReadOnlyList<LocalAgentConversationMessage> TurnPrefixMessages,
     IReadOnlyList<LocalAgentConversationMessage> MessagesToKeep,
     string? AnchorContentId,
     bool IsSplitTurn,
@@ -39,3 +40,25 @@ internal sealed record LocalAgentCompactionResult(
     IReadOnlyList<string> ReadFiles,
     IReadOnlyList<string> ModifiedFiles);
 
+internal sealed record LocalAgentCompactionSummaryRequest(
+    AgentBackendId BackendId,
+    LocalAgentProviderDescriptor Provider,
+    string SessionId,
+    string? ModelId,
+    AgentModelInfo? ModelInfo,
+    string? WorkingDirectory,
+    LocalAgentSessionState State,
+    string SystemMessage,
+    string UserMessage,
+    int MaxOutputTokens);
+
+internal sealed record LocalAgentCompactionSummaryResponse(
+    string Summary,
+    AgentSessionUsage? Usage);
+
+internal interface ILocalAgentCompactionSummaryExecutor
+{
+    Task<LocalAgentCompactionSummaryResponse> ExecuteAsync(
+        LocalAgentCompactionSummaryRequest request,
+        CancellationToken cancellationToken = default);
+}

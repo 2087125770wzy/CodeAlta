@@ -19,6 +19,13 @@ internal static class LocalAgentTokenEstimator
             return new LocalAgentTokenEstimate(window.CurrentTokens.Value, "provider-window", IsEstimated: false);
         }
 
+        if (!HasLeadingCheckpoint(conversation) &&
+            usage?.LastOperation is { } lastOperation &&
+            TryGetLastOperationWindowEstimate(conversation, lastOperation, out var lastOperationEstimate))
+        {
+            return lastOperationEstimate;
+        }
+
         var estimatedTokens = 0L;
         if (!string.IsNullOrWhiteSpace(systemMessage))
         {
@@ -53,6 +60,41 @@ internal static class LocalAgentTokenEstimator
 
     public static long EstimateCheckpointTokens(string summary)
         => EstimateText(summary) + 16;
+
+    private static bool HasLeadingCheckpoint(IReadOnlyList<LocalAgentConversationMessage> conversation)
+        => conversation.Count > 0 && LocalAgentCompactionCheckpoint.TryExtractSummary(conversation[0]) is not null;
+
+    private static bool TryGetLastOperationWindowEstimate(
+        IReadOnlyList<LocalAgentConversationMessage> conversation,
+        AgentOperationUsageSnapshot lastOperation,
+        out LocalAgentTokenEstimate estimate)
+    {
+        var baselineTokens = Sum(lastOperation.InputTokens, lastOperation.OutputTokens);
+        if (baselineTokens is not > 0)
+        {
+            estimate = default!;
+            return false;
+        }
+
+        var lastAssistantIndex = FindLastAssistantMessageIndex(conversation);
+        if (lastAssistantIndex < 0)
+        {
+            estimate = default!;
+            return false;
+        }
+
+        var trailingTokens = 0L;
+        for (var index = lastAssistantIndex + 1; index < conversation.Count; index++)
+        {
+            trailingTokens += EstimateMessage(conversation[index]);
+        }
+
+        estimate = new LocalAgentTokenEstimate(
+            baselineTokens.Value + trailingTokens,
+            "provider-last-operation+local-tail",
+            IsEstimated: true);
+        return true;
+    }
 
     private static long EstimatePart(LocalAgentMessagePart part)
     {
@@ -101,5 +143,21 @@ internal static class LocalAgentTokenEstimator
 
         var condensedLength = text.Trim().Length;
         return Math.Max((condensedLength + 3) / 4, 1);
+    }
+
+    private static long? Sum(long? left, long? right)
+        => left.HasValue || right.HasValue ? (left ?? 0) + (right ?? 0) : null;
+
+    private static int FindLastAssistantMessageIndex(IReadOnlyList<LocalAgentConversationMessage> conversation)
+    {
+        for (var index = conversation.Count - 1; index >= 0; index--)
+        {
+            if (conversation[index].Role is LocalAgentConversationRole.Assistant)
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 }

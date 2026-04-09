@@ -23,6 +23,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
     private readonly string _providerKey;
     private readonly ILocalAgentSessionStore _store;
     private readonly ILocalAgentTurnExecutor _turnExecutor;
+    private readonly LocalAgentCompactionSummarizer _compactionSummarizer;
     private readonly AgentSessionCreateOptions _options;
     private readonly Channel<AgentEvent> _eventChannel;
     private readonly ConcurrentDictionary<Guid, Action<AgentEvent>> _subscribers = new();
@@ -70,6 +71,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         _providerKey = provider.ProviderKey;
         _store = store;
         _turnExecutor = turnExecutor;
+        _compactionSummarizer = new LocalAgentCompactionSummarizer(new LocalAgentTurnExecutorCompactionSummaryExecutor(turnExecutor));
         _options = options;
         _summary = summary;
         _state = state;
@@ -624,14 +626,25 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         }
         catch (LocalAgentTurnExecutionException ex) when (ex.Failure.IsContextOverflow)
         {
-            var compacted = await CompactCoreAsync(
-                    LocalAgentCompactionTrigger.Overflow,
-                    runId,
-                    systemMessage,
-                    developerInstructions,
-                    modelInfo,
-                    cancellationToken)
-                .ConfigureAwait(false);
+            AgentCompactionOutcome? compacted;
+            try
+            {
+                compacted = await CompactCoreAsync(
+                        LocalAgentCompactionTrigger.Overflow,
+                        runId,
+                        systemMessage,
+                        developerInstructions,
+                        modelInfo,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception compactionEx) when (compactionEx is not OperationCanceledException)
+            {
+                throw new InvalidOperationException(
+                    "The provider reported a context-overflow error, but automatic compaction recovery could not complete.",
+                    compactionEx);
+            }
+
             if (compacted is null)
             {
                 throw;
@@ -732,21 +745,115 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             throw new InvalidOperationException("The reserved output token budget exceeds the model's output token limit.");
         }
 
-        var preparation = LocalAgentCompactionPlanner.Prepare(
-            trigger,
+        var now = DateTimeOffset.UtcNow;
+        var latestUserRequest = GetLatestUserRequest(_conversation);
+        var currentPromptTokens = LocalAgentTokenEstimator.EstimatePromptTokens(
             systemMessage,
             developerInstructions,
             _conversation,
-            _state.Usage,
-            budget,
-            settings,
-            FindLatestUserContentId());
-        if (preparation is null)
+            _state.Usage).Tokens;
+        var checkpointContentId = $"compaction:{Guid.CreateVersion7()}";
+        var summaryOutputTokens = GetCompactionSummaryOutputTokens(settings, budget);
+        LocalAgentCompactionPreparation? preparation = null;
+        LocalAgentCompactionResult? result = null;
+        LocalAgentCompactionCheckpoint? checkpoint = null;
+        LocalAgentConversationMessage? checkpointMessage = null;
+        IReadOnlyList<LocalAgentConversationMessage>? retainedConversation = null;
+        long? checkpointTokenEstimate = null;
+
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            return null;
+            long? promptBudgetOverride = attempt == 0 ? null : budget.UsablePromptBudget ?? currentPromptTokens;
+            var keepAnchorOnly = attempt == 2;
+            try
+            {
+                preparation = LocalAgentCompactionPlanner.Prepare(
+                    trigger,
+                    systemMessage,
+                    developerInstructions,
+                    _conversation,
+                    _state.Usage,
+                    budget,
+                    settings,
+                    FindLatestUserContentId(),
+                    checkpointTokenEstimate,
+                    promptBudgetOverride,
+                    keepAnchorOnly);
+            }
+            catch (InvalidOperationException) when (attempt < 2)
+            {
+                preparation = null;
+                continue;
+            }
+
+            if (preparation is null)
+            {
+                return null;
+            }
+
+            var summaryResult = await _compactionSummarizer.SummarizeAsync(
+                    BackendId,
+                    Provider,
+                    SessionId,
+                    _summary.ModelId ?? _options.Model,
+                    modelInfo,
+                    _summary.WorkingDirectory,
+                    _state,
+                    preparation,
+                    _history,
+                    latestUserRequest,
+                    summaryOutputTokens,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            checkpointTokenEstimate = LocalAgentTokenEstimator.EstimateCheckpointTokens(summaryResult.Summary);
+            retainedConversation = [.. preparation.TurnPrefixMessages, .. preparation.MessagesToKeep];
+            checkpoint = new LocalAgentCompactionCheckpoint
+            {
+                Version = 1,
+                ContentId = checkpointContentId,
+                Trigger = trigger.ToString().ToLowerInvariant(),
+                Summary = summaryResult.Summary,
+                FirstKeptEventOffset = TryResolveFirstKeptEventOffset(retainedConversation),
+                AnchorContentId = preparation.AnchorContentId,
+                TokensBefore = summaryResult.TokensBefore,
+                SummarizedMessageCount = summaryResult.MessagesSummarized,
+                ReadFiles = summaryResult.ReadFiles,
+                ModifiedFiles = summaryResult.ModifiedFiles,
+                KeptMessages = retainedConversation,
+            };
+            checkpointMessage = checkpoint.CreateMessage();
+
+            var candidateConversation = new List<LocalAgentConversationMessage>(retainedConversation.Count + 1)
+            {
+                checkpointMessage,
+            };
+            candidateConversation.AddRange(retainedConversation);
+
+            var tokensAfter = LocalAgentTokenEstimator.EstimatePromptTokens(
+                systemMessage,
+                developerInstructions,
+                candidateConversation,
+                usage: null).Tokens;
+            if (FitsResolvedPromptBudget(tokensAfter, budget))
+            {
+                result = summaryResult with
+                {
+                    TokensAfter = tokensAfter,
+                };
+                checkpoint = checkpoint with
+                {
+                    TokensAfter = tokensAfter,
+                };
+                break;
+            }
         }
 
-        var now = DateTimeOffset.UtcNow;
+        if (preparation is null || result is null || checkpoint is null || checkpointMessage is null || retainedConversation is null)
+        {
+            throw new InvalidOperationException("Compaction summarization could not produce a prompt that fits the resolved limits after bounded replanning.");
+        }
+
         var started = new AgentSessionUpdateEvent(
             BackendId,
             SessionId,
@@ -755,54 +862,9 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             AgentSessionUpdateKind.CompactionStarted,
             $"{trigger} local compaction started.");
 
-        var firstKeptEventOffset = TryResolveFirstKeptEventOffset(preparation.MessagesToKeep);
-        var checkpointContentId = $"compaction:{Guid.CreateVersion7()}";
-        var postCompactionConversation = new List<LocalAgentConversationMessage>(preparation.MessagesToKeep.Count + 1);
-        var latestUserRequest = GetLatestUserRequest(_conversation);
-        var tentativeSummary = LocalAgentCompactionSummarizer.Summarize(
-            preparation,
-            _history,
-            latestUserRequest,
-            tokensAfter: null);
-        var checkpoint = new LocalAgentCompactionCheckpoint
-        {
-            Version = 1,
-            ContentId = checkpointContentId,
-            Trigger = trigger.ToString().ToLowerInvariant(),
-            Summary = tentativeSummary.Summary,
-            FirstKeptEventOffset = firstKeptEventOffset,
-            AnchorContentId = preparation.AnchorContentId,
-            TokensBefore = tentativeSummary.TokensBefore,
-            SummarizedMessageCount = tentativeSummary.MessagesSummarized,
-            ReadFiles = tentativeSummary.ReadFiles,
-            ModifiedFiles = tentativeSummary.ModifiedFiles,
-            KeptMessages = preparation.MessagesToKeep,
-        };
-        var checkpointMessage = checkpoint.CreateMessage();
-        postCompactionConversation.Add(checkpointMessage);
-        postCompactionConversation.AddRange(preparation.MessagesToKeep);
-        var tokensAfter = LocalAgentTokenEstimator.EstimatePromptTokens(
-            systemMessage,
-            developerInstructions,
-            postCompactionConversation,
-            usage: null).Tokens;
-        var result = LocalAgentCompactionSummarizer.Summarize(
-            preparation,
-            _history,
-            latestUserRequest,
-            tokensAfter);
-        checkpoint = checkpoint with
-        {
-            Summary = result.Summary,
-            TokensAfter = result.TokensAfter,
-            ReadFiles = result.ReadFiles,
-            ModifiedFiles = result.ModifiedFiles,
-        };
-        checkpointMessage = checkpoint.CreateMessage();
-
         _conversation.Clear();
         _conversation.Add(checkpointMessage);
-        _conversation.AddRange(preparation.MessagesToKeep);
+        _conversation.AddRange(retainedConversation);
 
         var usage = CreateCompactionUsage(result, budget, _conversation.Count, _state.Usage);
         _state = _state with
@@ -850,6 +912,37 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             TokensRemoved: tokensRemoved,
             PreCompactionTokens: result.TokensBefore,
             PostCompactionTokens: result.TokensAfter);
+    }
+
+    private static int GetCompactionSummaryOutputTokens(
+        LocalAgentCompactionSettings settings,
+        LocalAgentTokenBudget budget)
+    {
+        var limit = budget.OutputTokenLimit is > 0
+            ? Math.Min(budget.OutputTokenLimit.Value, settings.ReservedOutputTokens)
+            : settings.ReservedOutputTokens;
+        return (int)Math.Max(Math.Min(limit, 1024), 128);
+    }
+
+    private static bool FitsResolvedPromptBudget(long promptTokens, LocalAgentTokenBudget budget)
+    {
+        if (budget.ContextWindow is not null &&
+            promptTokens + budget.ReservedOutputTokens + budget.ReservedOverheadTokens > budget.ContextWindow.Value)
+        {
+            return false;
+        }
+
+        if (budget.InputTokenLimit is not null && promptTokens > budget.InputTokenLimit.Value)
+        {
+            return false;
+        }
+
+        if (budget.OutputTokenLimit is not null && budget.ReservedOutputTokens > budget.OutputTokenLimit.Value)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static AgentSessionUsage? CreateCompactionUsage(

@@ -301,6 +301,44 @@ public sealed class LocalAgentSessionTests
                          [],
                          store,
                          new ScriptedTurnExecutor(
+                             [new AgentModelInfo("gpt-5.4", "GPT-5.4")],
+                             (request, _, _) =>
+                             {
+                                 Assert.AreEqual(1, request.Conversation.Count);
+                                 Assert.AreEqual(LocalAgentConversationRole.User, request.Conversation[0].Role);
+                                 var payload = Assert.IsInstanceOfType<LocalAgentMessagePart.Text>(request.Conversation[0].Parts.Single()).Value;
+                                 StringAssert.Contains(payload, "<conversation>");
+                                 return Task.FromResult(
+                                     new LocalAgentTurnResponse
+                                     {
+                                         AssistantMessage = new LocalAgentConversationMessage(
+                                             LocalAgentConversationRole.Assistant,
+                                             [new LocalAgentMessagePart.Text(
+                                                 """
+                                                 ## Objective
+                                                 Continue the coding task.
+                                                 ## Active User Request
+                                                 Second prompt
+                                                 ## Constraints
+                                                 - Preserve behavior.
+                                                 ## Progress
+                                                 ### Done
+                                                 - First answer captured.
+                                                 ### In Progress
+                                                 - Working on the second prompt.
+                                                 ### Blocked
+                                                 - None recorded.
+                                                 ## Decisions
+                                                 - Use checkpoints.
+                                                 ## Next Steps
+                                                 - Continue from the retained suffix.
+                                                 ## Critical Context
+                                                 - Keep recent context verbatim.
+                                                 ## Relevant Files
+                                                 - None tracked.
+                                                 """)]),
+                                     });
+                             },
                              (_, _, _) => Task.FromResult(
                                  new LocalAgentTurnResponse
                                  {
@@ -439,6 +477,368 @@ public sealed class LocalAgentSessionTests
     }
 
     [TestMethod]
+    public void LocalAgentCompactionPlanner_Preparation_KeepsContiguousNewestSuffix()
+    {
+        var conversation = new[]
+        {
+            new LocalAgentConversationMessage(LocalAgentConversationRole.User, [new LocalAgentMessagePart.Text("u1 " + new string('a', 320))]),
+            new LocalAgentConversationMessage(LocalAgentConversationRole.Assistant, [new LocalAgentMessagePart.Text("a1")]),
+            new LocalAgentConversationMessage(LocalAgentConversationRole.User, [new LocalAgentMessagePart.Text("u2 " + new string('b', 320))]),
+            new LocalAgentConversationMessage(LocalAgentConversationRole.Assistant, [new LocalAgentMessagePart.Text("a2")]),
+        };
+
+        var lastMessageTokens = LocalAgentTokenEstimator.EstimateMessage(conversation[^1]);
+        var preparation = LocalAgentCompactionPlanner.Prepare(
+            LocalAgentCompactionTrigger.Threshold,
+            systemMessage: null,
+            developerInstructions: null,
+            conversation,
+            usage: null,
+            new LocalAgentTokenBudget(
+                ContextWindow: 2000,
+                InputTokenLimit: 500,
+                OutputTokenLimit: 128,
+                UsablePromptBudget: 500,
+                ReservedOutputTokens: 32,
+                ReservedOverheadTokens: 32),
+            new LocalAgentCompactionSettings(
+                Enabled: true,
+                TriggerThreshold: 0.80,
+                TargetThreshold: 0.50,
+                ReservedOutputTokens: 32,
+                ReservedOverheadTokens: 32,
+                KeepLastUserMessage: false,
+                AllowSplitTurn: true),
+            checkpointTokenEstimate: 64,
+            promptBudgetOverride: lastMessageTokens + 96);
+
+        Assert.IsNotNull(preparation);
+        CollectionAssert.AreEqual(new[] { conversation[^1] }, preparation!.MessagesToKeep.ToArray());
+        CollectionAssert.AreEqual(
+            new[] { conversation[0], conversation[1], conversation[2] },
+            preparation.MessagesToSummarize.ToArray());
+    }
+
+    [TestMethod]
+    public void LocalAgentCompactionPlanner_Preparation_ThrowsWhenSplitTurnDisabled()
+    {
+        var conversation = new[]
+        {
+            new LocalAgentConversationMessage(LocalAgentConversationRole.User, [new LocalAgentMessagePart.Text("First prompt")]),
+            new LocalAgentConversationMessage(LocalAgentConversationRole.Assistant, [new LocalAgentMessagePart.Text("First answer")]),
+            new LocalAgentConversationMessage(LocalAgentConversationRole.User, [new LocalAgentMessagePart.Text("Latest prompt")]),
+            new LocalAgentConversationMessage(LocalAgentConversationRole.Assistant, [new LocalAgentMessagePart.Text(new string('x', 480))]),
+        };
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => LocalAgentCompactionPlanner.Prepare(
+            LocalAgentCompactionTrigger.Threshold,
+            systemMessage: null,
+            developerInstructions: null,
+            conversation,
+            usage: null,
+            new LocalAgentTokenBudget(
+                ContextWindow: 2000,
+                InputTokenLimit: 300,
+                OutputTokenLimit: 128,
+                UsablePromptBudget: 300,
+                ReservedOutputTokens: 32,
+                ReservedOverheadTokens: 32),
+            new LocalAgentCompactionSettings(
+                Enabled: true,
+                TriggerThreshold: 0.80,
+                TargetThreshold: 0.50,
+                ReservedOutputTokens: 32,
+                ReservedOverheadTokens: 32,
+                KeepLastUserMessage: true,
+                AllowSplitTurn: false),
+            anchorContentId: "user:latest",
+            checkpointTokenEstimate: 64,
+            promptBudgetOverride: 120));
+    }
+
+    [TestMethod]
+    public async Task LocalAgentSession_CompactAsync_UsesSummarizerExecutorAndPreviousSummaryOnUpdate()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider();
+        var summary = CreateSummary("session-summary-update");
+        var state = CreateState("session-summary-update");
+        await store.UpsertProviderAsync(provider).ConfigureAwait(false);
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        var summaryPayloads = new List<string>();
+        await using var session = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor(
+                [new AgentModelInfo("gpt-5.4", "GPT-5.4")],
+                (request, _, _) =>
+                {
+                    Assert.IsNull(request.ReasoningEffort);
+                    var payload = Assert.IsInstanceOfType<LocalAgentMessagePart.Text>(request.Conversation[0].Parts.Single()).Value;
+                    summaryPayloads.Add(payload);
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [new LocalAgentMessagePart.Text(
+                                    """
+                                    ## Objective
+                                    Continue the task.
+                                    ## Active User Request
+                                    Keep working.
+                                    ## Constraints
+                                    - Preserve behavior.
+                                    ## Progress
+                                    ### Done
+                                    - Captured progress.
+                                    ### In Progress
+                                    - Continue.
+                                    ### Blocked
+                                    - None recorded.
+                                    ## Decisions
+                                    - Use compaction.
+                                    ## Next Steps
+                                    - Continue from the suffix.
+                                    ## Critical Context
+                                    - Important details retained.
+                                    ## Relevant Files
+                                    - None tracked.
+                                    """)]),
+                        });
+                },
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("First answer " + new string('a', 160))]),
+                    }),
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("Second answer " + new string('b', 160))]),
+                    }),
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("Third answer " + new string('c', 160))]),
+                    })),
+            CreateOptions(provider, temp.Path));
+
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("First prompt " + new string('x', 140)) }).ConfigureAwait(false);
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Second prompt " + new string('y', 140)) }).ConfigureAwait(false);
+        _ = await ((IAgentCompactionOutcomeProvider)session).CompactWithOutcomeAsync().ConfigureAwait(false);
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Third prompt " + new string('z', 140)) }).ConfigureAwait(false);
+        _ = await ((IAgentCompactionOutcomeProvider)session).CompactWithOutcomeAsync().ConfigureAwait(false);
+
+        Assert.AreEqual(2, summaryPayloads.Count);
+        StringAssert.Contains(summaryPayloads[0], "<conversation>");
+        Assert.IsFalse(summaryPayloads[0].Contains("<previous-summary>", StringComparison.Ordinal));
+        StringAssert.Contains(summaryPayloads[1], "<previous-summary>");
+        StringAssert.Contains(summaryPayloads[1], "## Objective");
+    }
+
+    [TestMethod]
+    public async Task LocalAgentSession_CompactAsync_SummarizerFailureLeavesStateUntouched()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider();
+        var summary = CreateSummary("session-summary-failure");
+        var state = CreateState("session-summary-failure");
+        await store.UpsertProviderAsync(provider).ConfigureAwait(false);
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        await using var session = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor(
+                [new AgentModelInfo("gpt-5.4", "GPT-5.4")],
+                (_, _, _) => throw new InvalidOperationException("summary failed"),
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("First answer " + new string('a', 160))]),
+                    }),
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("Second answer " + new string('b', 160))]),
+                    })),
+            CreateOptions(provider, temp.Path));
+
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("First prompt " + new string('x', 140)) }).ConfigureAwait(false);
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Second prompt " + new string('y', 140)) }).ConfigureAwait(false);
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => ((IAgentCompactionOutcomeProvider)session).CompactWithOutcomeAsync()).ConfigureAwait(false);
+
+        var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsNotNull(persistedState);
+        Assert.IsNull(persistedState.CompactionCheckpointEventId);
+
+        var persistedHistory = await store.ReadEventsAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsFalse(persistedHistory.OfType<AgentRawEvent>().Any(static evt => evt.BackendEventType == "local.compactionCheckpoint"));
+        Assert.IsFalse(persistedHistory.OfType<AgentSessionUpdateEvent>().Any(static evt => evt.Kind == AgentSessionUpdateKind.CompactionStarted));
+    }
+
+    [TestMethod]
+    public async Task LocalAgentSession_CompactAsync_RejectsOversizedGeneratedSummary()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider(new LocalAgentCompactionSettings(
+            Enabled: true,
+            TriggerThreshold: 0.80,
+            TargetThreshold: 0.50,
+            ReservedOutputTokens: 32,
+            ReservedOverheadTokens: 32,
+            KeepLastUserMessage: true,
+            AllowSplitTurn: true));
+        var summary = CreateSummary("session-summary-too-large");
+        var state = CreateState("session-summary-too-large");
+        await store.UpsertProviderAsync(provider).ConfigureAwait(false);
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        var summaryAttempts = 0;
+        await using var session = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor(
+                [
+                    new AgentModelInfo(
+                        "gpt-5.4",
+                        "GPT-5.4",
+                        Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                        {
+                            ["contextWindow"] = 400L,
+                            ["inputTokenLimit"] = 300L,
+                            ["outputTokenLimit"] = 64L,
+                        }),
+                ],
+                (_, _, _) =>
+                {
+                    summaryAttempts++;
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [new LocalAgentMessagePart.Text("## Objective\n" + new string('x', 4000))]),
+                        });
+                },
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("First answer " + new string('a', 160))]),
+                    }),
+                (_, _, _) => Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("Second answer " + new string('b', 160))]),
+                    })),
+            CreateOptions(provider, temp.Path));
+
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("First prompt " + new string('x', 160)) }).ConfigureAwait(false);
+        _ = await session.SendAsync(new AgentSendOptions { Input = AgentInput.Text("Second prompt " + new string('y', 160)) }).ConfigureAwait(false);
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => ((IAgentCompactionOutcomeProvider)session).CompactWithOutcomeAsync()).ConfigureAwait(false);
+
+        Assert.AreEqual(1, summaryAttempts);
+        var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsNotNull(persistedState);
+        Assert.IsNull(persistedState.CompactionCheckpointEventId);
+    }
+
+    [TestMethod]
+    public void LocalAgentTokenEstimator_EstimatePromptTokens_UsesLastOperationPlusTrailingTail()
+    {
+        var conversation = new[]
+        {
+            new LocalAgentConversationMessage(LocalAgentConversationRole.User, [new LocalAgentMessagePart.Text("Prompt")]),
+            new LocalAgentConversationMessage(LocalAgentConversationRole.Assistant, [new LocalAgentMessagePart.Text("Answer")]),
+            new LocalAgentConversationMessage(LocalAgentConversationRole.Tool, [new LocalAgentMessagePart.ToolResult("call-1", new AgentToolResult(true, [new AgentToolResultItem.Text("tool output")]))]),
+            new LocalAgentConversationMessage(LocalAgentConversationRole.User, [new LocalAgentMessagePart.Text("Follow-up")]),
+        };
+
+        var estimate = LocalAgentTokenEstimator.EstimatePromptTokens(
+            systemMessage: "System",
+            developerInstructions: null,
+            conversation,
+            new AgentSessionUsage(
+                LastOperation: new AgentOperationUsageSnapshot(InputTokens: 120, OutputTokens: 30),
+                Scope: AgentUsageScope.LastOperation,
+                Source: AgentUsageSource.LocalProviderUsage,
+                UpdatedAt: DateTimeOffset.UtcNow));
+
+        Assert.AreEqual("provider-last-operation+local-tail", estimate.Source);
+        Assert.AreEqual(
+            150 + LocalAgentTokenEstimator.EstimateMessage(conversation[2]) + LocalAgentTokenEstimator.EstimateMessage(conversation[3]),
+            estimate.Tokens);
+    }
+
+    [TestMethod]
+    public void LocalAgentTokenEstimator_EstimatePromptTokens_DoesNotReuseLastOperationAcrossCheckpoint()
+    {
+        var conversation = new[]
+        {
+            new LocalAgentCompactionCheckpoint
+            {
+                Version = 1,
+                ContentId = "compaction:1",
+                Trigger = "manual",
+                Summary = "## Objective\nCheckpoint",
+                TokensBefore = 200,
+                SummarizedMessageCount = 2,
+            }.CreateMessage(),
+            new LocalAgentConversationMessage(LocalAgentConversationRole.User, [new LocalAgentMessagePart.Text("Follow-up")]),
+        };
+
+        var estimate = LocalAgentTokenEstimator.EstimatePromptTokens(
+            systemMessage: "System",
+            developerInstructions: null,
+            conversation,
+            new AgentSessionUsage(
+                LastOperation: new AgentOperationUsageSnapshot(InputTokens: 120, OutputTokens: 30),
+                Scope: AgentUsageScope.LastOperation,
+                Source: AgentUsageSource.LocalProviderUsage,
+                UpdatedAt: DateTimeOffset.UtcNow));
+
+        Assert.AreEqual("local-heuristic", estimate.Source);
+    }
+
+    [TestMethod]
     public async Task LocalAgentSession_SendAsync_OverflowCompactsAndRetriesOnce()
     {
         using var temp = TestTempDirectory.Create();
@@ -459,6 +859,42 @@ public sealed class LocalAgentSessionTests
 
         var attempt = 0;
         var executor = new ScriptedTurnExecutor(
+            [new AgentModelInfo("gpt-5.4", "GPT-5.4")],
+            (request, _, _) =>
+            {
+                var payload = Assert.IsInstanceOfType<LocalAgentMessagePart.Text>(request.Conversation[0].Parts.Single()).Value;
+                StringAssert.Contains(payload, "<conversation>");
+                return Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text(
+                                """
+                                ## Objective
+                                Recover from overflow.
+                                ## Active User Request
+                                Prompt two
+                                ## Constraints
+                                - Keep the latest user message verbatim.
+                                ## Progress
+                                ### Done
+                                - Earlier work summarized.
+                                ### In Progress
+                                - Retry after compaction.
+                                ### Blocked
+                                - Context overflow.
+                                ## Decisions
+                                - Compact and retry once.
+                                ## Next Steps
+                                - Retry the request.
+                                ## Critical Context
+                                - Keep the checkpoint concise.
+                                ## Relevant Files
+                                - None tracked.
+                                """)]),
+                    });
+            },
             (_, _, _) => Task.FromResult(
                 new LocalAgentTurnResponse
                 {
@@ -597,20 +1033,24 @@ public sealed class LocalAgentSessionTests
     private sealed class ScriptedTurnExecutor : ILocalAgentTurnExecutor
     {
         private readonly IReadOnlyList<AgentModelInfo> _models;
+        private readonly Func<LocalAgentTurnRequest, Func<LocalAgentTurnDelta, CancellationToken, ValueTask>, CancellationToken, Task<LocalAgentTurnResponse>>? _summaryHandler;
         private readonly Queue<Func<LocalAgentTurnRequest, Func<LocalAgentTurnDelta, CancellationToken, ValueTask>, CancellationToken, Task<LocalAgentTurnResponse>>> _steps;
 
         public ScriptedTurnExecutor(params Func<LocalAgentTurnRequest, Func<LocalAgentTurnDelta, CancellationToken, ValueTask>, CancellationToken, Task<LocalAgentTurnResponse>>[] steps)
             : this(
                 [new AgentModelInfo("gpt-5.4", "GPT-5.4")],
+                summaryHandler: null,
                 steps)
         {
         }
 
         public ScriptedTurnExecutor(
             IReadOnlyList<AgentModelInfo> models,
+            Func<LocalAgentTurnRequest, Func<LocalAgentTurnDelta, CancellationToken, ValueTask>, CancellationToken, Task<LocalAgentTurnResponse>>? summaryHandler = null,
             params Func<LocalAgentTurnRequest, Func<LocalAgentTurnDelta, CancellationToken, ValueTask>, CancellationToken, Task<LocalAgentTurnResponse>>[] steps)
         {
             _models = models;
+            _summaryHandler = summaryHandler;
             _steps = new Queue<Func<LocalAgentTurnRequest, Func<LocalAgentTurnDelta, CancellationToken, ValueTask>, CancellationToken, Task<LocalAgentTurnResponse>>>(steps);
         }
 
@@ -624,6 +1064,12 @@ public sealed class LocalAgentSessionTests
             Func<LocalAgentTurnDelta, CancellationToken, ValueTask> onUpdate,
             CancellationToken cancellationToken = default)
         {
+            if (_summaryHandler is not null &&
+                request.SystemMessage?.Contains("CodeAlta compaction summarizer", StringComparison.Ordinal) == true)
+            {
+                return _summaryHandler(request, onUpdate, cancellationToken);
+            }
+
             if (!_steps.TryDequeue(out var step))
             {
                 throw new InvalidOperationException("No scripted turn step remained.");
@@ -654,6 +1100,17 @@ public sealed class LocalAgentSessionTests
             Func<LocalAgentTurnDelta, CancellationToken, ValueTask> onUpdate,
             CancellationToken cancellationToken = default)
         {
+            if (request.SystemMessage?.Contains("CodeAlta compaction summarizer", StringComparison.Ordinal) == true)
+            {
+                return Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.Text("## Objective\nSummary")]),
+                    });
+            }
+
             var usage = LocalAgentUsageFactory.CreateOperationUsage(
                 modelId: "gpt-5.4-2026-03-05",
                 modelInfo: request.ModelInfo,

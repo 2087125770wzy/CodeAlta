@@ -10,7 +10,10 @@ internal static class LocalAgentCompactionPlanner
         AgentSessionUsage? usage,
         LocalAgentTokenBudget budget,
         LocalAgentCompactionSettings settings,
-        string? anchorContentId = null)
+        string? anchorContentId = null,
+        long? checkpointTokenEstimate = null,
+        long? promptBudgetOverride = null,
+        bool keepAnchorOnly = false)
     {
         ArgumentNullException.ThrowIfNull(conversation);
         ArgumentNullException.ThrowIfNull(settings);
@@ -27,98 +30,193 @@ internal static class LocalAgentCompactionPlanner
             developerInstructions,
             conversation,
             usage);
-
         if (effectiveConversation.Length < 2)
         {
             return null;
         }
 
-        var targetPromptBudget = budget.UsablePromptBudget.HasValue
-            ? Math.Max((long)Math.Floor(budget.UsablePromptBudget.Value * settings.TargetThreshold), 1)
-            : Math.Max(tokensBefore.Tokens / 2, 1);
+        var groups = BuildGroups(effectiveConversation);
+        var checkpointTokens = checkpointTokenEstimate
+            ?? (previousSummary is null
+                ? 64L
+                : Math.Max(LocalAgentTokenEstimator.EstimateCheckpointTokens(previousSummary), 64L));
+        var promptBudget = ResolvePromptBudget(tokensBefore.Tokens, budget.UsablePromptBudget, settings.TargetThreshold, promptBudgetOverride);
         var fixedTokenCost = LocalAgentTokenEstimator.EstimatePromptTokens(
             systemMessage,
             developerInstructions,
             [],
             usage: null).Tokens;
-        var estimatedCheckpointTokens = previousSummary is null
-            ? 64L
-            : Math.Max(LocalAgentTokenEstimator.EstimateCheckpointTokens(previousSummary), 64L);
-        var availableForKeep = budget.UsablePromptBudget.HasValue
-            ? Math.Max(targetPromptBudget - fixedTokenCost - estimatedCheckpointTokens, 0)
-            : Math.Max(targetPromptBudget / 2, 64);
+        var availableForRetained = Math.Max(promptBudget - fixedTokenCost - checkpointTokens, 0L);
+        var anchorGroupIndex = settings.KeepLastUserMessage ? FindLatestUserGroupIndex(groups) : null;
 
-        var groups = BuildGroups(effectiveConversation);
-        var keepGroupIndexes = new SortedSet<int>();
-        var keepTokens = 0L;
-        for (var index = groups.Count - 1; index >= 0; index--)
+        IReadOnlyList<int> turnPrefixIndexes = [];
+        IReadOnlyList<int> suffixIndexes;
+        bool isSplitTurn;
+
+        if (keepAnchorOnly)
         {
-            var candidateTokens = keepTokens + groups[index].Tokens;
-            if (candidateTokens > availableForKeep)
-            {
-                continue;
-            }
-
-            keepGroupIndexes.Add(index);
-            keepTokens = candidateTokens;
+            (turnPrefixIndexes, suffixIndexes, isSplitTurn) = BuildAnchorOnlyPlan(groups, anchorGroupIndex, availableForRetained);
+        }
+        else
+        {
+            (turnPrefixIndexes, suffixIndexes, isSplitTurn) = BuildPlan(
+                groups,
+                anchorGroupIndex,
+                settings.AllowSplitTurn,
+                availableForRetained);
         }
 
-        var anchorGroupIndex = settings.KeepLastUserMessage
-            ? FindLatestUserGroupIndex(groups)
-            : null;
-        if (anchorGroupIndex is not null)
-        {
-            keepGroupIndexes.Add(anchorGroupIndex.Value);
-            keepTokens = SumTokens(groups, keepGroupIndexes);
-
-            while (keepTokens > availableForKeep)
-            {
-                var removableIndex = keepGroupIndexes
-                    .Where(index => index != anchorGroupIndex.Value)
-                    .DefaultIfEmpty(-1)
-                    .First();
-                if (removableIndex < 0)
-                {
-                    break;
-                }
-
-                keepGroupIndexes.Remove(removableIndex);
-                keepTokens = SumTokens(groups, keepGroupIndexes);
-            }
-
-            if (budget.UsablePromptBudget is not null &&
-                keepTokens > availableForKeep &&
-                groups[anchorGroupIndex.Value].Tokens > availableForKeep)
-            {
-                throw new InvalidOperationException("The latest user message is too large to keep within the resolved prompt budget.");
-            }
-        }
-
-        if (keepGroupIndexes.Count == 0 && groups.Count > 0)
-        {
-            keepGroupIndexes.Add(groups.Count - 1);
-        }
-
-        var messagesToKeep = FlattenGroups(groups, keepGroupIndexes);
-        var messagesToSummarize = FlattenGroups(groups, Enumerable.Range(0, groups.Count).Except(keepGroupIndexes));
+        var retainedIndexes = turnPrefixIndexes.Concat(suffixIndexes).ToHashSet();
+        var messagesToSummarize = FlattenGroups(
+            groups,
+            Enumerable.Range(0, groups.Count).Where(index => !retainedIndexes.Contains(index)));
         if (messagesToSummarize.Count == 0)
         {
             return null;
         }
 
-        var isSplitTurn = anchorGroupIndex is not null &&
-                          groups.Select((group, index) => (group, index))
-                              .Any(pair => !keepGroupIndexes.Contains(pair.index) && pair.index > anchorGroupIndex.Value);
-
         return new LocalAgentCompactionPreparation(
             Trigger: trigger,
             MessagesToSummarize: messagesToSummarize,
-            MessagesToKeep: messagesToKeep,
+            TurnPrefixMessages: FlattenGroups(groups, turnPrefixIndexes),
+            MessagesToKeep: FlattenGroups(groups, suffixIndexes),
             AnchorContentId: anchorContentId,
             IsSplitTurn: isSplitTurn,
             TokensBefore: tokensBefore,
             PreviousSummary: previousSummary);
     }
+
+    private static long ResolvePromptBudget(
+        long tokensBefore,
+        long? usablePromptBudget,
+        double targetThreshold,
+        long? promptBudgetOverride)
+    {
+        if (promptBudgetOverride is > 0)
+        {
+            return promptBudgetOverride.Value;
+        }
+
+        return usablePromptBudget is > 0
+            ? Math.Max((long)Math.Floor(usablePromptBudget.Value * targetThreshold), 1L)
+            : Math.Max(tokensBefore / 2, 1L);
+    }
+
+    private static (IReadOnlyList<int> TurnPrefixIndexes, IReadOnlyList<int> SuffixIndexes, bool IsSplitTurn) BuildPlan(
+        IReadOnlyList<MessageGroup> groups,
+        int? anchorGroupIndex,
+        bool allowSplitTurn,
+        long availableForRetained)
+    {
+        if (groups.Count == 0)
+        {
+            return ([], [], false);
+        }
+
+        if (anchorGroupIndex is null)
+        {
+            return ([], BuildContiguousSuffix(groups, availableForRetained), false);
+        }
+
+        var anchoredSuffixIndexes = BuildSuffixFromStart(groups, anchorGroupIndex.Value);
+        var anchoredSuffixTokens = SumTokens(groups, anchoredSuffixIndexes);
+        if (anchoredSuffixTokens <= availableForRetained)
+        {
+            return ([], BuildContiguousSuffix(groups, availableForRetained, maximumStartIndex: anchorGroupIndex.Value), false);
+        }
+
+        if (!allowSplitTurn)
+        {
+            throw new InvalidOperationException("The latest user turn does not fit within the resolved prompt budget and split-turn compaction is disabled.");
+        }
+
+        var anchorTokens = groups[anchorGroupIndex.Value].Tokens;
+        if (anchorTokens > availableForRetained)
+        {
+            throw new InvalidOperationException("The latest user message is too large to keep within the resolved prompt budget.");
+        }
+
+        var remainingBudget = availableForRetained - anchorTokens;
+        var suffixIndexes = BuildContiguousSuffix(groups, remainingBudget, minimumStartIndexExclusive: anchorGroupIndex.Value);
+        var isSplitTurn = suffixIndexes.Count > 0 || anchorGroupIndex.Value < groups.Count - 1;
+        return ([anchorGroupIndex.Value], suffixIndexes, isSplitTurn);
+    }
+
+    private static (IReadOnlyList<int> TurnPrefixIndexes, IReadOnlyList<int> SuffixIndexes, bool IsSplitTurn) BuildAnchorOnlyPlan(
+        IReadOnlyList<MessageGroup> groups,
+        int? anchorGroupIndex,
+        long availableForRetained)
+    {
+        if (anchorGroupIndex is null)
+        {
+            return ([], [], false);
+        }
+
+        if (groups[anchorGroupIndex.Value].Tokens > availableForRetained)
+        {
+            throw new InvalidOperationException("The latest user message is too large to keep within the resolved prompt budget.");
+        }
+
+        return ([anchorGroupIndex.Value], [], anchorGroupIndex.Value < groups.Count - 1);
+    }
+
+    private static IReadOnlyList<int> BuildContiguousSuffix(
+        IReadOnlyList<MessageGroup> groups,
+        long availableForRetained,
+        int? maximumStartIndex = null,
+        int? minimumStartIndexExclusive = null)
+    {
+        if (availableForRetained <= 0)
+        {
+            return [];
+        }
+
+        var startLimit = maximumStartIndex ?? groups.Count - 1;
+        var minimumAllowedStart = (minimumStartIndexExclusive ?? -1) + 1;
+        var keepTokens = 0L;
+        var suffixIndexes = new Stack<int>();
+        for (var index = groups.Count - 1; index >= minimumAllowedStart; index--)
+        {
+            var candidateTokens = keepTokens + groups[index].Tokens;
+            if (candidateTokens > availableForRetained)
+            {
+                if (suffixIndexes.Count == 0 && index == groups.Count - 1 && index <= startLimit && groups[index].Tokens <= availableForRetained)
+                {
+                    suffixIndexes.Push(index);
+                }
+
+                break;
+            }
+
+            suffixIndexes.Push(index);
+            keepTokens = candidateTokens;
+            if (index == 0 || index - 1 < minimumAllowedStart)
+            {
+                break;
+            }
+
+            if (index - 1 < 0)
+            {
+                break;
+            }
+        }
+
+        var suffix = suffixIndexes.ToList();
+        if (suffix.Count == 0)
+        {
+            return [];
+        }
+
+        while (suffix.Count > 0 && suffix[0] > startLimit)
+        {
+            suffix.RemoveAt(0);
+        }
+
+        return suffix;
+    }
+
+    private static IReadOnlyList<int> BuildSuffixFromStart(IReadOnlyList<MessageGroup> groups, int startIndex)
+        => Enumerable.Range(startIndex, groups.Count - startIndex).ToArray();
 
     private static string? ExtractLeadingCheckpointSummary(
         IReadOnlyList<LocalAgentConversationMessage> conversation,

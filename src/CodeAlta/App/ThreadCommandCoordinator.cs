@@ -307,6 +307,11 @@ internal sealed class ThreadCommandCoordinator
         catch (Exception ex)
         {
             tab.PendingManualCompaction = false;
+            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
+            {
+                CodeAltaApp.UiLogger.Error(ex, $"Failed to compact thread {thread.ThreadId}");
+            }
+
             _commandContext.SetThreadStatus(tab, $"Failed to compact '{thread.Title}': {ex.Message}", false, StatusTone.Error);
         }
     }

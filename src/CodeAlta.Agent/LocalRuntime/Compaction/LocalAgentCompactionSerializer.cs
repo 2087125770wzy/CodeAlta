@@ -1,3 +1,4 @@
+using System.Security;
 using System.Text;
 
 namespace CodeAlta.Agent.LocalRuntime.Compaction;
@@ -20,6 +21,45 @@ internal static class LocalAgentCompactionSerializer
         }
 
         return builder.ToString().Trim();
+    }
+
+    public static string BuildSummaryRequestBody(
+        LocalAgentCompactionPreparation preparation,
+        string? latestUserRequest,
+        IReadOnlyList<string> readFiles,
+        IReadOnlyList<string> modifiedFiles)
+    {
+        ArgumentNullException.ThrowIfNull(preparation);
+        ArgumentNullException.ThrowIfNull(readFiles);
+        ArgumentNullException.ThrowIfNull(modifiedFiles);
+
+        var builder = new StringBuilder();
+        builder.AppendLine("""<codealta-compaction-request version="1">""");
+        AppendTag(builder, "mode", preparation.PreviousSummary is null ? "initial" : "update");
+        AppendTag(builder, "trigger", preparation.Trigger.ToString().ToLowerInvariant());
+        AppendTag(builder, "split-turn", preparation.IsSplitTurn ? "true" : "false");
+        AppendTag(builder, "active-user-request", string.IsNullOrWhiteSpace(latestUserRequest) ? "(none recorded)" : latestUserRequest.Trim());
+
+        if (!string.IsNullOrWhiteSpace(preparation.PreviousSummary))
+        {
+            AppendTag(builder, "previous-summary", preparation.PreviousSummary);
+        }
+
+        AppendTag(builder, "conversation", SerializeForSummary(preparation.MessagesToSummarize));
+
+        if (preparation.TurnPrefixMessages.Count > 0)
+        {
+            AppendTag(builder, "retained-prefix", SerializeForSummary(preparation.TurnPrefixMessages));
+        }
+
+        if (preparation.MessagesToKeep.Count > 0)
+        {
+            AppendTag(builder, "retained-suffix", SerializeForSummary(preparation.MessagesToKeep));
+        }
+
+        AppendTag(builder, "relevant-files", RenderFileActivity(readFiles, modifiedFiles));
+        builder.Append("""</codealta-compaction-request>""");
+        return builder.ToString();
     }
 
     private static IEnumerable<string> SerializeMessage(LocalAgentConversationMessage message)
@@ -74,5 +114,42 @@ internal static class LocalAgentCompactionSerializer
 
     private static string Truncate(string value, int maxLength)
         => value.Length <= maxLength ? value : value[..maxLength] + "...";
-}
 
+    private static void AppendTag(StringBuilder builder, string tagName, string? value)
+    {
+        builder.Append('<').Append(tagName).AppendLine(">");
+        builder.AppendLine(SecurityElement.Escape(value ?? string.Empty) ?? string.Empty);
+        builder.Append("</").Append(tagName).AppendLine(">");
+    }
+
+    private static string RenderFileActivity(
+        IReadOnlyList<string> readFiles,
+        IReadOnlyList<string> modifiedFiles)
+    {
+        if (readFiles.Count == 0 && modifiedFiles.Count == 0)
+        {
+            return "- None tracked.";
+        }
+
+        var builder = new StringBuilder();
+        if (readFiles.Count > 0)
+        {
+            builder.AppendLine("### Read");
+            foreach (var path in readFiles)
+            {
+                builder.Append("- ").AppendLine(path);
+            }
+        }
+
+        if (modifiedFiles.Count > 0)
+        {
+            builder.AppendLine("### Modified");
+            foreach (var path in modifiedFiles)
+            {
+                builder.Append("- ").AppendLine(path);
+            }
+        }
+
+        return builder.ToString().Trim();
+    }
+}
