@@ -15,7 +15,7 @@ public sealed partial record SkillSummary
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
     [JsonPropertyName("path")]
-    public string Path { get; set; } = string.Empty;
+    public AbsolutePathBuf Path { get; set; } = default!;
     [JsonPropertyName("interface")]
     public SkillInterface? Interface { get; set; }
     [JsonPropertyName("shortDescription")]

@@ -16,7 +16,7 @@ public sealed partial record Thread
     public long CreatedAt { get; set; }
     /// <summary>Working directory captured for the thread.</summary>
     [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
+    public AbsolutePathBuf Cwd { get; set; } = default!;
     /// <summary>Whether the thread is ephemeral and should not be materialized on disk.</summary>
     [JsonPropertyName("ephemeral")]
     public bool Ephemeral { get; set; }
@@ -46,6 +46,9 @@ public sealed partial record Thread
     /// <summary>Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.</summary>
     [JsonPropertyName("agentRole")]
     public string? AgentRole { get; set; }
+    /// <summary>Source thread id when this thread was created by forking another thread.</summary>
+    [JsonPropertyName("forkedFromId")]
+    public string? ForkedFromId { get; set; }
     /// <summary>Optional Git metadata captured when the thread was created.</summary>
     [JsonPropertyName("gitInfo")]
     public GitInfo? GitInfo { get; set; }

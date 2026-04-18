@@ -6,10 +6,12 @@ using System.Text.Json.Serialization;
 
 namespace CodeAlta.CodexSdk;
 
-public sealed partial record McpToolCallResult
+public sealed partial record McpServerToolCallResponse
 {
     [JsonPropertyName("content")]
     public List<JsonElement> Content { get; set; } = [];
+    [JsonPropertyName("isError")]
+    public bool? IsError { get; set; }
     [JsonPropertyName("_meta")]
     public JsonElement? Meta { get; set; }
     [JsonPropertyName("structuredContent")]

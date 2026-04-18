@@ -17,6 +17,6 @@ public sealed partial record GuardianApprovalReview
     public string? Rationale { get; set; }
     [JsonPropertyName("riskLevel")]
     public GuardianRiskLevel? RiskLevel { get; set; }
-    [JsonPropertyName("riskScore")]
-    public long? RiskScore { get; set; }
+    [JsonPropertyName("userAuthorization")]
+    public GuardianUserAuthorization? UserAuthorization { get; set; }
 }

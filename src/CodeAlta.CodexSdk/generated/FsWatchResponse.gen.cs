@@ -7,14 +7,11 @@ using System.Text.Json.Serialization;
 namespace CodeAlta.CodexSdk;
 
 /// <summary>
-/// Created watch handle returned by `fs/watch`.
+/// Successful response for `fs/watch`.
 /// </summary>
 public sealed partial record FsWatchResponse
 {
     /// <summary>Canonicalized path associated with the watch.</summary>
     [JsonPropertyName("path")]
     public AbsolutePathBuf Path { get; set; } = default!;
-    /// <summary>Connection-scoped watch identifier used for `fs/unwatch` and `fs/changed`.</summary>
-    [JsonPropertyName("watchId")]
-    public string WatchId { get; set; } = string.Empty;
 }

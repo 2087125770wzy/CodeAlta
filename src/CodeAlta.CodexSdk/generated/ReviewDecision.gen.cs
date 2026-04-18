@@ -21,6 +21,7 @@ internal sealed class ReviewDecisionJsonConverter : JsonConverter<ReviewDecision
                 "approved" => new ReviewDecision.Approved(),
                 "approved_for_session" => new ReviewDecision.ApprovedForSession(),
                 "denied" => new ReviewDecision.Denied(),
+                "timed_out" => new ReviewDecision.TimedOut(),
                 "abort" => new ReviewDecision.Abort(),
                 _ => throw new JsonException($"Unknown ReviewDecision string variant: '{s}'.")
             };
@@ -86,6 +87,9 @@ internal sealed class ReviewDecisionJsonConverter : JsonConverter<ReviewDecision
             case ReviewDecision.Denied:
                 writer.WriteStringValue("denied");
                 break;
+            case ReviewDecision.TimedOut:
+                writer.WriteStringValue("timed_out");
+                break;
             case ReviewDecision.Abort:
                 writer.WriteStringValue("abort");
                 break;
@@ -111,5 +115,6 @@ public abstract partial record ReviewDecision
         public CodeAlta.CodexSdk.NetworkPolicyAmendment NetworkPolicyAmendmentValue { get; set; } = default!;
     }
     public sealed partial record Denied : ReviewDecision;
+    public sealed partial record TimedOut : ReviewDecision;
     public sealed partial record Abort : ReviewDecision;
 }

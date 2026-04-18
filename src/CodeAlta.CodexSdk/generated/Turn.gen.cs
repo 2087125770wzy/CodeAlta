@@ -15,7 +15,16 @@ public sealed partial record Turn
     public List<ThreadItem> Items { get; set; } = [];
     [JsonPropertyName("status")]
     public TurnStatus Status { get; set; } = default!;
+    /// <summary>Unix timestamp (in seconds) when the turn completed.</summary>
+    [JsonPropertyName("completedAt")]
+    public long? CompletedAt { get; set; }
+    /// <summary>Duration between turn start and completion in milliseconds, if known.</summary>
+    [JsonPropertyName("durationMs")]
+    public long? DurationMs { get; set; }
     /// <summary>Only populated when the Turn's status is failed.</summary>
     [JsonPropertyName("error")]
     public TurnError? Error { get; set; }
+    /// <summary>Unix timestamp (in seconds) when the turn started.</summary>
+    [JsonPropertyName("startedAt")]
+    public long? StartedAt { get; set; }
 }

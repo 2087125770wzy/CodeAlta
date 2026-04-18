@@ -35,4 +35,6 @@ public sealed partial record ThreadStartParams
     public string? ServiceName { get; set; }
     [JsonPropertyName("serviceTier")]
     public JsonElement? ServiceTier { get; set; }
+    [JsonPropertyName("sessionStartSource")]
+    public ThreadStartSource? SessionStartSource { get; set; }
 }

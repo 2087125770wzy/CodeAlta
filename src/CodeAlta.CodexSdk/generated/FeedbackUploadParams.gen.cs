@@ -16,6 +16,8 @@ public sealed partial record FeedbackUploadParams
     public List<string>? ExtraLogFiles { get; set; }
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
+    [JsonPropertyName("tags")]
+    public Dictionary<string, string>? Tags { get; set; }
     [JsonPropertyName("threadId")]
     public string? ThreadId { get; set; }
 }

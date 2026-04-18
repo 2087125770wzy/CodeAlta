@@ -15,9 +15,9 @@ public sealed partial record SkillInterface
     [JsonPropertyName("displayName")]
     public string? DisplayName { get; set; }
     [JsonPropertyName("iconLarge")]
-    public string? IconLarge { get; set; }
+    public AbsolutePathBuf? IconLarge { get; set; }
     [JsonPropertyName("iconSmall")]
-    public string? IconSmall { get; set; }
+    public AbsolutePathBuf? IconSmall { get; set; }
     [JsonPropertyName("shortDescription")]
     public string? ShortDescription { get; set; }
 }

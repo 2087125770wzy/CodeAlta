@@ -24,6 +24,8 @@ public sealed partial record Model
     public string ModelValue { get; set; } = string.Empty;
     [JsonPropertyName("supportedReasoningEfforts")]
     public List<ReasoningEffortOption> SupportedReasoningEfforts { get; set; } = [];
+    [JsonPropertyName("additionalSpeedTiers")]
+    public List<string>? AdditionalSpeedTiers { get; set; }
     [JsonPropertyName("availabilityNux")]
     public ModelAvailabilityNux? AvailabilityNux { get; set; }
     [JsonPropertyName("inputModalities")]

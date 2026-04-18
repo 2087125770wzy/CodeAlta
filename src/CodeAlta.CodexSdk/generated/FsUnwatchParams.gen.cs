@@ -11,7 +11,7 @@ namespace CodeAlta.CodexSdk;
 /// </summary>
 public sealed partial record FsUnwatchParams
 {
-    /// <summary>Watch identifier returned by `fs/watch`.</summary>
+    /// <summary>Watch identifier previously provided to `fs/watch`.</summary>
     [JsonPropertyName("watchId")]
     public string WatchId { get; set; } = string.Empty;
 }

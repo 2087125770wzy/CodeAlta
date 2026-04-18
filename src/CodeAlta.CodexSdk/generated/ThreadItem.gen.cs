@@ -87,7 +87,7 @@ public abstract partial record ThreadItem
         public List<CommandAction> CommandActions { get; set; } = [];
         /// <summary>The command's working directory.</summary>
         [JsonPropertyName("cwd")]
-        public string Cwd { get; set; } = string.Empty;
+        public AbsolutePathBuf Cwd { get; set; } = default!;
         /// <summary>The duration of the command execution in milliseconds.</summary>
         [JsonPropertyName("durationMs")]
         public long? DurationMs { get; set; }
@@ -201,7 +201,7 @@ public abstract partial record ThreadItem
         [JsonPropertyName("id")]
         public string Id { get; set; } = string.Empty;
         [JsonPropertyName("path")]
-        public string Path { get; set; } = string.Empty;
+        public AbsolutePathBuf Path { get; set; } = default!;
     }
 
     public sealed partial record ImageGenerationThreadItem : ThreadItem
@@ -213,7 +213,7 @@ public abstract partial record ThreadItem
         [JsonPropertyName("revisedPrompt")]
         public string? RevisedPrompt { get; set; }
         [JsonPropertyName("savedPath")]
-        public string? SavedPath { get; set; }
+        public AbsolutePathBuf? SavedPath { get; set; }
         [JsonPropertyName("status")]
         public string Status { get; set; } = string.Empty;
     }

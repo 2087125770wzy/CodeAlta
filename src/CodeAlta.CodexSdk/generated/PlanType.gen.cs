@@ -17,6 +17,8 @@ public enum PlanType
     Plus,
     [JsonStringEnumMemberName("pro")]
     Pro,
+    [JsonStringEnumMemberName("prolite")]
+    Prolite,
     [JsonStringEnumMemberName("team")]
     Team,
     [JsonStringEnumMemberName("self_serve_business_usage_based")]

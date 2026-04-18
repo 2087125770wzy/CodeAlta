@@ -23,7 +23,7 @@ public sealed partial record HookRunSummary
     [JsonPropertyName("scope")]
     public HookScope Scope { get; set; } = default!;
     [JsonPropertyName("sourcePath")]
-    public string SourcePath { get; set; } = string.Empty;
+    public AbsolutePathBuf SourcePath { get; set; } = default!;
     [JsonPropertyName("startedAt")]
     public long StartedAt { get; set; }
     [JsonPropertyName("status")]

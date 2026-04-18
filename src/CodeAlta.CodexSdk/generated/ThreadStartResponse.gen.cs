@@ -14,7 +14,7 @@ public sealed partial record ThreadStartResponse
     [JsonPropertyName("approvalsReviewer")]
     public ApprovalsReviewer ApprovalsReviewer { get; set; } = default!;
     [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
+    public AbsolutePathBuf Cwd { get; set; } = default!;
     [JsonPropertyName("model")]
     public string Model { get; set; } = string.Empty;
     [JsonPropertyName("modelProvider")]
@@ -23,6 +23,9 @@ public sealed partial record ThreadStartResponse
     public SandboxPolicy Sandbox { get; set; } = default!;
     [JsonPropertyName("thread")]
     public Thread Thread { get; set; } = default!;
+    /// <summary>Instruction source files currently loaded for this thread.</summary>
+    [JsonPropertyName("instructionSources")]
+    public List<AbsolutePathBuf>? InstructionSources { get; set; }
     [JsonPropertyName("reasoningEffort")]
     public ReasoningEffort? ReasoningEffort { get; set; }
     [JsonPropertyName("serviceTier")]

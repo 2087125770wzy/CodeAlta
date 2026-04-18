@@ -18,6 +18,8 @@ public enum GuardianApprovalReviewStatus
     Approved,
     [JsonStringEnumMemberName("denied")]
     Denied,
+    [JsonStringEnumMemberName("timedOut")]
+    TimedOut,
     [JsonStringEnumMemberName("aborted")]
     Aborted
 }

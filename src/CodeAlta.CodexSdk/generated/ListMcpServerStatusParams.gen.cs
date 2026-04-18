@@ -11,6 +11,9 @@ public sealed partial record ListMcpServerStatusParams
     /// <summary>Opaque pagination cursor returned by a previous call.</summary>
     [JsonPropertyName("cursor")]
     public string? Cursor { get; set; }
+    /// <summary>Controls how much MCP inventory data to fetch for each server. Defaults to `Full` when omitted.</summary>
+    [JsonPropertyName("detail")]
+    public McpServerStatusDetail? Detail { get; set; }
     /// <summary>Optional page size; defaults to a server-defined value.</summary>
     [JsonPropertyName("limit")]
     public uint? Limit { get; set; }

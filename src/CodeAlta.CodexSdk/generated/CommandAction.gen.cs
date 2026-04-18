@@ -20,7 +20,7 @@ public abstract partial record CommandAction
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
         [JsonPropertyName("path")]
-        public string Path { get; set; } = string.Empty;
+        public AbsolutePathBuf Path { get; set; } = default!;
     }
 
     public sealed partial record ListFilesCommandAction : CommandAction

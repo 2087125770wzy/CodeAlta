@@ -25,7 +25,7 @@ public sealed partial record CommandExecutionRequestApprovalParams
     public List<CommandAction>? CommandActions { get; set; }
     /// <summary>The command's working directory.</summary>
     [JsonPropertyName("cwd")]
-    public string? Cwd { get; set; }
+    public AbsolutePathBuf? Cwd { get; set; }
     /// <summary>Optional context for a managed-network approval prompt.</summary>
     [JsonPropertyName("networkApprovalContext")]
     public NetworkApprovalContext? NetworkApprovalContext { get; set; }

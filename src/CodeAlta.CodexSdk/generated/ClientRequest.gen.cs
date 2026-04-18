@@ -25,7 +25,9 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(ThreadListRequest), typeDiscriminator: "thread/list")]
 [JsonDerivedType(typeof(ThreadLoadedListRequest), typeDiscriminator: "thread/loaded/list")]
 [JsonDerivedType(typeof(ThreadReadRequest), typeDiscriminator: "thread/read")]
+[JsonDerivedType(typeof(ThreadInjectItemsRequest), typeDiscriminator: "thread/inject_items")]
 [JsonDerivedType(typeof(SkillsListRequest), typeDiscriminator: "skills/list")]
+[JsonDerivedType(typeof(MarketplaceAddRequest), typeDiscriminator: "marketplace/add")]
 [JsonDerivedType(typeof(PluginListRequest), typeDiscriminator: "plugin/list")]
 [JsonDerivedType(typeof(PluginReadRequest), typeDiscriminator: "plugin/read")]
 [JsonDerivedType(typeof(AppListRequest), typeDiscriminator: "app/list")]
@@ -51,6 +53,8 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(McpServerOauthLoginRequest), typeDiscriminator: "mcpServer/oauth/login")]
 [JsonDerivedType(typeof(ConfigMcpServerReloadRequest), typeDiscriminator: "config/mcpServer/reload")]
 [JsonDerivedType(typeof(McpServerStatusListRequest), typeDiscriminator: "mcpServerStatus/list")]
+[JsonDerivedType(typeof(McpServerResourceReadRequest), typeDiscriminator: "mcpServer/resource/read")]
+[JsonDerivedType(typeof(McpServerToolCallRequest), typeDiscriminator: "mcpServer/tool/call")]
 [JsonDerivedType(typeof(WindowsSandboxSetupStartRequest), typeDiscriminator: "windowsSandbox/setupStart")]
 [JsonDerivedType(typeof(AccountLoginStartRequest), typeDiscriminator: "account/login/start")]
 [JsonDerivedType(typeof(AccountLoginCancelRequest), typeDiscriminator: "account/login/cancel")]
@@ -194,12 +198,31 @@ public abstract partial record ClientRequest
         public ThreadReadParams Params { get; set; } = default!;
     }
 
+    /// <summary>
+    /// Append raw Responses API items to the thread history without starting a user turn.
+    /// </summary>
+    public sealed partial record ThreadInjectItemsRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public ThreadInjectItemsParams Params { get; set; } = default!;
+    }
+
     public sealed partial record SkillsListRequest : ClientRequest
     {
         [JsonPropertyName("id")]
         public RequestId Id { get; set; } = default!;
         [JsonPropertyName("params")]
         public SkillsListParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record MarketplaceAddRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public MarketplaceAddParams Params { get; set; } = default!;
     }
 
     public sealed partial record PluginListRequest : ClientRequest
@@ -400,6 +423,22 @@ public abstract partial record ClientRequest
         public RequestId Id { get; set; } = default!;
         [JsonPropertyName("params")]
         public ListMcpServerStatusParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record McpServerResourceReadRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public McpResourceReadParams Params { get; set; } = default!;
+    }
+
+    public sealed partial record McpServerToolCallRequest : ClientRequest
+    {
+        [JsonPropertyName("id")]
+        public RequestId Id { get; set; } = default!;
+        [JsonPropertyName("params")]
+        public McpServerToolCallParams Params { get; set; } = default!;
     }
 
     public sealed partial record WindowsSandboxSetupStartRequest : ClientRequest

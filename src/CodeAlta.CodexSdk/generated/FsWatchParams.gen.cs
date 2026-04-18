@@ -14,4 +14,7 @@ public sealed partial record FsWatchParams
     /// <summary>Absolute file or directory path to watch.</summary>
     [JsonPropertyName("path")]
     public AbsolutePathBuf Path { get; set; } = default!;
+    /// <summary>Connection-scoped watch identifier used for `fs/unwatch` and `fs/changed`.</summary>
+    [JsonPropertyName("watchId")]
+    public string WatchId { get; set; } = string.Empty;
 }

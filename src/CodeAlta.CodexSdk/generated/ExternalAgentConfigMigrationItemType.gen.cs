@@ -13,6 +13,7 @@ public enum ExternalAgentConfigMigrationItemType
     AGENTSMD,
     CONFIG,
     SKILLS,
+    PLUGINS,
     [JsonStringEnumMemberName("MCP_SERVER_CONFIG")]
     MCPSERVERCONFIG
 }

@@ -54,8 +54,10 @@ namespace CodeAlta.CodexSdk;
 [JsonDerivedType(typeof(FuzzyFileSearchSessionCompletedNotification), typeDiscriminator: "fuzzyFileSearch/sessionCompleted")]
 [JsonDerivedType(typeof(ThreadRealtimeStartedNotification), typeDiscriminator: "thread/realtime/started")]
 [JsonDerivedType(typeof(ThreadRealtimeItemAddedNotification), typeDiscriminator: "thread/realtime/itemAdded")]
-[JsonDerivedType(typeof(ThreadRealtimeTranscriptUpdatedNotification), typeDiscriminator: "thread/realtime/transcriptUpdated")]
+[JsonDerivedType(typeof(ThreadRealtimeTranscriptDeltaNotification), typeDiscriminator: "thread/realtime/transcript/delta")]
+[JsonDerivedType(typeof(ThreadRealtimeTranscriptDoneNotification), typeDiscriminator: "thread/realtime/transcript/done")]
 [JsonDerivedType(typeof(ThreadRealtimeOutputAudioDeltaNotification), typeDiscriminator: "thread/realtime/outputAudio/delta")]
+[JsonDerivedType(typeof(ThreadRealtimeSdpNotification), typeDiscriminator: "thread/realtime/sdp")]
 [JsonDerivedType(typeof(ThreadRealtimeErrorNotification), typeDiscriminator: "thread/realtime/error")]
 [JsonDerivedType(typeof(ThreadRealtimeClosedNotification), typeDiscriminator: "thread/realtime/closed")]
 [JsonDerivedType(typeof(WindowsWorldWritableWarningNotification), typeDiscriminator: "windows/worldWritableWarning")]
@@ -339,16 +341,28 @@ public abstract partial record ServerNotification
         public ThreadRealtimeItemAddedNotification Params { get; set; } = default!;
     }
 
-    public sealed partial record ThreadRealtimeTranscriptUpdatedNotification : ServerNotification
+    public sealed partial record ThreadRealtimeTranscriptDeltaNotification : ServerNotification
     {
         [JsonPropertyName("params")]
-        public ThreadRealtimeTranscriptUpdatedNotification Params { get; set; } = default!;
+        public ThreadRealtimeTranscriptDeltaNotification Params { get; set; } = default!;
+    }
+
+    public sealed partial record ThreadRealtimeTranscriptDoneNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public ThreadRealtimeTranscriptDoneNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ThreadRealtimeOutputAudioDeltaNotification : ServerNotification
     {
         [JsonPropertyName("params")]
         public ThreadRealtimeOutputAudioDeltaNotification Params { get; set; } = default!;
+    }
+
+    public sealed partial record ThreadRealtimeSdpNotification : ServerNotification
+    {
+        [JsonPropertyName("params")]
+        public ThreadRealtimeSdpNotification Params { get; set; } = default!;
     }
 
     public sealed partial record ThreadRealtimeErrorNotification : ServerNotification

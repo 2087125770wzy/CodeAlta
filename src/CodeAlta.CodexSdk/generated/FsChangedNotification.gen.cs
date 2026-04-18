@@ -14,7 +14,7 @@ public sealed partial record FsChangedNotification
     /// <summary>File or directory paths associated with this event.</summary>
     [JsonPropertyName("changedPaths")]
     public List<AbsolutePathBuf> ChangedPaths { get; set; } = [];
-    /// <summary>Watch identifier returned by `fs/watch`.</summary>
+    /// <summary>Watch identifier previously provided to `fs/watch`.</summary>
     [JsonPropertyName("watchId")]
     public string WatchId { get; set; } = string.Empty;
 }

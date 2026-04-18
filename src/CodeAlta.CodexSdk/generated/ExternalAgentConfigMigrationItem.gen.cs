@@ -15,4 +15,6 @@ public sealed partial record ExternalAgentConfigMigrationItem
     /// <summary>Null or empty means home-scoped migration; non-empty means repo-scoped migration.</summary>
     [JsonPropertyName("cwd")]
     public string? Cwd { get; set; }
+    [JsonPropertyName("details")]
+    public MigrationDetails? Details { get; set; }
 }

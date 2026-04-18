@@ -15,7 +15,7 @@ public sealed partial record SkillMetadata
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
     [JsonPropertyName("path")]
-    public string Path { get; set; } = string.Empty;
+    public AbsolutePathBuf Path { get; set; } = default!;
     [JsonPropertyName("scope")]
     public SkillScope Scope { get; set; } = default!;
     [JsonPropertyName("dependencies")]

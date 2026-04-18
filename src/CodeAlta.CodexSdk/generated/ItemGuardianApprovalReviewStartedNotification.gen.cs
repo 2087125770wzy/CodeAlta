@@ -8,19 +8,21 @@ namespace CodeAlta.CodexSdk;
 
 /// <summary>
 /// [UNSTABLE] Temporary notification payload for guardian automatic approval review. This shape is expected to change soon.
-/// 
-/// TODO(ccunningham): Attach guardian review state to the reviewed tool item's lifecycle instead of sending separate standalone review notifications so the app-server API can persist and replay review state via `thread/read`.
 /// </summary>
 public sealed partial record ItemGuardianApprovalReviewStartedNotification
 {
+    [JsonPropertyName("action")]
+    public GuardianApprovalReviewAction Action { get; set; } = default!;
     [JsonPropertyName("review")]
     public GuardianApprovalReview Review { get; set; } = default!;
-    [JsonPropertyName("targetItemId")]
-    public string TargetItemId { get; set; } = string.Empty;
+    /// <summary>Stable identifier for this review.</summary>
+    [JsonPropertyName("reviewId")]
+    public string ReviewId { get; set; } = string.Empty;
     [JsonPropertyName("threadId")]
     public string ThreadId { get; set; } = string.Empty;
     [JsonPropertyName("turnId")]
     public string TurnId { get; set; } = string.Empty;
-    [JsonPropertyName("action")]
-    public JsonElement? Action { get; set; }
+    /// <summary>Identifier for the reviewed item or tool call when one exists.  In most cases, one review maps to one target item. The exceptions are - execve reviews, where a single command may contain multiple execve calls to review (only possible when using the shell_zsh_fork feature) - network policy reviews, where there is no target item  A network call is triggered by a CommandExecution item, so having a target_item_id set to the CommandExecution item would be misleading because the review is about the network call, not the command execution. Therefore, target_item_id is set to None for network policy reviews.</summary>
+    [JsonPropertyName("targetItemId")]
+    public string? TargetItemId { get; set; }
 }
