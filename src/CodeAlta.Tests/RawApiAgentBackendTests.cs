@@ -105,6 +105,87 @@ public sealed class RawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task AnthropicAgentBackend_MiniMaxCompatibility_FallsBackToNonStreamingChatResponse()
+    {
+        using var temp = TestTempDirectory.Create();
+        var client = new NonStreamingOnlyChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextReasoningContent("thinking") { ProtectedData = "sig-1" }])
+            {
+                MessageId = "anthropic-message",
+                ResponseId = "anthropic-response",
+                ConversationId = "anthropic-conversation",
+                ModelId = "MiniMax-M2.7",
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("Anthropic answer.")])
+            {
+                MessageId = "anthropic-message",
+                ResponseId = "anthropic-response",
+                ConversationId = "anthropic-conversation",
+                ModelId = "MiniMax-M2.7",
+            },
+            new ChatResponseUpdate(ChatRole.Assistant, [new UsageContent(new UsageDetails
+            {
+                InputTokenCount = 18,
+                OutputTokenCount = 6,
+                TotalTokenCount = 24,
+            })])
+            {
+                MessageId = "anthropic-message",
+                ResponseId = "anthropic-response",
+                ConversationId = "anthropic-conversation",
+                ModelId = "MiniMax-M2.7",
+            },
+        ]);
+
+        await using var backend = new AnthropicAgentBackend(new AnthropicAgentBackendOptions
+        {
+            StateRootPath = temp.Path,
+            Providers =
+            {
+                new AnthropicProviderOptions
+                {
+                    ProviderKey = "minimax",
+                    DisplayName = "MiniMax 2.7",
+                    BaseUri = new Uri("https://api.minimax.io/anthropic"),
+                    SingleModelId = "MiniMax-M2.7",
+                    IsDefault = true,
+                    ChatClientFactory = () => client,
+                    ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
+                    [
+                        new AgentModelInfo(
+                            "MiniMax-M2.7",
+                            DisplayName: "MiniMax-M2.7",
+                            Capabilities: new Dictionary<string, object?>(StringComparer.Ordinal)
+                            {
+                                ["maxInputTokens"] = 204800L,
+                            }),
+                    ]),
+                },
+            },
+        });
+
+        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        {
+            Model = "MiniMax-M2.7",
+            WorkingDirectory = temp.Path,
+            SystemMessage = "System instructions",
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        }).ConfigureAwait(false);
+        _ = await session.SendAsync(new AgentSendOptions
+        {
+            Input = new AgentInput([new AgentInputItem.Text("Hello")]),
+        }).ConfigureAwait(false);
+
+        Assert.AreEqual(1, client.NonStreamingRequestCount);
+        Assert.AreEqual(0, client.StreamingRequestCount);
+
+        var history = await session.GetHistoryAsync().ConfigureAwait(false);
+        Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Reasoning && e.Content == "thinking"));
+        Assert.IsTrue(history.OfType<AgentContentCompletedEvent>().Any(static e => e.Kind == AgentContentKind.Assistant && e.Content == "Anthropic answer."));
+    }
+
+    [TestMethod]
     public async Task GoogleGenAIAgentBackend_PreservesThoughtSignaturesInSessionHistory()
     {
         using var temp = TestTempDirectory.Create();
@@ -219,6 +300,41 @@ public sealed class RawApiAgentBackendTests
                 yield return update.Clone();
                 await Task.Yield();
             }
+        }
+    }
+
+    private sealed class NonStreamingOnlyChatClient(IReadOnlyList<ChatResponseUpdate> updates) : IChatClient
+    {
+        public int NonStreamingRequestCount { get; private set; }
+
+        public int StreamingRequestCount { get; private set; }
+
+        public void Dispose()
+        {
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            NonStreamingRequestCount++;
+            return Task.FromResult(updates.ToChatResponse());
+        }
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            StreamingRequestCount++;
+            await Task.Yield();
+            throw new InvalidOperationException("Streaming should not be called for MiniMax Anthropic compatibility.");
+#pragma warning disable CS0162
+            yield break;
+#pragma warning restore CS0162
         }
     }
 }

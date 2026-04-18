@@ -5,6 +5,7 @@ using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Agent.LocalRuntime.Compaction;
 using CodeAlta.Agent.ModelCatalog;
 using Microsoft.Extensions.AI;
+using XenoAtom.Logging;
 
 namespace CodeAlta.Agent.Anthropic;
 
@@ -13,6 +14,7 @@ namespace CodeAlta.Agent.Anthropic;
 /// </summary>
 public sealed class AnthropicAgentBackend : IAgentBackend
 {
+    private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.Agent.Anthropic");
     private readonly IAgentBackend _inner;
 
     /// <summary>
@@ -115,13 +117,17 @@ public sealed class AnthropicAgentBackend : IAgentBackend
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var useStreamingCompatibilityFallback = ShouldUseStreamingCompatibilityFallback(providerDescriptor);
+
         if (provider.ChatClientFactory is not null)
         {
-            return ValueTask.FromResult(provider.ChatClientFactory());
+            return ValueTask.FromResult(
+                WrapChatClient(provider.ChatClientFactory(), providerDescriptor, useStreamingCompatibilityFallback));
         }
 
         var client = CreateSdkClient(provider, providerDescriptor);
-        return ValueTask.FromResult<IChatClient>(new OwnedChatClient(client.AsIChatClient(), client));
+        return ValueTask.FromResult<IChatClient>(
+            WrapChatClient(new OwnedChatClient(client.AsIChatClient(), client), providerDescriptor, useStreamingCompatibilityFallback));
     }
 
     private static async Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(
@@ -191,6 +197,46 @@ public sealed class AnthropicAgentBackend : IAgentBackend
         return new AnthropicClient(options);
     }
 
+    private static IChatClient WrapChatClient(
+        IChatClient chatClient,
+        LocalAgentProviderDescriptor providerDescriptor,
+        bool useStreamingCompatibilityFallback)
+    {
+        ArgumentNullException.ThrowIfNull(chatClient);
+        ArgumentNullException.ThrowIfNull(providerDescriptor);
+
+        if (!useStreamingCompatibilityFallback)
+        {
+            return chatClient;
+        }
+
+        LogInfo(
+            $"Using Anthropic streaming compatibility fallback backend={providerDescriptor.BackendId.Value} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName}");
+        return new AnthropicStreamingCompatibilityChatClient(chatClient);
+    }
+
+    private static bool ShouldUseStreamingCompatibilityFallback(LocalAgentProviderDescriptor providerDescriptor)
+    {
+        ArgumentNullException.ThrowIfNull(providerDescriptor);
+
+        return HasHost(providerDescriptor.BaseUri, "minimax.io") ||
+            HasHost(providerDescriptor.BaseUri, "minimaxi.com");
+    }
+
+    private static bool HasHost(Uri? baseUri, string expectedHost)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(expectedHost);
+
+        var host = baseUri?.Host;
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return false;
+        }
+
+        return host.Equals(expectedHost, StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith($".{expectedHost}", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static AgentModelInfo ToAgentModelInfo(
         LocalAgentProviderDescriptor provider,
         ModelInfo model)
@@ -208,6 +254,14 @@ public sealed class AnthropicAgentBackend : IAgentBackend
             Description: null,
             Provider: provider.ProviderKey,
             Capabilities: capabilities);
+    }
+
+    private static void LogInfo(string message)
+    {
+        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
+        {
+            Logger.Info(message);
+        }
     }
 
     private static AgentModelInfo CreateSingleModelInfo(
