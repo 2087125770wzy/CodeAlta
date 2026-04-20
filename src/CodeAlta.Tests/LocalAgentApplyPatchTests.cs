@@ -54,6 +54,177 @@ public sealed class LocalAgentApplyPatchTests
     }
 
     [TestMethod]
+    public async Task Apply_UsesAnchorTextToTargetTheIntendedRegion()
+    {
+        using var temp = TestTempDirectory.Create();
+        var filePath = Path.Combine(temp.Path, "sample.cs");
+        await File.WriteAllTextAsync(
+                filePath,
+                string.Join(
+                    Environment.NewLine,
+                    [
+                        "public int First()",
+                        "{",
+                        "    return 1;",
+                        "}",
+                        string.Empty,
+                        "public int Second()",
+                        "{",
+                        "    return 1;",
+                        "}",
+                    ]) + Environment.NewLine)
+            .ConfigureAwait(false);
+
+        var result = LocalAgentApplyPatch.Apply(
+            """
+            *** Begin Patch
+            *** Update File: sample.cs
+            @@ public int Second()
+             {
+            -    return 1;
+            +    return 2;
+             }
+            *** End Patch
+            """,
+            temp.Path);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(
+            string.Join(
+                Environment.NewLine,
+                [
+                    "public int First()",
+                    "{",
+                    "    return 1;",
+                    "}",
+                    string.Empty,
+                    "public int Second()",
+                    "{",
+                    "    return 2;",
+                    "}",
+                ]) + Environment.NewLine,
+            await File.ReadAllTextAsync(filePath).ConfigureAwait(false));
+    }
+
+    [TestMethod]
+    public void Apply_RejectsSingleAtAnchorHeaderWithHelpfulMessage()
+    {
+        var result = LocalAgentApplyPatch.Apply(
+            """
+            *** Begin Patch
+            *** Update File: sample.txt
+            @ partial void OnDocumentChanged(object? value)
+            *** End Patch
+            """,
+            Path.GetTempPath());
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(result.Error, "Expected a hunk header");
+        StringAssert.Contains(result.Error, "Use '@@' before each changed region");
+    }
+
+    [TestMethod]
+    public async Task Apply_UsesWhitespaceTolerantMatchingWithoutRewritingContext()
+    {
+        using var temp = TestTempDirectory.Create();
+        var filePath = Path.Combine(temp.Path, "sample.txt");
+        await File.WriteAllTextAsync(
+                filePath,
+                $"alpha  {Environment.NewLine}beta{Environment.NewLine}")
+            .ConfigureAwait(false);
+
+        var result = LocalAgentApplyPatch.Apply(
+            """
+            *** Begin Patch
+            *** Update File: sample.txt
+            @@
+             alpha
+            -beta
+            +gamma
+            *** End Patch
+            """,
+            temp.Path);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(
+            $"alpha  {Environment.NewLine}gamma{Environment.NewLine}",
+            await File.ReadAllTextAsync(filePath).ConfigureAwait(false));
+    }
+
+    [TestMethod]
+    public async Task Apply_TreatsBlankLinesInsideHunksAsBlankContext()
+    {
+        using var temp = TestTempDirectory.Create();
+        var filePath = Path.Combine(temp.Path, "sample.txt");
+        await File.WriteAllTextAsync(
+                filePath,
+                $"alpha{Environment.NewLine}{Environment.NewLine}beta{Environment.NewLine}")
+            .ConfigureAwait(false);
+
+        var result = LocalAgentApplyPatch.Apply(
+            """
+            *** Begin Patch
+            *** Update File: sample.txt
+            @@
+             alpha
+
+            -beta
+            +gamma
+            *** End Patch
+            """,
+            temp.Path);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(
+            $"alpha{Environment.NewLine}{Environment.NewLine}gamma{Environment.NewLine}",
+            await File.ReadAllTextAsync(filePath).ConfigureAwait(false));
+    }
+
+    [TestMethod]
+    public async Task Apply_PrefersEndOfFileWhenRequested()
+    {
+        using var temp = TestTempDirectory.Create();
+        var filePath = Path.Combine(temp.Path, "sample.txt");
+        await File.WriteAllTextAsync(
+                filePath,
+                string.Join(
+                    Environment.NewLine,
+                    [
+                        "marker",
+                        "tail",
+                        "marker",
+                        "tail",
+                    ]) + Environment.NewLine)
+            .ConfigureAwait(false);
+
+        var result = LocalAgentApplyPatch.Apply(
+            """
+            *** Begin Patch
+            *** Update File: sample.txt
+            @@
+             marker
+            +done
+             tail
+            *** End of File
+            *** End Patch
+            """,
+            temp.Path);
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(
+            string.Join(
+                Environment.NewLine,
+                [
+                    "marker",
+                    "tail",
+                    "marker",
+                    "done",
+                    "tail",
+                ]) + Environment.NewLine,
+            await File.ReadAllTextAsync(filePath).ConfigureAwait(false));
+    }
+
+    [TestMethod]
     public void Apply_ReturnsFailureForInvalidPatchEnvelope()
     {
         var result = LocalAgentApplyPatch.Apply(
@@ -98,6 +269,29 @@ public sealed class LocalAgentApplyPatchTests
     }
 
     [TestMethod]
+    public async Task Apply_AllowsMoveOnlyRenames()
+    {
+        using var temp = TestTempDirectory.Create();
+        var sourcePath = Path.Combine(temp.Path, "src.txt");
+        var destinationPath = Path.Combine(temp.Path, "nested", "dst.txt");
+        await File.WriteAllTextAsync(sourcePath, "alpha" + Environment.NewLine).ConfigureAwait(false);
+
+        var result = LocalAgentApplyPatch.Apply(
+            """
+            *** Begin Patch
+            *** Update File: src.txt
+            *** Move to: nested/dst.txt
+            *** End Patch
+            """,
+            temp.Path);
+
+        Assert.IsTrue(result.Success);
+        Assert.IsFalse(File.Exists(sourcePath));
+        Assert.AreEqual("alpha" + Environment.NewLine, await File.ReadAllTextAsync(destinationPath).ConfigureAwait(false));
+        StringAssert.Contains(AssertTextResult(result), "R src.txt -> nested/dst.txt");
+    }
+
+    [TestMethod]
     public void Apply_ThrowsWhenPatchEscapesWorkingDirectory()
     {
         using var temp = TestTempDirectory.Create();
@@ -110,6 +304,25 @@ public sealed class LocalAgentApplyPatchTests
             *** End Patch
             """,
             temp.Path));
+
+        StringAssert.Contains(exception.Message, "escapes the working directory");
+    }
+
+    [TestMethod]
+    public void Apply_ThrowsWhenPatchEscapesWorkingDirectoryViaSiblingPrefix()
+    {
+        using var temp = TestTempDirectory.Create();
+        var workingDirectory = Path.Combine(temp.Path, "repo");
+        Directory.CreateDirectory(workingDirectory);
+
+        var exception = Assert.ThrowsExactly<InvalidOperationException>(() => LocalAgentApplyPatch.Apply(
+            """
+            *** Begin Patch
+            *** Add File: ../repo2/escape.txt
+            +nope
+            *** End Patch
+            """,
+            workingDirectory));
 
         StringAssert.Contains(exception.Message, "escapes the working directory");
     }

@@ -372,6 +372,7 @@ public sealed class LocalAgentToolsTests
         var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
         var readFile = tools.Single(static tool => tool.Spec.Name == "read_file");
         var requestUserInput = tools.Single(static tool => tool.Spec.Name == "request_user_input");
+        var applyPatch = tools.Single(static tool => tool.Spec.Name == "apply_patch");
 
         var readFileSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(readFile.Spec.InputSchema);
         CollectionAssert.AreEquivalent(
@@ -400,6 +401,14 @@ public sealed class LocalAgentToolsTests
             new[] { "string", "null" },
             optionSchema.GetProperty("properties").GetProperty("description").GetProperty("type").EnumerateArray().Select(static item => item.GetString()).ToArray());
         Assert.IsFalse(requestUserInputSchema.GetProperty("properties").GetProperty("prompts").GetProperty("items").TryGetProperty("additionalProperties", out var nestedAdditionalProperties) && nestedAdditionalProperties.ValueKind != JsonValueKind.False);
+
+        var applyPatchSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(applyPatch.Spec.InputSchema);
+        StringAssert.Contains(applyPatch.Spec.Description, "Blank lines inside hunks are allowed");
+        StringAssert.Contains(applyPatch.Spec.Description, "A pure rename is allowed");
+        StringAssert.Contains(applyPatch.Spec.Description, "@@ anchor text");
+        StringAssert.Contains(
+            applyPatchSchema.GetProperty("properties").GetProperty("input").GetProperty("description").GetString(),
+            "@@ anchor text");
     }
 
     [TestMethod]
@@ -440,7 +449,7 @@ public sealed class LocalAgentToolsTests
         Assert.AreEqual("fileChange", observedRequest.Kind);
         Assert.IsTrue(result.Success);
         Assert.IsTrue(File.Exists(Path.Combine(temp.Path, "notes.txt")));
-        Assert.AreEqual("hello" + Environment.NewLine, await File.ReadAllTextAsync(Path.Combine(temp.Path, "notes.txt")).ConfigureAwait(false));
+        Assert.AreEqual("hello\n", await File.ReadAllTextAsync(Path.Combine(temp.Path, "notes.txt")).ConfigureAwait(false));
         Assert.IsFalse(File.Exists(Path.Combine(temp.Path, "src", "Program.cs")));
         Assert.AreEqual(
             "console.log(\"new\");" + Environment.NewLine,

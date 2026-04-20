@@ -357,6 +357,36 @@ Optional later additions:
 - add/update/delete/move in one tool
 - better auditability and diff rendering
 - better fit for approvals and coding workflows
+- should be forgiving for normal LLM output, especially around hunk anchors, blank context lines, and light whitespace drift
+- should support intuitive rename-only edits via `Update File` + `Move to` without forcing dummy hunks
+
+Recommended `apply_patch` grammar and guidance:
+
+```text
+*** Begin Patch
+*** Add File: relative/path.txt
++new file content
+*** Update File: relative/path.txt
+*** Move to: new/path.txt
+@@ optional anchor text
+ unchanged context
+-old line
++new line
+*** End of File
+*** Delete File: obsolete.txt
+*** End Patch
+```
+
+- A new agent should be able to succeed by copying that template verbatim and filling in the paths and hunk lines.
+- Paths are relative to the session working directory.
+- Use `@@` or `@@ anchor text` before each changed region.
+- Inside hunks, use:
+  - space-prefixed lines for unchanged context
+  - `-` for removals
+  - `+` for additions
+- Anchor indentation should be matched with light whitespace tolerance so agents do not need to reason about exact leading spaces.
+- Blank lines inside hunks should be accepted as blank context lines to reduce model friction.
+- `*** End of File` should bias matching toward EOF when a repeated context block exists.
 
 Every tool call and tool result must round-trip through `events.jsonl`.
 

@@ -17,6 +17,36 @@ namespace CodeAlta.Agent.LocalRuntime.Tools;
 public static class LocalAgentBuiltInToolFactory
 {
     private static readonly FileTreeWalker FileTreeWalker = new();
+    private const string ApplyPatchToolDescription =
+        """
+        Apply structured filesystem edits in one audited call. Prefer this tool over ad-hoc file rewrites when you need to add, update, move, or delete files.
+
+        If you have never used this tool before, copy the template below and fill in the paths and hunk lines. Send the entire patch document in the single required 'input' string.
+
+        Patch format:
+        *** Begin Patch
+        *** Add File: relative/path.txt
+        +new file content
+        *** Update File: relative/path.txt
+        *** Move to: new/path.txt
+        @@ optional anchor text
+        unchanged context
+        -old line
+        +new line
+        *** Delete File: old/path.txt
+        *** End Patch
+
+        Guidance:
+        - Paths must be relative to the session working directory.
+        - Use one file header per file change: Add File, Update File, or Delete File.
+        - Start each hunk with @@ or @@ anchor text.
+        - Inside hunks, prefix unchanged lines with a space, additions with +, and deletions with -.
+        - Anchor indentation does not need to be exact; the matcher tolerates light whitespace differences.
+        - Blank lines inside hunks are allowed and mean blank context lines.
+        - Use *** End of File after a hunk when the context should match near EOF.
+        - A pure rename is allowed: Update File + Move to with no hunks.
+        - Updated files preserve their existing newline style; newly added files use the patch document newline style.
+        """;
 
     private static readonly JsonElement ReadFileSchema = ParseSchema(
         """
@@ -92,7 +122,10 @@ public static class LocalAgentBuiltInToolFactory
         {
           "type": "object",
           "properties": {
-            "input": { "type": "string", "description": "Full apply_patch envelope text." }
+            "input": {
+              "type": "string",
+              "description": "Full patch document. Start with '*** Begin Patch' and end with '*** End Patch'. Use Add File / Update File / Delete File headers, optional '*** Move to:' after Update File, and hunk sections beginning with '@@' or '@@ anchor text'. Inside hunks, prefix context with a space, additions with '+', and removals with '-'. Blank lines inside hunks are treated as blank context lines. Anchor indentation is matched with light whitespace tolerance. Template: *** Begin Patch ... *** End Patch."
+            }
           },
           "required": ["input"],
           "additionalProperties": false
@@ -194,7 +227,7 @@ public static class LocalAgentBuiltInToolFactory
             new AgentToolDefinition(
                 new AgentToolSpec(
                     "apply_patch",
-                    "Apply a structured file patch using the Codex-style apply_patch grammar.",
+                    ApplyPatchToolDescription,
                     ApplyPatchSchema),
                 (invocation, cancellationToken) => ApplyPatchAsync(options, invocation, cancellationToken)),
             new AgentToolDefinition(

@@ -15,6 +15,7 @@ internal static class LocalAgentApplyPatch
         }
 
         var rootPath = Path.GetFullPath(workingDirectory);
+        var patchNewline = DetectPatchNewline(input);
         var summaries = new List<string>(document.Operations.Count);
 
         foreach (var operation in document.Operations)
@@ -30,13 +31,10 @@ internal static class LocalAgentApplyPatch
                     }
 
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                    var newline = Environment.NewLine;
-                    var content = string.Join(newline, addFile.Lines);
-                    if (addFile.Lines.Count > 0)
-                    {
-                        content += newline;
-                    }
 
+                    // Added files have no existing newline convention to inherit from, so use the
+                    // patch envelope's newline style. This keeps the tool deterministic for agents.
+                    var content = JoinLines(addFile.Lines, patchNewline, hadTrailingNewline: addFile.Lines.Count > 0);
                     File.WriteAllText(path, content);
                     summaries.Add($"A {addFile.Path}");
                     break;
@@ -62,15 +60,24 @@ internal static class LocalAgentApplyPatch
                     }
 
                     var originalText = File.ReadAllText(sourcePath);
-                    var newline = DetectNewline(originalText);
-                    var hadTrailingNewline = HasTrailingNewline(originalText);
-                    var lines = SplitLines(originalText);
-                    if (!TryApplyHunks(lines, updateFile.Hunks, out var updatedLines, out error))
+                    string updatedText;
+                    if (updateFile.Hunks.Count == 0)
                     {
-                        return Failure($"Failed to apply patch to '{updateFile.Path}': {error}");
+                        updatedText = originalText;
+                    }
+                    else
+                    {
+                        var newline = DetectNewline(originalText);
+                        var hadTrailingNewline = HasTrailingNewline(originalText);
+                        var lines = SplitLines(originalText);
+                        if (!TryApplyHunks(lines, updateFile.Hunks, out var updatedLines, out error))
+                        {
+                            return Failure($"Failed to apply patch to '{updateFile.Path}': {error}");
+                        }
+
+                        updatedText = JoinLines(updatedLines, newline, hadTrailingNewline);
                     }
 
-                    var updatedText = JoinLines(updatedLines, newline, hadTrailingNewline);
                     if (updateFile.MoveTo is null)
                     {
                         File.WriteAllText(sourcePath, updatedText);
@@ -85,8 +92,16 @@ internal static class LocalAgentApplyPatch
                     }
 
                     Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-                    File.WriteAllText(destinationPath, updatedText);
-                    File.Delete(sourcePath);
+                    if (updateFile.Hunks.Count == 0)
+                    {
+                        File.Move(sourcePath, destinationPath);
+                    }
+                    else
+                    {
+                        File.WriteAllText(destinationPath, updatedText);
+                        File.Delete(sourcePath);
+                    }
+
                     summaries.Add($"R {updateFile.Path} -> {updateFile.MoveTo}");
                     break;
                 }
@@ -139,14 +154,24 @@ internal static class LocalAgentApplyPatch
 
     private static string ResolvePatchPath(string workingDirectory, string relativePath)
     {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            throw new InvalidOperationException("Patch paths must not be empty.");
+        }
+
         if (Path.IsPathRooted(relativePath))
         {
             throw new InvalidOperationException($"Patch paths must be relative: '{relativePath}'.");
         }
 
         var fullPath = Path.GetFullPath(Path.Combine(workingDirectory, relativePath));
-        if (!fullPath.StartsWith(workingDirectory, StringComparison.OrdinalIgnoreCase))
+        var relativeToRoot = Path.GetRelativePath(workingDirectory, fullPath);
+        if (string.Equals(relativeToRoot, "..", StringComparison.Ordinal) ||
+            relativeToRoot.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
+            relativeToRoot.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal) ||
+            Path.IsPathRooted(relativeToRoot))
         {
+            // Path.GetRelativePath gives a boundary-safe answer, unlike a plain string prefix check.
             throw new InvalidOperationException($"Patch path '{relativePath}' escapes the working directory.");
         }
 
@@ -164,65 +189,216 @@ internal static class LocalAgentApplyPatch
 
         foreach (var hunk in hunks)
         {
-            var oldLines = hunk.Lines
-                .Where(static line => line.Kind is PatchLineKind.Context or PatchLineKind.Remove)
-                .Select(static line => line.Text)
-                .ToArray();
-            var newLines = hunk.Lines
-                .Where(static line => line.Kind is PatchLineKind.Context or PatchLineKind.Add)
-                .Select(static line => line.Text)
-                .ToArray();
+            var section = BuildSection(hunk);
 
-            var matchIndex = oldLines.Length == 0
-                ? currentIndex
-                : FindMatch(updatedLines, oldLines, currentIndex);
-            if (matchIndex < 0)
+            if (!TryFindHunkMatch(updatedLines, section.ContextLines, hunk, currentIndex, out var matchIndex))
             {
-                matchIndex = FindMatch(updatedLines, oldLines, 0);
-            }
-
-            if (matchIndex < 0)
-            {
-                error = "The hunk context was not found in the target file.";
+                error = BuildMissingContextError(hunk, section.ContextLines);
                 return false;
             }
 
-            updatedLines.RemoveRange(matchIndex, oldLines.Length);
-            updatedLines.InsertRange(matchIndex, newLines);
-            currentIndex = matchIndex + newLines.Length;
+            // Apply the concrete add/remove chunks from the bottom upward so the relative indices
+            // computed from the matched context remain stable. This preserves the file's exact
+            // context lines, even when a fuzzy match was used to locate the hunk.
+            for (var index = section.Chunks.Count - 1; index >= 0; index--)
+            {
+                var chunk = section.Chunks[index];
+                var absoluteIndex = matchIndex + chunk.RelativeIndex;
+                updatedLines.RemoveRange(absoluteIndex, chunk.DeleteLines.Count);
+                updatedLines.InsertRange(absoluteIndex, chunk.InsertLines);
+            }
+
+            currentIndex = matchIndex + section.ResultLineCount;
         }
 
         error = string.Empty;
         return true;
     }
 
-    private static int FindMatch(IReadOnlyList<string> lines, IReadOnlyList<string> hunkLines, int startIndex)
+    private static string BuildMissingContextError(PatchHunk hunk, IReadOnlyList<string> oldLines)
+    {
+        var builder = new StringBuilder("The hunk context was not found in the target file.");
+        if (!string.IsNullOrWhiteSpace(hunk.Anchor))
+        {
+            builder.Append(" Anchor: '").Append(hunk.Anchor).Append("'.");
+        }
+
+        if (hunk.PreferEndOfFile)
+        {
+            builder.Append(" The hunk requested an end-of-file match.");
+        }
+
+        if (oldLines.Count > 0)
+        {
+            builder.Append(" Context preview:");
+            foreach (var line in oldLines.Take(3))
+            {
+                builder.Append(Environment.NewLine).Append("  ").Append(line);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool TryFindHunkMatch(
+        IReadOnlyList<string> lines,
+        IReadOnlyList<string> hunkLines,
+        PatchHunk hunk,
+        int currentIndex,
+        out int matchIndex)
     {
         if (hunkLines.Count == 0)
         {
-            return Math.Clamp(startIndex, 0, lines.Count);
+            if (hunk.PreferEndOfFile)
+            {
+                matchIndex = lines.Count;
+                return true;
+            }
+
+            if (TryFindAnchor(lines, hunk.Anchor, currentIndex, out var anchorIndex))
+            {
+                matchIndex = Math.Clamp(anchorIndex, 0, lines.Count);
+                return true;
+            }
+
+            matchIndex = Math.Clamp(currentIndex, 0, lines.Count);
+            return true;
         }
 
-        for (var candidate = Math.Max(0, startIndex); candidate <= lines.Count - hunkLines.Count; candidate++)
+        if (hunk.PreferEndOfFile)
         {
-            var matches = true;
-            for (var index = 0; index < hunkLines.Count; index++)
+            var endCandidate = Math.Max(0, lines.Count - hunkLines.Count);
+            if (IsMatchAt(lines, hunkLines, endCandidate, LineMatchTolerance.Exact) ||
+                IsMatchAt(lines, hunkLines, endCandidate, LineMatchTolerance.TrimEnd) ||
+                IsMatchAt(lines, hunkLines, endCandidate, LineMatchTolerance.TrimBoth))
             {
-                if (!string.Equals(lines[candidate + index], hunkLines[index], StringComparison.Ordinal))
+                matchIndex = endCandidate;
+                return true;
+            }
+        }
+
+        var searchStarts = new List<int>(3);
+        if (TryFindAnchor(lines, hunk.Anchor, currentIndex, out var resolvedAnchorIndex))
+        {
+            // Search slightly before the anchor as a convenience for agents: the header usually
+            // names a nearby landmark, but the actual hunk context may begin a couple of lines earlier.
+            searchStarts.Add(Math.Max(0, resolvedAnchorIndex - Math.Min(hunkLines.Count, 8)));
+        }
+
+        searchStarts.Add(Math.Max(0, currentIndex));
+        if (currentIndex > 0)
+        {
+            searchStarts.Add(0);
+        }
+
+        foreach (var startIndex in searchStarts.Distinct())
+        {
+            if (TryFindMatchFrom(startIndex, lines, hunkLines, out matchIndex))
+            {
+                return true;
+            }
+        }
+
+        matchIndex = -1;
+        return false;
+    }
+
+    private static bool TryFindAnchor(
+        IReadOnlyList<string> lines,
+        string? anchor,
+        int currentIndex,
+        out int anchorIndex)
+    {
+        if (string.IsNullOrWhiteSpace(anchor))
+        {
+            anchorIndex = -1;
+            return false;
+        }
+
+        if (TryFindLine(lines, anchor, Math.Max(0, currentIndex), LineMatchTolerance.Exact, out anchorIndex) ||
+            TryFindLine(lines, anchor, Math.Max(0, currentIndex), LineMatchTolerance.TrimBoth, out anchorIndex) ||
+            TryFindLine(lines, anchor, 0, LineMatchTolerance.Exact, out anchorIndex) ||
+            TryFindLine(lines, anchor, 0, LineMatchTolerance.TrimBoth, out anchorIndex))
+        {
+            return true;
+        }
+
+        anchorIndex = -1;
+        return false;
+    }
+
+    private static bool TryFindLine(
+        IReadOnlyList<string> lines,
+        string expectedLine,
+        int startIndex,
+        LineMatchTolerance tolerance,
+        out int lineIndex)
+    {
+        for (var candidate = Math.Max(0, startIndex); candidate < lines.Count; candidate++)
+        {
+            if (LineEquals(lines[candidate], expectedLine, tolerance))
+            {
+                lineIndex = candidate;
+                return true;
+            }
+        }
+
+        lineIndex = -1;
+        return false;
+    }
+
+    private static bool TryFindMatchFrom(
+        int startIndex,
+        IReadOnlyList<string> lines,
+        IReadOnlyList<string> hunkLines,
+        out int matchIndex)
+    {
+        foreach (var tolerance in LineMatchToleranceOrder)
+        {
+            for (var candidate = Math.Max(0, startIndex); candidate <= lines.Count - hunkLines.Count; candidate++)
+            {
+                if (IsMatchAt(lines, hunkLines, candidate, tolerance))
                 {
-                    matches = false;
-                    break;
+                    matchIndex = candidate;
+                    return true;
                 }
             }
+        }
 
-            if (matches)
+        matchIndex = -1;
+        return false;
+    }
+
+    private static bool IsMatchAt(
+        IReadOnlyList<string> lines,
+        IReadOnlyList<string> hunkLines,
+        int candidate,
+        LineMatchTolerance tolerance)
+    {
+        if (candidate < 0 || candidate + hunkLines.Count > lines.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < hunkLines.Count; index++)
+        {
+            if (!LineEquals(lines[candidate + index], hunkLines[index], tolerance))
             {
-                return candidate;
+                return false;
             }
         }
 
-        return -1;
+        return true;
     }
+
+    private static bool LineEquals(string left, string right, LineMatchTolerance tolerance)
+        => tolerance switch
+        {
+            LineMatchTolerance.Exact => string.Equals(left, right, StringComparison.Ordinal),
+            LineMatchTolerance.TrimEnd => string.Equals(left.TrimEnd(), right.TrimEnd(), StringComparison.Ordinal),
+            LineMatchTolerance.TrimBoth => string.Equals(left.Trim(), right.Trim(), StringComparison.Ordinal),
+            _ => false,
+        };
 
     private static bool TryParse(string input, out PatchDocument document, out string error)
     {
@@ -248,14 +424,15 @@ internal static class LocalAgentApplyPatch
                 return true;
             }
 
-            if (state.CurrentLine is null)
-            {
-                break;
-            }
-
             if (state.CurrentLine.StartsWith("*** Add File: ", StringComparison.Ordinal))
             {
                 var path = state.CurrentLine["*** Add File: ".Length..];
+                if (!TryValidatePatchPath(path, state, out error))
+                {
+                    document = PatchDocument.Empty;
+                    return false;
+                }
+
                 state.Advance();
                 var contentLines = new List<string>();
                 while (!state.IsAtEnd && !IsFileHeaderOrEnd(state.CurrentLine))
@@ -263,7 +440,7 @@ internal static class LocalAgentApplyPatch
                     if (!state.CurrentLine.StartsWith('+'))
                     {
                         document = PatchDocument.Empty;
-                        error = $"Added file lines must start with '+': '{state.CurrentLine}'.";
+                        error = $"Invalid add-file line at patch line {state.LineNumber}: '{state.CurrentLine}'. Added file content must start with '+'.";
                         return false;
                     }
 
@@ -278,6 +455,12 @@ internal static class LocalAgentApplyPatch
             if (state.CurrentLine.StartsWith("*** Delete File: ", StringComparison.Ordinal))
             {
                 var path = state.CurrentLine["*** Delete File: ".Length..];
+                if (!TryValidatePatchPath(path, state, out error))
+                {
+                    document = PatchDocument.Empty;
+                    return false;
+                }
+
                 operations.Add(new DeleteFileOperation(path));
                 state.Advance();
                 continue;
@@ -286,77 +469,79 @@ internal static class LocalAgentApplyPatch
             if (state.CurrentLine.StartsWith("*** Update File: ", StringComparison.Ordinal))
             {
                 var path = state.CurrentLine["*** Update File: ".Length..];
+                if (!TryValidatePatchPath(path, state, out error))
+                {
+                    document = PatchDocument.Empty;
+                    return false;
+                }
+
                 state.Advance();
 
                 string? moveTo = null;
                 if (!state.IsAtEnd && state.CurrentLine.StartsWith("*** Move to: ", StringComparison.Ordinal))
                 {
                     moveTo = state.CurrentLine["*** Move to: ".Length..];
+                    if (!TryValidatePatchPath(moveTo, state, out error))
+                    {
+                        document = PatchDocument.Empty;
+                        return false;
+                    }
+
                     state.Advance();
                 }
 
                 var hunks = new List<PatchHunk>();
                 while (!state.IsAtEnd && !IsFileHeaderOrEnd(state.CurrentLine))
                 {
-                    if (!state.CurrentLine.StartsWith("@@", StringComparison.Ordinal))
+                    if (!IsHunkHeader(state.CurrentLine))
                     {
                         document = PatchDocument.Empty;
-                        error = $"Expected hunk header, found '{state.CurrentLine}'.";
+                        error = $"Expected a hunk header ('@@' or '@@ anchor text') at patch line {state.LineNumber}, found '{state.CurrentLine}'. Use '@@' before each changed region.";
                         return false;
                     }
 
+                    var anchor = ParseHunkAnchor(state.CurrentLine);
                     state.Advance();
+
                     var hunkLines = new List<PatchLine>();
+                    var preferEndOfFile = false;
                     while (!state.IsAtEnd)
                     {
                         if (state.CurrentLine is "*** End of File")
                         {
+                            preferEndOfFile = true;
                             state.Advance();
                             break;
                         }
 
-                        if (state.CurrentLine.StartsWith("@@", StringComparison.Ordinal) ||
+                        if (IsHunkHeader(state.CurrentLine) ||
                             IsFileHeaderOrEnd(state.CurrentLine))
                         {
                             break;
                         }
 
-                        if (state.CurrentLine.Length == 0)
+                        if (!TryParseHunkLine(state.CurrentLine, out var patchLine, out error))
                         {
                             document = PatchDocument.Empty;
-                            error = "Hunk lines must begin with ' ', '+' or '-'.";
+                            error = $"Invalid hunk line at patch line {state.LineNumber}: {error}";
                             return false;
                         }
 
-                        var kind = state.CurrentLine[0] switch
-                        {
-                            ' ' => PatchLineKind.Context,
-                            '+' => PatchLineKind.Add,
-                            '-' => PatchLineKind.Remove,
-                            _ => PatchLineKind.Invalid,
-                        };
-                        if (kind == PatchLineKind.Invalid)
-                        {
-                            document = PatchDocument.Empty;
-                            error = $"Invalid hunk line '{state.CurrentLine}'.";
-                            return false;
-                        }
-
-                        hunkLines.Add(new PatchLine(kind, state.CurrentLine[1..]));
+                        hunkLines.Add(patchLine);
                         state.Advance();
                     }
 
                     if (hunkLines.Count == 0)
                     {
                         document = PatchDocument.Empty;
-                        error = "Each hunk must contain at least one line.";
+                        error = $"Each hunk must contain at least one line (patch line {state.LineNumber}).";
                         return false;
                     }
 
-                    hunks.Add(new PatchHunk(hunkLines));
+                    hunks.Add(new PatchHunk(anchor, preferEndOfFile, hunkLines));
                 }
 
-                if (hunks.Count == 0)
+                if (hunks.Count == 0 && moveTo is null)
                 {
                     document = PatchDocument.Empty;
                     error = $"Updated file '{path}' did not contain any hunks.";
@@ -368,7 +553,7 @@ internal static class LocalAgentApplyPatch
             }
 
             document = PatchDocument.Empty;
-            error = $"Unexpected patch line '{state.CurrentLine}'.";
+            error = $"Unexpected patch line at line {state.LineNumber}: '{state.CurrentLine}'.";
             return false;
         }
 
@@ -377,11 +562,82 @@ internal static class LocalAgentApplyPatch
         return false;
     }
 
+    private static bool TryValidatePatchPath(string path, ParseState state, out string error)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            error = $"Patch path at line {state.LineNumber} must not be empty.";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool TryParseHunkLine(string line, out PatchLine patchLine, out string error)
+    {
+        if (line.Length == 0)
+        {
+            // Treat a raw blank line as unchanged blank context. This is more forgiving for models
+            // that forget to prefix blank context lines with a single leading space.
+            patchLine = new PatchLine(PatchLineKind.Context, string.Empty);
+            error = string.Empty;
+            return true;
+        }
+
+        var kind = line[0] switch
+        {
+            ' ' => PatchLineKind.Context,
+            '+' => PatchLineKind.Add,
+            '-' => PatchLineKind.Remove,
+            _ => PatchLineKind.Invalid,
+        };
+
+        if (kind == PatchLineKind.Invalid)
+        {
+            patchLine = default;
+            error = $"Expected a leading space, '+', or '-'; received '{line}'.";
+            return false;
+        }
+
+        patchLine = new PatchLine(kind, line[1..]);
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool IsHunkHeader(string? line)
+        => line is not null &&
+           (string.Equals(line, "@@", StringComparison.Ordinal) ||
+            line.StartsWith("@@ ", StringComparison.Ordinal));
+
+    private static string? ParseHunkAnchor(string line)
+    {
+        if (string.Equals(line, "@@", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var anchor = line.StartsWith("@@ ", StringComparison.Ordinal)
+            ? line[3..]
+            : line.Length > 2
+                ? line[2..]
+                : string.Empty;
+        if (anchor.StartsWith(' '))
+        {
+            anchor = anchor[1..];
+        }
+
+        return string.IsNullOrWhiteSpace(anchor) ? null : anchor;
+    }
+
     private static bool IsFileHeaderOrEnd(string? line)
         => line is not null && (line.StartsWith("*** Add File: ", StringComparison.Ordinal) ||
                                 line.StartsWith("*** Delete File: ", StringComparison.Ordinal) ||
                                 line.StartsWith("*** Update File: ", StringComparison.Ordinal) ||
                                 string.Equals(line, "*** End Patch", StringComparison.Ordinal));
+
+    private static string DetectPatchNewline(string text)
+        => text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
 
     private static string DetectNewline(string text)
         => text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
@@ -432,6 +688,58 @@ internal static class LocalAgentApplyPatch
         return builder.ToString();
     }
 
+    private static HunkSection BuildSection(PatchHunk hunk)
+    {
+        var contextLines = new List<string>(hunk.Lines.Count);
+        var deleteLines = new List<string>();
+        var insertLines = new List<string>();
+        var chunks = new List<PatchChunk>();
+        var lastKind = PatchLineKind.Context;
+
+        foreach (var line in hunk.Lines)
+        {
+            var switchingToContext = line.Kind == PatchLineKind.Context && lastKind != PatchLineKind.Context;
+            if (switchingToContext && (deleteLines.Count > 0 || insertLines.Count > 0))
+            {
+                chunks.Add(new PatchChunk(contextLines.Count - deleteLines.Count, [.. deleteLines], [.. insertLines]));
+                deleteLines.Clear();
+                insertLines.Clear();
+            }
+
+            switch (line.Kind)
+            {
+                case PatchLineKind.Remove:
+                    deleteLines.Add(line.Text);
+                    contextLines.Add(line.Text);
+                    break;
+                case PatchLineKind.Add:
+                    insertLines.Add(line.Text);
+                    break;
+                case PatchLineKind.Context:
+                    contextLines.Add(line.Text);
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported patch line kind '{line.Kind}'.");
+            }
+
+            lastKind = line.Kind;
+        }
+
+        if (deleteLines.Count > 0 || insertLines.Count > 0)
+        {
+            chunks.Add(new PatchChunk(contextLines.Count - deleteLines.Count, [.. deleteLines], [.. insertLines]));
+        }
+
+        var resultLineCount = contextLines.Count;
+        foreach (var chunk in chunks)
+        {
+            resultLineCount -= chunk.DeleteLines.Count;
+            resultLineCount += chunk.InsertLines.Count;
+        }
+
+        return new HunkSection([.. contextLines], chunks, resultLineCount);
+    }
+
     private sealed record PatchDocument(IReadOnlyList<PatchOperation> Operations)
     {
         public static PatchDocument Empty { get; } = new([]);
@@ -445,9 +753,13 @@ internal static class LocalAgentApplyPatch
 
     private sealed record UpdateFileOperation(string Path, string? MoveTo, IReadOnlyList<PatchHunk> Hunks) : PatchOperation;
 
-    private sealed record PatchHunk(IReadOnlyList<PatchLine> Lines);
+    private sealed record PatchHunk(string? Anchor, bool PreferEndOfFile, IReadOnlyList<PatchLine> Lines);
 
-    private sealed record PatchLine(PatchLineKind Kind, string Text);
+    private readonly record struct PatchLine(PatchLineKind Kind, string Text);
+
+    private sealed record HunkSection(IReadOnlyList<string> ContextLines, IReadOnlyList<PatchChunk> Chunks, int ResultLineCount);
+
+    private sealed record PatchChunk(int RelativeIndex, IReadOnlyList<string> DeleteLines, IReadOnlyList<string> InsertLines);
 
     private enum PatchLineKind
     {
@@ -457,6 +769,20 @@ internal static class LocalAgentApplyPatch
         Remove,
     }
 
+    private enum LineMatchTolerance
+    {
+        Exact,
+        TrimEnd,
+        TrimBoth,
+    }
+
+    private static IReadOnlyList<LineMatchTolerance> LineMatchToleranceOrder { get; } =
+    [
+        LineMatchTolerance.Exact,
+        LineMatchTolerance.TrimEnd,
+        LineMatchTolerance.TrimBoth,
+    ];
+
     private sealed class ParseState(string[] lines)
     {
         private int _index;
@@ -464,6 +790,8 @@ internal static class LocalAgentApplyPatch
         public bool IsAtEnd => _index >= lines.Length;
 
         public string CurrentLine => lines[_index];
+
+        public int LineNumber => _index + 1;
 
         public void Advance() => _index++;
 
