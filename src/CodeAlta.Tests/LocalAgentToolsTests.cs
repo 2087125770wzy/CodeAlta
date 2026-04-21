@@ -341,6 +341,36 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
+    public async Task WebGetTool_CanReturnRawHtmlWhenRequested()
+    {
+        using var htmlContent = new StringContent("<html><body><h1>Hello</h1><p>world</p></body></html>");
+        htmlContent.Headers.ContentType = new("text/html");
+        using var handler = new StubHttpMessageHandler(
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = htmlContent,
+            });
+        using var httpClient = new HttpClient(handler);
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(Environment.CurrentDirectory, httpClient: httpClient));
+        var tool = tools.Single(static tool => tool.Spec.Name == "webget");
+        using var args = JsonDocument.Parse("""{"url":"https://example.test/docs","rawHtml":true}""");
+
+        var result = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    args.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(result.Success);
+        var output = Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value;
+        Assert.AreEqual("<html><body><h1>Hello</h1><p>world</p></body></html>", output);
+    }
+
+    [TestMethod]
     public async Task WebGetTool_ReturnsFailureForHttpStatusErrors()
     {
         using var handler = new StubHttpMessageHandler(
@@ -492,6 +522,35 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
+    public async Task ShellCommandTool_PreservesFinalExternalExitCodeOnWindows()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var temp = TestTempDirectory.Create();
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
+        var tool = tools.Single(static tool => tool.Spec.Name == "shell_command");
+        using var args = JsonDocument.Parse("""{"command":"cmd /c \"exit 7\""}""");
+
+        var result = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    args.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsFalse(result.Success);
+        Assert.AreEqual("shell_command exited with code 7.", result.Error);
+        var output = Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items.Single()).Value;
+        StringAssert.Contains(output, "exit_code: 7");
+    }
+
+    [TestMethod]
     public async Task ShellCommandTool_StreamsProgressWhileCommandRuns()
     {
         using var temp = TestTempDirectory.Create();
@@ -600,8 +659,15 @@ public sealed class LocalAgentToolsTests
             var normal = InvokeCreateShellProcessSpec(command, temp.Path, login: false);
             var login = InvokeCreateShellProcessSpec(command, temp.Path, login: true);
 
-            CollectionAssert.AreEqual(new[] { "-NoProfile", "-Command", command }, normal.ArgumentList.Cast<string>().ToArray());
-            CollectionAssert.AreEqual(new[] { "-NoProfile", "-Command", command }, login.ArgumentList.Cast<string>().ToArray());
+            var normalArgs = normal.ArgumentList.Cast<string>().ToArray();
+            var loginArgs = login.ArgumentList.Cast<string>().ToArray();
+
+            CollectionAssert.AreEqual(new[] { "-NoProfile", "-Command" }, normalArgs.Take(2).ToArray());
+            CollectionAssert.AreEqual(new[] { "-NoProfile", "-Command" }, loginArgs.Take(2).ToArray());
+            StringAssert.Contains(normalArgs[2], command);
+            StringAssert.Contains(normalArgs[2], "exit $LASTEXITCODE");
+            StringAssert.Contains(loginArgs[2], command);
+            StringAssert.Contains(loginArgs[2], "exit $LASTEXITCODE");
             return;
         }
 
@@ -669,6 +735,7 @@ public sealed class LocalAgentToolsTests
         StringAssert.Contains(
             readFileSchema.GetProperty("properties").GetProperty("offset").GetProperty("description").GetString(),
             "0 is invalid");
+        StringAssert.Contains(readFile.Spec.Description, "Offsets past EOF return an empty result");
 
         var grepSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(grep.Spec.InputSchema);
         StringAssert.Contains(grep.Spec.Description, "defaults to case-insensitive");
@@ -677,13 +744,20 @@ public sealed class LocalAgentToolsTests
             "Defaults to false");
 
         var webGetSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(webGet.Spec.InputSchema);
-        StringAssert.Contains(webGet.Spec.Description, "response body text only");
+        StringAssert.Contains(webGet.Spec.Description, "set rawHtml=true to return raw HTML markup");
         StringAssert.Contains(
             webGetSchema.GetProperty("properties").GetProperty("timeoutSeconds").GetProperty("description").GetString(),
             "Defaults to");
+        StringAssert.Contains(
+            webGetSchema.GetProperty("properties").GetProperty("url").GetProperty("description").GetString(),
+            "HTML responses are simplified to plain text");
+        StringAssert.Contains(
+            webGetSchema.GetProperty("properties").GetProperty("rawHtml").GetProperty("description").GetString(),
+            "Defaults to false");
 
         StringAssert.Contains(shellCommand.Spec.Description, "Some hosts may auto-approve");
         StringAssert.Contains(shellCommand.Spec.Description, "exit_code");
+        StringAssert.Contains(shellCommand.Spec.Description, "final external command exit code");
 
         var applyPatchSchema = LocalAgentToolBridge.CreateOpenAIStrictInputSchema(applyPatch.Spec.InputSchema);
         Assert.AreEqual("Use the `apply_patch` tool to edit files.", applyPatch.Spec.Description);

@@ -151,7 +151,7 @@ public static class LocalAgentBuiltInToolFactory
             new AgentToolDefinition(
                 new AgentToolSpec(
                     "read_file",
-                    $"Read a local text file by line number. Offsets are 1-based; use a negative offset to count from the end (-1 is the last line). Omitting limit returns up to {options.DefaultReadFileLineLimit} lines by default.",
+                    $"Read a local text file by line number. Offsets are 1-based; use a negative offset to count from the end (-1 is the last line). Offsets past EOF return an empty result, and oversized negative offsets clamp to line 1. Omitting limit returns up to {options.DefaultReadFileLineLimit} lines by default.",
                     CreateReadFileSchema(options)),
                 (invocation, cancellationToken) => ReadFileAsync(options, invocation, cancellationToken)),
             new AgentToolDefinition(
@@ -169,13 +169,13 @@ public static class LocalAgentBuiltInToolFactory
             new AgentToolDefinition(
                 new AgentToolSpec(
                     "webget",
-                    $"Fetch text-like web content from a known absolute URL. Returns the response body text only after content-type checks and a {options.MaxWebGetBytes.ToString(CultureInfo.InvariantCulture)}-byte limit; default timeout is {FormatSeconds(options.WebGetTimeout)} seconds.",
+                    $"Fetch text-like web content from a known absolute URL. By default, HTML responses are simplified to plain text; set rawHtml=true to return raw HTML markup. JSON and XML are returned as text bodies. Applies content-type checks and a {options.MaxWebGetBytes.ToString(CultureInfo.InvariantCulture)}-byte limit; default timeout is {FormatSeconds(options.WebGetTimeout)} seconds.",
                     CreateWebGetSchema(options)),
                 (invocation, cancellationToken) => WebGetAsync(options, httpClient, invocation, cancellationToken)),
             new AgentToolDefinition(
                 new AgentToolSpec(
                     "shell_command",
-                    "Execute a local shell command using the platform shell, subject to host approval. Some hosts may auto-approve. Returns exit_code, working_directory, stdout, and stderr. On Windows, pwsh runs with -NoProfile for predictable output.",
+                    "Execute a local shell command or short shell script using the platform shell, subject to host approval. Some hosts may auto-approve. Returns exit_code, working_directory, stdout, and stderr as emitted by the shell and child processes; child commands may still include ANSI/control sequences. On Windows, pwsh runs with -NoProfile and preserves the final external command exit code when that command fails.",
                     CreateShellCommandSchema()),
                 (invocation, cancellationToken) => ShellCommandAsync(options, invocation, cancellationToken)),
             new AgentToolDefinition(
@@ -433,6 +433,7 @@ public static class LocalAgentBuiltInToolFactory
         }
 
         var timeoutOverride = GetOptionalInt(invocation.Arguments, "timeoutSeconds");
+        var rawHtml = GetOptionalBool(invocation.Arguments, "rawHtml") ?? false;
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var effectiveTimeout = timeoutOverride is > 0 ? TimeSpan.FromSeconds(timeoutOverride.Value) : options.WebGetTimeout;
         linkedCts.CancelAfter(effectiveTimeout);
@@ -480,8 +481,9 @@ public static class LocalAgentBuiltInToolFactory
             }
 
             var text = Encoding.UTF8.GetString(buffer.ToArray());
-            if (string.Equals(mediaType, "text/html", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(mediaType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase))
+            if (!rawHtml &&
+                (string.Equals(mediaType, "text/html", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(mediaType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase)))
             {
                 text = SimplifyHtml(text);
             }
@@ -1196,7 +1198,9 @@ public static class LocalAgentBuiltInToolFactory
             var fileName = "pwsh";
             // Always suppress the user profile on Windows so prompt theming and other profile-time output
             // cannot leak ANSI/control sequences into tool results. The login flag is Unix-oriented here.
-            string[] shellArguments = ["-NoProfile", "-Command", command];
+            // Wrap the command so a failing final external command can propagate its native exit code
+            // instead of PowerShell collapsing it to 1.
+            string[] shellArguments = ["-NoProfile", "-Command", WrapWindowsShellCommand(command)];
             return new ShellProcessSpec(CreateProcessStartInfo(fileName, shellArguments, workdir));
         }
 
@@ -1252,7 +1256,7 @@ public static class LocalAgentBuiltInToolFactory
               "type": "object",
               "properties": {
                 "path": { "type": "string", "description": "Path to the file to read." },
-                "offset": { "type": "integer", "description": "1-based line offset. Use a negative value to count from the end (-1 is the last line). 0 is invalid." },
+                "offset": { "type": "integer", "description": "1-based line offset. Use a negative value to count from the end (-1 is the last line). 0 is invalid. Offsets past EOF return an empty result, and oversized negative offsets clamp to line 1." },
                 "limit": { "type": "integer", "description": "Maximum number of lines to return. Defaults to {{options.DefaultReadFileLineLimit}} and is capped at {{options.MaxReadFileLineLimit}}.", "minimum": 1 }
               },
               "required": ["path"],
@@ -1295,8 +1299,9 @@ public static class LocalAgentBuiltInToolFactory
             {
               "type": "object",
               "properties": {
-                "url": { "type": "string", "description": "Absolute http or https URL to fetch. Returns the response body text only after webget's content-type and size checks." },
-                "timeoutSeconds": { "type": "integer", "description": "Optional timeout override in seconds. Defaults to {{FormatSeconds(options.WebGetTimeout)}} seconds.", "minimum": 1 }
+                "url": { "type": "string", "description": "Absolute http or https URL to fetch. By default, HTML responses are simplified to plain text; JSON and XML are returned as text bodies after webget's content-type and size checks." },
+                "timeoutSeconds": { "type": "integer", "description": "Optional timeout override in seconds. Defaults to {{FormatSeconds(options.WebGetTimeout)}} seconds.", "minimum": 1 },
+                "rawHtml": { "type": "boolean", "description": "When true, return raw HTML markup instead of simplified plain text for HTML/XHTML responses. Defaults to false." }
               },
               "required": ["url"],
               "additionalProperties": false
@@ -1309,7 +1314,7 @@ public static class LocalAgentBuiltInToolFactory
             {
               "type": "object",
               "properties": {
-                "command": { "type": "string", "description": "Shell command to execute." },
+                "command": { "type": "string", "description": "Shell command or short shell script to execute." },
                 "workdir": { "type": "string", "description": "Optional working directory override. Defaults to the session working directory." },
                 "timeoutMs": { "type": "integer", "description": "Optional timeout in milliseconds.", "minimum": 1 },
                 "login": { "type": "boolean", "description": "Whether to use login-shell semantics on Unix shells that support it. Ignored on Windows, where pwsh always runs with -NoProfile for predictable output." }
@@ -1324,6 +1329,25 @@ public static class LocalAgentBuiltInToolFactory
            string.Equals(mediaType, "application/json", StringComparison.OrdinalIgnoreCase) ||
            string.Equals(mediaType, "application/xml", StringComparison.OrdinalIgnoreCase) ||
            string.Equals(mediaType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase);
+
+    private static string WrapWindowsShellCommand(string command)
+    {
+        const string postlude =
+            """
+            if (-not $?) {
+                if ($LASTEXITCODE -is [int] -and $LASTEXITCODE -ne 0) {
+                    exit $LASTEXITCODE
+                }
+
+                exit 1
+            }
+            """;
+
+        return string.Concat(
+            command,
+            command.EndsWith('\n') ? string.Empty : Environment.NewLine,
+            postlude);
+    }
 
     private static string FormatSeconds(TimeSpan value)
         => value.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture);

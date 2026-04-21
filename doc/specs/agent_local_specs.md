@@ -352,11 +352,16 @@ Optional later additions:
 - should use the session's configured shell
 - should work on Windows, Linux, and macOS
 - on Windows it should invoke `pwsh -NoProfile -Command ...` to avoid profile-time prompt theming or ANSI noise contaminating tool output
+- on Windows it should preserve the failing final external command's native exit code rather than collapsing it to `1` when PowerShell can report the original code
 - login-shell semantics should remain Unix-oriented and only apply on shells that support them
 - should stream stdout/stderr progress into tool-output deltas while the command is still running
+- stdout/stderr should be returned as raw text; child processes may still emit ANSI/control sequences even when the host requests no-color behavior
+- if a future direct-exec tool is added for structured argv/no-shell semantics, it should be additive rather than replacing `shell_command`
 
 `webget` for direct retrieval, not only search
 - should fetch and return webpage content in a model-friendly text form
+- HTML responses may be simplified to plain text instead of returning raw markup, as long as that is documented clearly
+- it may offer an explicit raw-HTML escape hatch when markup is actually needed, but plain-text extraction should remain the default
 - should be usable for documentation pages, raw text resources, and simple HTTP retrieval
 - it is distinct from search because the agent often already has the target URL
 - it should support basic safeguards such as size limits, content-type checks, and timeout controls
