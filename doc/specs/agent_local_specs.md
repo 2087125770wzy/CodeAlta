@@ -351,6 +351,8 @@ Optional later additions:
 - must be cross-platform
 - should use the session's configured shell
 - should work on Windows, Linux, and macOS
+- on Windows it should invoke `pwsh -NoProfile -Command ...` to avoid profile-time prompt theming or ANSI noise contaminating tool output
+- login-shell semantics should remain Unix-oriented and only apply on shells that support them
 - should stream stdout/stderr progress into tool-output deltas while the command is still running
 
 `webget` for direct retrieval, not only search

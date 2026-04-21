@@ -90,7 +90,7 @@ public static class LocalAgentBuiltInToolFactory
             "command": { "type": "string", "description": "Shell command to execute." },
             "workdir": { "type": "string", "description": "Optional working directory override." },
             "timeoutMs": { "type": "integer", "description": "Optional timeout in milliseconds.", "minimum": 1 },
-            "login": { "type": "boolean", "description": "Whether to use login-shell semantics when supported." }
+            "login": { "type": "boolean", "description": "Whether to use login-shell semantics on Unix shells that support it. Ignored on Windows, where pwsh always runs with -NoProfile for predictable output." }
           },
           "required": ["command"],
           "additionalProperties": false
@@ -242,7 +242,7 @@ public static class LocalAgentBuiltInToolFactory
             new AgentToolDefinition(
                 new AgentToolSpec(
                     "shell_command",
-                    "Execute a local shell command using the platform-appropriate shell after permission approval.",
+                    "Execute a local shell command using the platform shell after permission approval. On Windows, pwsh runs with -NoProfile for predictable output.",
                     ShellCommandSchema),
                 (invocation, cancellationToken) => ShellCommandAsync(options, invocation, cancellationToken)),
             new AgentToolDefinition(
@@ -1248,9 +1248,9 @@ public static class LocalAgentBuiltInToolFactory
         if (OperatingSystem.IsWindows())
         {
             var fileName = "pwsh";
-            string[] shellArguments = login
-                ? ["-Command", command]
-                : ["-NoProfile", "-Command", command];
+            // Always suppress the user profile on Windows so prompt theming and other profile-time output
+            // cannot leak ANSI/control sequences into tool results. The login flag is Unix-oriented here.
+            string[] shellArguments = ["-NoProfile", "-Command", command];
             return new ShellProcessSpec(CreateProcessStartInfo(fileName, shellArguments, workdir));
         }
 

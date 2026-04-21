@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
@@ -462,6 +463,39 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
+    public void ShellCommandProcessSpec_UsesPredictableProfileBehaviorPerPlatform()
+    {
+        using var temp = TestTempDirectory.Create();
+        const string command = "echo hello";
+
+        if (OperatingSystem.IsWindows())
+        {
+            var normal = InvokeCreateShellProcessSpec(command, temp.Path, login: false);
+            var login = InvokeCreateShellProcessSpec(command, temp.Path, login: true);
+
+            CollectionAssert.AreEqual(new[] { "-NoProfile", "-Command", command }, normal.ArgumentList.Cast<string>().ToArray());
+            CollectionAssert.AreEqual(new[] { "-NoProfile", "-Command", command }, login.ArgumentList.Cast<string>().ToArray());
+            return;
+        }
+
+        var originalShell = Environment.GetEnvironmentVariable("SHELL");
+        try
+        {
+            Environment.SetEnvironmentVariable("SHELL", "/bin/bash");
+
+            var normal = InvokeCreateShellProcessSpec(command, temp.Path, login: false);
+            var login = InvokeCreateShellProcessSpec(command, temp.Path, login: true);
+
+            CollectionAssert.AreEqual(new[] { "-c", command }, normal.ArgumentList.Cast<string>().ToArray());
+            CollectionAssert.AreEqual(new[] { "-lc", command }, login.ArgumentList.Cast<string>().ToArray());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("SHELL", originalShell);
+        }
+    }
+
+    [TestMethod]
     public void LocalAgentToolBridge_CreateDeclarations_PreservesSchemasAndUniqueNames()
     {
         AgentToolDefinition[] tools =
@@ -849,5 +883,21 @@ public sealed class LocalAgentToolsTests
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             => _handler(request, cancellationToken);
+    }
+
+    private static ProcessStartInfo InvokeCreateShellProcessSpec(string command, string workdir, bool login)
+    {
+        var method = typeof(LocalAgentBuiltInToolFactory).GetMethod(
+            "CreateShellProcessSpec",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.IsNotNull(method);
+
+        var shellProcessSpec = method.Invoke(null, [command, workdir, login]);
+        Assert.IsNotNull(shellProcessSpec);
+
+        var startInfoProperty = shellProcessSpec.GetType().GetProperty("StartInfo");
+        Assert.IsNotNull(startInfoProperty);
+
+        return Assert.IsInstanceOfType<ProcessStartInfo>(startInfoProperty.GetValue(shellProcessSpec));
     }
 }
