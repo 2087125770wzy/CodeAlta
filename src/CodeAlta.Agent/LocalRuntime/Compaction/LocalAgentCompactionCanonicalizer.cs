@@ -145,7 +145,7 @@ internal static class LocalAgentCompactionCanonicalizer
 
         var normalized = toolName switch
         {
-            "read_file" or "view_image" or "list_dir" => GetString(arguments, "path"),
+            "read_file" or "list_dir" => GetString(arguments, "path"),
             "grep" => $"{GetString(arguments, "path")}|{GetString(arguments, "pattern") ?? GetString(arguments, "query")}",
             "shell_command" => GetString(arguments, "command"),
             "write_file" or "replace_in_file" or "delete_file_or_dir" => GetString(arguments, "path"),

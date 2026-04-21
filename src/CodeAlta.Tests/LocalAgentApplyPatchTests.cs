@@ -380,6 +380,31 @@ public sealed class LocalAgentApplyPatchTests
     }
 
     [TestMethod]
+    public async Task Apply_RejectsBinaryFiles()
+    {
+        using var temp = TestTempDirectory.Create();
+        var filePath = Path.Combine(temp.Path, "sample.bin");
+        await File.WriteAllBytesAsync(filePath, [0x41, 0x00, 0x42]).ConfigureAwait(false);
+
+        var result = LocalAgentApplyPatch.Apply(
+            """
+            *** Begin Patch
+            *** Update File: sample.bin
+            @@
+            -A
+            +B
+            *** End Patch
+            """,
+            temp.Path);
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(result.Error, "binary file");
+        CollectionAssert.AreEqual(
+            new byte[] { 0x41, 0x00, 0x42 },
+            await File.ReadAllBytesAsync(filePath).ConfigureAwait(false));
+    }
+
+    [TestMethod]
     public void Apply_ThrowsWhenPatchEscapesWorkingDirectory()
     {
         using var temp = TestTempDirectory.Create();

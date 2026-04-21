@@ -52,6 +52,11 @@ internal static class LocalAgentApplyPatch
                         return Failure($"Cannot delete '{deleteFile.Path}' because it does not exist.");
                     }
 
+                    if (LocalAgentFileTypeDetector.IsProbablyBinaryFile(path))
+                    {
+                        return Failure($"Cannot delete '{deleteFile.Path}' with apply_patch because it appears to be a binary file. Use delete_file_or_dir instead.");
+                    }
+
                     File.Delete(path);
                     summaries.Add($"D {deleteFile.Path}");
                     break;
@@ -67,6 +72,11 @@ internal static class LocalAgentApplyPatch
                     if (!File.Exists(sourcePath))
                     {
                         return Failure($"Cannot update '{updateFile.Path}' because it does not exist.");
+                    }
+
+                    if (LocalAgentFileTypeDetector.IsProbablyBinaryFile(sourcePath))
+                    {
+                        return Failure($"Cannot update '{updateFile.Path}' with apply_patch because it appears to be a binary file.");
                     }
 
                     var originalText = File.ReadAllText(sourcePath);

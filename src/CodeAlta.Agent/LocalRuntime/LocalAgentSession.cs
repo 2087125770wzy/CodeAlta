@@ -1552,7 +1552,6 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         switch (toolCall.Name)
         {
             case "read_file":
-            case "view_image":
                 if (GetPath(toolCall.Arguments, "path") is { Length: > 0 } readPath)
                 {
                     AddReadFile(Resolve(readPath));

@@ -165,18 +165,6 @@ public static class LocalAgentBuiltInToolFactory
         }
         """);
 
-    private static readonly JsonElement ViewImageSchema = ParseSchema(
-        """
-        {
-          "type": "object",
-          "properties": {
-            "path": { "type": "string", "description": "Path to the local image file." }
-          },
-          "required": ["path"],
-          "additionalProperties": false
-        }
-        """);
-
     private static readonly JsonElement RequestUserInputSchema = ParseSchema(
         """
         {
@@ -230,7 +218,7 @@ public static class LocalAgentBuiltInToolFactory
             new AgentToolDefinition(
                 new AgentToolSpec(
                     "read_file",
-                    "Read a local text file by line number, or return an image result for image paths.",
+                    "Read a local text file by line number.",
                     ReadFileSchema),
                 (invocation, cancellationToken) => ReadFileAsync(options, invocation, cancellationToken)),
             new AgentToolDefinition(
@@ -289,12 +277,6 @@ public static class LocalAgentBuiltInToolFactory
                 (invocation, cancellationToken) => ApplyPatchAsync(options, invocation, cancellationToken)),
             new AgentToolDefinition(
                 new AgentToolSpec(
-                    "view_image",
-                    "Return a local image as an attachment-like result.",
-                    ViewImageSchema),
-                (invocation, cancellationToken) => ViewImageAsync(options, invocation, cancellationToken)),
-            new AgentToolDefinition(
-                new AgentToolSpec(
                     "request_user_input",
                     "Pause and request structured user input from the host.",
                     RequestUserInputSchema),
@@ -318,9 +300,9 @@ public static class LocalAgentBuiltInToolFactory
             return Task.FromResult(Failure($"File '{resolvedPath}' was not found."));
         }
 
-        if (IsImagePath(resolvedPath))
+        if (LocalAgentFileTypeDetector.IsProbablyBinaryFile(resolvedPath))
         {
-            return Task.FromResult(CreateLocalImageResult(resolvedPath));
+            return Task.FromResult(Failure($"'{resolvedPath}' appears to be a binary file. read_file only supports text files."));
         }
 
         var offset = Math.Max(1, GetOptionalInt(invocation.Arguments, "offset") ?? 1);
@@ -446,6 +428,11 @@ public static class LocalAgentBuiltInToolFactory
 
             try
             {
+                if (LocalAgentFileTypeDetector.IsProbablyBinaryFile(file.FullPath))
+                {
+                    continue;
+                }
+
                 SearchFileLines(file.FullPath, file.DisplayPath, regex, maxMatches, matches, cancellationToken);
             }
             catch (IOException)
@@ -741,6 +728,11 @@ public static class LocalAgentBuiltInToolFactory
             return Failure($"File '{resolution.DisplayPath}' was not found.");
         }
 
+        if (LocalAgentFileTypeDetector.IsProbablyBinaryFile(resolution.FullPath))
+        {
+            return Failure($"replace_in_file does not support binary files: '{resolution.DisplayPath}'.");
+        }
+
         var oldString = GetRequiredString(invocation.Arguments, "old_string");
         if (oldString.Length == 0)
         {
@@ -974,33 +966,6 @@ public static class LocalAgentBuiltInToolFactory
         }
     }
 
-    private static Task<AgentToolResult> ViewImageAsync(
-        LocalAgentBuiltInToolOptions options,
-        AgentToolInvocation invocation,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var path = GetRequiredString(invocation.Arguments, "path");
-        var resolvedPath = ResolvePath(options.WorkingDirectory, path);
-        if (Directory.Exists(resolvedPath))
-        {
-            return Task.FromResult(Failure($"Image path '{resolvedPath}' is a directory."));
-        }
-
-        if (!File.Exists(resolvedPath))
-        {
-            return Task.FromResult(Failure($"Image '{resolvedPath}' was not found."));
-        }
-
-        if (!IsImagePath(resolvedPath))
-        {
-            return Task.FromResult(Failure($"'{resolvedPath}' is not a supported image path."));
-        }
-
-        return Task.FromResult(CreateLocalImageResult(resolvedPath));
-    }
-
     private static async Task<AgentToolResult> RequestUserInputAsync(
         LocalAgentBuiltInToolOptions options,
         AgentToolInvocation invocation,
@@ -1058,21 +1023,6 @@ public static class LocalAgentBuiltInToolFactory
 
     private static AgentToolResult SuccessResult(string message)
         => new(true, [new AgentToolResultItem.Text(message)]);
-
-    private static AgentToolResult CreateLocalImageResult(string resolvedPath)
-    {
-        if (!Uri.TryCreate(resolvedPath, UriKind.Absolute, out var imageUri))
-        {
-            return Failure($"Could not create a file URI for image '{resolvedPath}'.");
-        }
-
-        return new AgentToolResult(
-            true,
-            [
-                new AgentToolResultItem.Text($"Image: {resolvedPath}"),
-                new AgentToolResultItem.ImageUrl(imageUri.AbsoluteUri),
-            ]);
-    }
 
     private static bool ShouldIncludeBuiltInTool(LocalAgentBuiltInToolOptions options, string toolName)
     {

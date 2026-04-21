@@ -224,43 +224,15 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
-    public async Task ViewImageTool_ReturnsStructuredImageResultForLocalFiles()
+    public async Task ReadFileTool_ReturnsFailureForBinaryFiles()
     {
         using var temp = TestTempDirectory.Create();
-        var imagePath = Path.Combine(temp.Path, "sample.png");
-        await File.WriteAllBytesAsync(imagePath, [0x89, 0x50, 0x4E, 0x47]).ConfigureAwait(false);
+        var binaryPath = Path.Combine(temp.Path, "sample.bin");
+        await File.WriteAllBytesAsync(binaryPath, [0x41, 0x00, 0x42]).ConfigureAwait(false);
 
         var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
-        var tool = tools.Single(static tool => tool.Spec.Name == "view_image");
-        using var args = JsonDocument.Parse("""{"path":"sample.png"}""");
-
-        var result = await tool.Handler(
-                new AgentToolInvocation(
-                    AgentBackendIds.OpenAIResponses,
-                    "session-1",
-                    "tool-1",
-                    tool.Spec.Name,
-                    args.RootElement.Clone()),
-                CancellationToken.None)
-            .ConfigureAwait(false);
-
-        Assert.IsTrue(result.Success);
-        Assert.AreEqual(2, result.Items.Count);
-        StringAssert.Contains(Assert.IsInstanceOfType<AgentToolResultItem.Text>(result.Items[0]).Value, imagePath);
-        var imageUrl = Assert.IsInstanceOfType<AgentToolResultItem.ImageUrl>(result.Items[1]).Url;
-        StringAssert.StartsWith(imageUrl, "file://");
-    }
-
-    [TestMethod]
-    public async Task ViewImageTool_ReturnsFailureForDirectories()
-    {
-        using var temp = TestTempDirectory.Create();
-        var directoryPath = Path.Combine(temp.Path, "images");
-        Directory.CreateDirectory(directoryPath);
-
-        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
-        var tool = tools.Single(static tool => tool.Spec.Name == "view_image");
-        using var args = JsonDocument.Parse("""{"path":"images"}""");
+        var tool = tools.Single(static tool => tool.Spec.Name == "read_file");
+        using var args = JsonDocument.Parse("""{"path":"sample.bin"}""");
 
         var result = await tool.Handler(
                 new AgentToolInvocation(
@@ -273,7 +245,8 @@ public sealed class LocalAgentToolsTests
             .ConfigureAwait(false);
 
         Assert.IsFalse(result.Success);
-        StringAssert.Contains(result.Error, "is a directory");
+        StringAssert.Contains(result.Error, "binary file");
+        StringAssert.Contains(result.Error, "text files");
     }
 
     [TestMethod]
@@ -551,6 +524,9 @@ public sealed class LocalAgentToolsTests
         Assert.IsTrue(officialOpenAiTools.Any(static tool => tool.Spec.Name == "apply_patch"));
         Assert.IsFalse(compatibleTools.Any(static tool => tool.Spec.Name == "apply_patch"));
         Assert.IsFalse(anthropicTools.Any(static tool => tool.Spec.Name == "apply_patch"));
+        Assert.IsFalse(officialOpenAiTools.Any(static tool => tool.Spec.Name == "view_image"));
+        Assert.IsFalse(compatibleTools.Any(static tool => tool.Spec.Name == "view_image"));
+        Assert.IsFalse(anthropicTools.Any(static tool => tool.Spec.Name == "view_image"));
         CollectionAssert.IsSubsetOf(
             new[] { "write_file", "replace_in_file", "delete_file_or_dir", "rename_file_or_dir" },
             compatibleTools.Select(static tool => tool.Spec.Name).ToArray());
@@ -645,6 +621,29 @@ public sealed class LocalAgentToolsTests
 
         Assert.IsFalse(result.Success);
         StringAssert.Contains(result.Error, "replace_all=true");
+    }
+
+    [TestMethod]
+    public async Task ReplaceInFileTool_RejectsBinaryFiles()
+    {
+        using var temp = TestTempDirectory.Create();
+        await File.WriteAllBytesAsync(Path.Combine(temp.Path, "sample.bin"), [0x41, 0x00, 0x42]).ConfigureAwait(false);
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
+        var tool = tools.Single(static tool => tool.Spec.Name == "replace_in_file");
+        using var args = JsonDocument.Parse("""{"path":"sample.bin","old_string":"A","new_string":"B"}""");
+
+        var result = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    args.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(result.Error, "binary files");
     }
 
     [TestMethod]
