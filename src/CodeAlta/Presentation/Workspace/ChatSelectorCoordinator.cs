@@ -27,6 +27,7 @@ internal sealed class ChatSelectorCoordinator
     private readonly Func<WorkThreadDescriptor, OpenThreadState, bool> _canSelectThreadBackend;
     private readonly Func<WorkThreadDescriptor, OpenThreadState, AgentBackendId, Task<bool>> _trySwitchThreadBackendAsync;
     private readonly Action _refreshSelectionAndThreadWorkspace;
+    private readonly Func<IReadOnlyList<string>>? _getConfiguredProviderKeys;
     private bool _selectorsRefreshing;
 
     public ChatSelectorCoordinator(
@@ -41,7 +42,8 @@ internal sealed class ChatSelectorCoordinator
         Action syncChatSelectorItems,
         Func<WorkThreadDescriptor, OpenThreadState, bool>? canSelectThreadBackend = null,
         Func<WorkThreadDescriptor, OpenThreadState, AgentBackendId, Task<bool>>? trySwitchThreadBackendAsync = null,
-        Action? refreshSelectionAndThreadWorkspace = null)
+        Action? refreshSelectionAndThreadWorkspace = null,
+        Func<IReadOnlyList<string>>? getConfiguredProviderKeys = null)
         : this(
             ChatBackendPresentation.CreateBackendStates().Values
                 .Select(static state => new AgentBackendDescriptor(state.BackendId, state.DisplayName))
@@ -57,7 +59,8 @@ internal sealed class ChatSelectorCoordinator
             syncChatSelectorItems,
             canSelectThreadBackend,
             trySwitchThreadBackendAsync,
-            refreshSelectionAndThreadWorkspace)
+            refreshSelectionAndThreadWorkspace,
+            getConfiguredProviderKeys)
     {
     }
 
@@ -74,7 +77,8 @@ internal sealed class ChatSelectorCoordinator
         Action syncChatSelectorItems,
         Func<WorkThreadDescriptor, OpenThreadState, bool>? canSelectThreadBackend = null,
         Func<WorkThreadDescriptor, OpenThreadState, AgentBackendId, Task<bool>>? trySwitchThreadBackendAsync = null,
-        Action? refreshSelectionAndThreadWorkspace = null)
+        Action? refreshSelectionAndThreadWorkspace = null,
+        Func<IReadOnlyList<string>>? getConfiguredProviderKeys = null)
     {
         ArgumentNullException.ThrowIfNull(backendDescriptors);
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
@@ -100,6 +104,7 @@ internal sealed class ChatSelectorCoordinator
         _canSelectThreadBackend = canSelectThreadBackend ?? ((_, _) => false);
         _trySwitchThreadBackendAsync = trySwitchThreadBackendAsync ?? ((_, _, _) => Task.FromResult(false));
         _refreshSelectionAndThreadWorkspace = refreshSelectionAndThreadWorkspace ?? (() => { });
+        _getConfiguredProviderKeys = getConfiguredProviderKeys;
     }
 
     public void RefreshForDraftScope(AgentBackendId? preferredBackendId = null)
@@ -109,7 +114,10 @@ internal sealed class ChatSelectorCoordinator
         try
         {
             var backendOptions = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
-            _workspaceViewModel.ProviderSummaryMarkup = ChatBackendPresentation.BuildProviderSummaryMarkup(_chatBackendStates.Values, isInitializing: false);
+            _workspaceViewModel.ProviderSummaryMarkup = ChatBackendPresentation.BuildProviderSummaryMarkup(
+                _chatBackendStates.Values,
+                isInitializing: false,
+                configuredProviderKeys: GetConfiguredProviderKeys());
             if (backendOptions.Count == 0)
             {
                 _selectorState.SetBackendSelection([], -1);
@@ -170,7 +178,10 @@ internal sealed class ChatSelectorCoordinator
         try
         {
             var backendOptions = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
-            _workspaceViewModel.ProviderSummaryMarkup = ChatBackendPresentation.BuildProviderSummaryMarkup(_chatBackendStates.Values, isInitializing: false);
+            _workspaceViewModel.ProviderSummaryMarkup = ChatBackendPresentation.BuildProviderSummaryMarkup(
+                _chatBackendStates.Values,
+                isInitializing: false,
+                configuredProviderKeys: GetConfiguredProviderKeys());
             if (backendOptions.Count == 0)
             {
                 _selectorState.SetBackendSelection([], -1);
@@ -554,6 +565,9 @@ internal sealed class ChatSelectorCoordinator
     {
         return _backendDescriptors.FirstOrDefault()?.BackendId ?? AgentBackendIds.Codex;
     }
+
+    private IReadOnlyList<string>? GetConfiguredProviderKeys()
+        => _getConfiguredProviderKeys?.Invoke();
 
     private AgentBackendId? ResolveConfiguredDefaultBackendId(IReadOnlyList<ChatBackendOption> options)
     {

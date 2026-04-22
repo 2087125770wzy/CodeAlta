@@ -146,6 +146,34 @@ public sealed class ChatSelectorCoordinatorTests
     }
 
     [TestMethod]
+    public void RefreshForDraftScope_UsesConfiguredProvidersForSummary()
+    {
+        var workspaceViewModel = new ThreadWorkspaceViewModel();
+        var promptComposerViewModel = new PromptComposerViewModel();
+        AgentBackendDescriptor[] backendDescriptors =
+        [
+            new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
+            new AgentBackendDescriptor(AgentBackendIds.Copilot, "Copilot"),
+        ];
+        var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
+        backendStates[AgentBackendIds.Codex.Value].Availability = ChatBackendAvailability.Ready;
+        backendStates[AgentBackendIds.Copilot.Value].Availability = ChatBackendAvailability.Failed;
+
+        var coordinator = CreateCoordinator(
+            backendDescriptors,
+            workspaceViewModel,
+            promptComposerViewModel,
+            backendStates,
+            static _ => null,
+            static () => ["codex", "copilot", "openai", "anthropic", "google", "vertex"]);
+
+        coordinator.RefreshForDraftScope(AgentBackendIds.Codex);
+
+        StringAssert.Contains(workspaceViewModel.ProviderSummaryMarkup, "6 providers");
+        StringAssert.Contains(workspaceViewModel.ProviderSummaryMarkup, "5 errors");
+    }
+
+    [TestMethod]
     public void RefreshForThread_UsesThreadBackendSelectionCapability()
     {
         using var temp = TempDirectory.Create();
@@ -321,7 +349,8 @@ public sealed class ChatSelectorCoordinatorTests
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
         Dictionary<string, ChatBackendState> backendStates,
-        Func<string?, string?> getEffectiveDefaultProviderKey)
+        Func<string?, string?> getEffectiveDefaultProviderKey,
+        Func<IReadOnlyList<string>>? getConfiguredProviderKeys = null)
     {
         var selectorState = new ChatSelectorStateContext(
             workspaceViewModel,
@@ -346,7 +375,8 @@ public sealed class ChatSelectorCoordinatorTests
             preferences,
             workspaceRefresh,
             getEffectiveDefaultProviderKey,
-            static () => { });
+            static () => { },
+            getConfiguredProviderKeys: getConfiguredProviderKeys);
     }
 
     private static ThreadSelectionContext CreateThreadSelectionContext()

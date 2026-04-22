@@ -120,7 +120,9 @@ internal static class ChatBackendPresentation
 
     public static string BuildProviderSummaryMarkup(
         IEnumerable<ChatBackendState> backendStates,
-        bool isInitializing)
+        bool isInitializing,
+        IReadOnlyCollection<string>? configuredProviderKeys = null,
+        int? configuredProviderCount = null)
     {
         ArgumentNullException.ThrowIfNull(backendStates);
 
@@ -130,9 +132,21 @@ internal static class ChatBackendPresentation
             return $"[primary]{NerdFont.MdTimerOutline} Detecting providers[/]";
         }
 
-        var providerCount = states.Length;
-        var errorCount = states.Count(static state =>
-            state.Availability is ChatBackendAvailability.Unsupported or ChatBackendAvailability.Failed);
+        HashSet<string>? configuredKeySet = null;
+        if (configuredProviderKeys is { Count: > 0 })
+        {
+            configuredKeySet = new HashSet<string>(
+                configuredProviderKeys.Where(static key => !string.IsNullOrWhiteSpace(key)),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        var providerCount = configuredProviderCount ?? configuredKeySet?.Count ?? states.Length;
+        var stateErrorCount = states.Count(state =>
+            state.Availability is ChatBackendAvailability.Unsupported or ChatBackendAvailability.Failed &&
+            (configuredKeySet is null || configuredKeySet.Contains(state.BackendId.Value)));
+        var missingConfiguredCount = configuredKeySet?.Count(key =>
+            !states.Any(state => string.Equals(state.BackendId.Value, key, StringComparison.OrdinalIgnoreCase))) ?? 0;
+        var errorCount = stateErrorCount + missingConfiguredCount;
         var readyCount = states.Count(static state => state.Availability == ChatBackendAvailability.Ready);
         var tone = errorCount > 0
             ? "warning"

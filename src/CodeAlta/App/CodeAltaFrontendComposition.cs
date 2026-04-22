@@ -162,7 +162,11 @@ internal sealed class CodeAltaFrontendComposition
             callbacks.SyncChatSelectorItems,
             threadProviderSwitchCoordinator.CanSelectThreadProvider,
             (thread, tab, targetBackendId) => threadProviderSwitchCoordinator.SwitchThreadProviderAsync(thread, tab, targetBackendId),
-            callbacks.RefreshSelectionAndThreadWorkspace);
+            callbacks.RefreshSelectionAndThreadWorkspace,
+            () => configStore.LoadGlobalProviderDefinitions(includeDisabled: true)
+                .Where(static definition => definition.Enabled != false)
+                .Select(static definition => definition.ProviderKey)
+                .ToArray());
 
         ThreadPromptQueueCoordinator? threadPromptQueueCoordinator = null;
         ThreadCommandCoordinator? threadCommandCoordinator = null;

@@ -222,19 +222,10 @@ internal sealed class ModelProvidersDialog
 
         try
         {
-            _providers.Clear();
-            _providers.AddRange(_loadDefinitions().Select(CreateEditorItem));
-            _providerList.Items.Clear();
-            foreach (var provider in _providers)
-            {
-                _providerList.Items.Add(provider);
-            }
-
-            _dirty = false;
-            _statusText = _providers.Count == 0
-                ? "[warning]No providers are configured yet. Add one, or enable Codex/Copilot.[/]"
-                : "[dim]Provider configuration loaded from disk.[/]";
-            SelectProvider(_providers.Count == 0 ? -1 : 0);
+            LoadDefinitionsIntoDialog(
+                _loadDefinitions(),
+                emptyStatusText: "[warning]No providers are configured yet. Add one, or enable Codex/Copilot.[/]",
+                loadedStatusText: "[dim]Provider configuration loaded from disk.[/]");
         }
         finally
         {
@@ -297,8 +288,10 @@ internal sealed class ModelProvidersDialog
         {
             _statusText = "[primary]Saving provider configuration...[/]";
             await _saveDefinitionsAsync(definitions);
-            _dirty = false;
-            _statusText = "[success]Provider configuration saved and runtime refreshed.[/]";
+            LoadDefinitionsIntoDialog(
+                _loadDefinitions(),
+                emptyStatusText: "[warning]No providers are configured yet. Add one, or enable Codex/Copilot.[/]",
+                loadedStatusText: "[success]Provider configuration saved and runtime refreshed.[/]");
         }
         catch (Exception ex)
         {
@@ -781,6 +774,39 @@ internal sealed class ModelProvidersDialog
         => message.Content is TextBlock textBlock
             ? textBlock.Text ?? string.Empty
             : message.Content.ToString() ?? string.Empty;
+
+    private void LoadDefinitionsIntoDialog(
+        IReadOnlyList<CodeAltaProviderDocument> definitions,
+        string emptyStatusText,
+        string loadedStatusText)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+        ArgumentException.ThrowIfNullOrWhiteSpace(emptyStatusText);
+        ArgumentException.ThrowIfNullOrWhiteSpace(loadedStatusText);
+
+        var selectedProviderKey = GetSelectedItem()?.ProviderKey;
+
+        _providers.Clear();
+        _providers.AddRange(definitions.Select(CreateEditorItem));
+        _providerList.Items.Clear();
+        foreach (var provider in _providers)
+        {
+            _providerList.Items.Add(provider);
+        }
+
+        _dirty = false;
+        _statusText = _providers.Count == 0 ? emptyStatusText : loadedStatusText;
+
+        var selectedIndex = selectedProviderKey is null
+            ? (_providers.Count == 0 ? -1 : 0)
+            : _providers.FindIndex(item => string.Equals(item.ProviderKey, selectedProviderKey, StringComparison.OrdinalIgnoreCase));
+        if (selectedIndex < 0 && _providers.Count > 0)
+        {
+            selectedIndex = 0;
+        }
+
+        SelectProvider(selectedIndex);
+    }
 
     private bool TryBeginDialogOperation(string operationDescription)
     {

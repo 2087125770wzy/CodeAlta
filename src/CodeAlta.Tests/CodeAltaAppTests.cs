@@ -1660,6 +1660,54 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void BuildProviderSummaryMarkup_UsesConfiguredProviderCountWhenProvided()
+    {
+        var states = new[]
+        {
+            new ChatBackendState(AgentBackendIds.Codex, "Codex")
+            {
+                Availability = ChatBackendAvailability.Ready,
+            },
+            new ChatBackendState(AgentBackendIds.Copilot, "Copilot")
+            {
+                Availability = ChatBackendAvailability.Failed,
+            },
+        };
+
+        var markup = ChatBackendPresentation.BuildProviderSummaryMarkup(
+            states,
+            isInitializing: false,
+            configuredProviderCount: 6);
+
+        StringAssert.Contains(markup, "6 providers");
+        StringAssert.Contains(markup, "1 error");
+    }
+
+    [TestMethod]
+    public void BuildProviderSummaryMarkup_CountsMissingConfiguredProvidersAsErrors()
+    {
+        var states = new[]
+        {
+            new ChatBackendState(AgentBackendIds.Codex, "Codex")
+            {
+                Availability = ChatBackendAvailability.Ready,
+            },
+            new ChatBackendState(AgentBackendIds.Copilot, "Copilot")
+            {
+                Availability = ChatBackendAvailability.Failed,
+            },
+        };
+
+        var markup = ChatBackendPresentation.BuildProviderSummaryMarkup(
+            states,
+            isInitializing: false,
+            configuredProviderKeys: ["codex", "copilot", "openai", "anthropic", "google", "vertex"]);
+
+        StringAssert.Contains(markup, "6 providers");
+        StringAssert.Contains(markup, "5 errors");
+    }
+
+    [TestMethod]
     public void ReplaceSelectItems_DoesNotMutateSelectWhenItemsAreUnchanged()
     {
         var select = new Select<ChatModelOption>();

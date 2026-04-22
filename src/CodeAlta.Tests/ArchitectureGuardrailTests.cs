@@ -501,6 +501,7 @@ public sealed class ArchitectureGuardrailTests
         Assert.IsTrue(dialogSource.Contains("ModelProviderEditorItemViewModel.IBindings", StringComparison.Ordinal));
         Assert.IsFalse(dialogSource.Contains("CreateBinding(", StringComparison.Ordinal));
         Assert.IsFalse(dialogSource.Contains("CreateTrackedCheckBox(", StringComparison.Ordinal));
+        Assert.IsTrue(dialogSource.Contains("LoadDefinitionsIntoDialog(", StringComparison.Ordinal));
         Assert.IsFalse(dialogSource.Contains("private sealed class ModelProviderEditorItem", StringComparison.Ordinal));
         Assert.IsTrue(viewModelSource.Contains("internal sealed partial class ModelProviderEditorItemViewModel", StringComparison.Ordinal));
         Assert.IsTrue(viewModelSource.Contains("[Bindable]", StringComparison.Ordinal));
