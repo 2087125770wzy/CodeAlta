@@ -611,7 +611,41 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             null,
             RenderUserInput(input.Items),
             SerializeAgentInput(input));
-        await AppendEventsAsync([rawEvent, userContent], cancellationToken).ConfigureAwait(false);
+        var events = new List<AgentEvent> { rawEvent, userContent };
+        if (TryCreateUserActivatedSkillState(input, out var activatedSkill))
+        {
+            _state = _state with
+            {
+                LoadedSkills = MergeLoadedSkill(_state.LoadedSkills, activatedSkill),
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+
+            events.Add(new AgentRawEvent(
+                BackendId,
+                SessionId,
+                DateTimeOffset.UtcNow,
+                SkillActivationEventType,
+                JsonSerializer.SerializeToElement(activatedSkill, AgentJsonSerializerContext.Default.LocalAgentLoadedSkillState),
+                runId));
+            events.Add(new AgentActivityEvent(
+                BackendId,
+                SessionId,
+                DateTimeOffset.UtcNow,
+                runId,
+                AgentActivityKind.Skill,
+                AgentActivityPhase.Completed,
+                activatedSkill.ActivationId,
+                null,
+                "codealta.skills.activate",
+                $"Activated skill '{activatedSkill.Name}' from the UI.",
+                JsonSerializer.SerializeToElement(activatedSkill, AgentJsonSerializerContext.Default.LocalAgentLoadedSkillState)));
+        }
+
+        await AppendEventsAsync(events, cancellationToken).ConfigureAwait(false);
+        if (activatedSkill is not null)
+        {
+            await _store.UpsertStateAsync(_state, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task<bool> AppendPendingSteerInputsAsync(AgentRunId runId, CancellationToken cancellationToken)
@@ -1670,16 +1704,55 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             return null;
         }
 
-        var attributes = TryParseSkillPayloadAttributes(payload);
         var skillName = GetArgumentString(toolCall.Arguments, "skillName")
-            ?? GetAttribute(attributes, "name")
-            ?? GetAttribute(attributes, "skill_name");
+            ?? GetArgumentString(toolCall.Arguments, "skill_name");
+        return TryCreateLoadedSkillState(skillName, null, payload, "model", toolCall.CallId);
+    }
+
+    private static bool TryCreateUserActivatedSkillState(
+        AgentInput input,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out LocalAgentLoadedSkillState? activatedSkill)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+
+        var skill = input.Items.OfType<AgentInputItem.Skill>().FirstOrDefault();
+        var payload = input.Items.OfType<AgentInputItem.Text>()
+            .Select(static item => item.Value)
+            .FirstOrDefault(static value => !string.IsNullOrWhiteSpace(value) &&
+                                            value.Contains("<skill_content", StringComparison.OrdinalIgnoreCase));
+        activatedSkill = payload is null
+            ? null
+            : TryCreateLoadedSkillState(
+                skill?.Name,
+                skill?.Path,
+                payload,
+                "user",
+                $"user-skill:{Guid.CreateVersion7()}");
+        return activatedSkill is not null;
+    }
+
+    private static LocalAgentLoadedSkillState? TryCreateLoadedSkillState(
+        string? skillName,
+        string? skillPath,
+        string payload,
+        string activationMode,
+        string activationId)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return null;
+        }
+
+        var attributes = TryParseSkillPayloadAttributes(payload);
+        skillName = string.IsNullOrWhiteSpace(skillName)
+            ? GetAttribute(attributes, "name") ?? GetAttribute(attributes, "skill_name")
+            : skillName.Trim();
         if (string.IsNullOrWhiteSpace(skillName))
         {
             return null;
         }
 
-        var skillFilePath = GetAttribute(attributes, "path") ?? string.Empty;
+        var skillFilePath = GetAttribute(attributes, "path") ?? skillPath ?? string.Empty;
         var skillRootPath = GetAttribute(attributes, "root")
             ?? (string.IsNullOrWhiteSpace(skillFilePath) ? string.Empty : Path.GetDirectoryName(skillFilePath) ?? string.Empty);
         var sourceKind = GetAttribute(attributes, "source_kind") ?? GetAttribute(attributes, "source");
@@ -1693,8 +1766,8 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             SourceKind = sourceKind,
             SourceId = sourceId,
             ActivatedAt = DateTimeOffset.UtcNow,
-            ActivationMode = "model",
-            ActivationId = toolCall.CallId,
+            ActivationMode = activationMode,
+            ActivationId = activationId,
             Payload = payload,
             BaseDirectoryUri = baseDirectoryUri,
             RestoredFromHistory = false,

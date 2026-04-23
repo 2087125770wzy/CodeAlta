@@ -42,7 +42,11 @@ Activated local-runtime skills are recorded in the session journal so thread inf
 
 ## Browsing skills in the UI
 
-Use `/skills` or `/skill`, the command palette entry, or `Ctrl+G Ctrl+K` to open the skills browser. The browser can show combined, current-project, or user/global discovery scopes; it includes source kind, validation state, model visibility, shadowing, provenance paths, diagnostics, and a refresh action. Use **Open SKILL.md** to open the selected skill in the existing editor.
+Use `/skills` or `/skill`, the command palette entry, or `Ctrl+G Ctrl+K` to open the skills browser. The browser can show combined, current-project, or user/global discovery scopes; it includes source kind, validation state, model visibility, shadowing, provenance paths, diagnostics, and a refresh action.
+
+Use **Activate** on a valid, unshadowed skill to load it into the selected local/raw backend thread through the host-owned runtime path. CodeAlta records the activation in the local session journal and injects the canonical skill payload as session context; it does not paste raw skill text into the prompt draft. Codex and Copilot threads are excluded because those providers manage their own native skills.
+
+Use **Open SKILL.md** to open the selected skill in the existing editor.
 
 ## Validation and collisions
 

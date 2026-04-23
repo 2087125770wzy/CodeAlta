@@ -274,7 +274,7 @@ Path note:
 - [x] Add a command-palette entry such as `Use Skill`
 - [x] Choose and implement a non-conflicting shortcut for opening the skills browser (do not reuse `Ctrl+G Ctrl+S`)
 - [ ] Optionally add prompt-editor autocomplete/picker support for skills
-- [ ] Ensure these actions trigger host-mediated activation rather than pasting raw skill content into the draft
+- [x] Ensure these actions trigger host-mediated activation rather than pasting raw skill content into the draft
 
 ## Phase 8 - skills authoring UX
 

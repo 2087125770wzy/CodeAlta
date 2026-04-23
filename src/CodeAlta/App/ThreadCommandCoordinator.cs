@@ -380,6 +380,60 @@ internal sealed class ThreadCommandCoordinator
     public WorkThreadExecutionOptions BuildExecutionOptions(WorkThreadDescriptor thread, OpenThreadState tab)
         => _promptDispatchCoordinator.BuildExecutionOptions(thread, tab);
 
+    public async Task ActivateSelectedSkillAsync(string skillName, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(skillName);
+
+        var thread = _threadSelection.GetSelectedThread();
+        if (thread is null)
+        {
+            _commandContext.SetShellStatus("Open a local/raw backend thread before activating a CodeAlta-managed skill.", false, StatusTone.Warning);
+            return;
+        }
+
+        var backendId = new AgentBackendId(thread.BackendId);
+        if (backendId == AgentBackendIds.Codex || backendId == AgentBackendIds.Copilot)
+        {
+            _commandContext.SetShellStatus(
+                "Codex and Copilot manage their own native skills; CodeAlta-managed skill activation is unavailable for this thread.",
+                false,
+                StatusTone.Warning);
+            return;
+        }
+
+        if (!IsChatBackendReady(backendId))
+        {
+            _commandContext.SetReadyStatusForCurrentSelection();
+            return;
+        }
+
+        var tab = _threadSelection.EnsureThreadTab(thread);
+        if (tab.StatusBusy)
+        {
+            _commandContext.SetShellStatus($"Wait for '{thread.Title}' to become idle before activating a skill.", false, StatusTone.Warning);
+            return;
+        }
+
+        try
+        {
+            await _threadSelection.EnsureThreadHistoryLoadedAsync(thread, cancellationToken);
+            tab.Timeline.ReplaceTruncatedHistoryLoadButton();
+            _commandContext.SetThreadStatus(tab, $"Activating skill '{skillName}'...", true, StatusTone.Info);
+            _ = await _runtimeService.ActivateSkillAsync(
+                    thread,
+                    BuildExecutionOptions(thread, tab),
+                    skillName,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            _commandContext.SetThreadStatus(tab, $"Activated skill '{skillName}'.", false, StatusTone.Ready);
+        }
+        catch (Exception ex)
+        {
+            CodeAltaApp.UiLogger.Error(ex, $"Failed to activate skill {skillName}.");
+            _commandContext.SetThreadStatus(tab, $"Failed to activate skill '{skillName}': {ex.Message}", false, StatusTone.Error);
+        }
+    }
+
     private bool IsChatBackendReady(AgentBackendId backendId)
     {
         return _chatBackendStates[backendId.Value].Availability == ChatBackendAvailability.Ready;

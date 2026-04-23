@@ -17,6 +17,7 @@ internal sealed class SkillsManagementDialog
 {
     private readonly SkillsManagementService _service;
     private readonly Func<string, Task> _openFileAsync;
+    private readonly Func<string, Task> _activateSkillAsync;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Dialog _dialog;
     private readonly EnumSelect<SkillsManagementScope> _scopeSelect;
@@ -31,16 +32,19 @@ internal sealed class SkillsManagementDialog
     public SkillsManagementDialog(
         SkillsManagementService service,
         Func<string, Task> openFileAsync,
+        Func<string, Task> activateSkillAsync,
         Func<Rectangle?> getBounds,
         Func<Visual?> getFocusTarget)
     {
         ArgumentNullException.ThrowIfNull(service);
         ArgumentNullException.ThrowIfNull(openFileAsync);
+        ArgumentNullException.ThrowIfNull(activateSkillAsync);
         ArgumentNullException.ThrowIfNull(getBounds);
         ArgumentNullException.ThrowIfNull(getFocusTarget);
 
         _service = service;
         _openFileAsync = openFileAsync;
+        _activateSkillAsync = activateSkillAsync;
         _getFocusTarget = getFocusTarget;
 
         var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"))
@@ -81,6 +85,9 @@ internal sealed class SkillsManagementDialog
         var refreshButton = new Button("Refresh")
             .Tone(ControlTone.Primary)
             .Click(() => _ = ReloadAsync());
+        var activateButton = new Button("Activate")
+            .Tone(ControlTone.Success)
+            .Click(() => _ = ActivateSelectedSkillAsync());
         var openSkillButton = new Button("Open SKILL.md")
             .Click(() => _ = OpenSelectedSkillAsync());
 
@@ -100,7 +107,7 @@ internal sealed class SkillsManagementDialog
         toolbar.Cell(new TextBlock("Filter") { VerticalAlignment = Align.Center }, 0, 2);
         toolbar.Cell(_filterBox, 0, 3);
         toolbar.Cell(
-            new HStack(openSkillButton, refreshButton)
+            new HStack(activateButton, openSkillButton, refreshButton)
             {
                 HorizontalAlignment = Align.End,
                 Spacing = 1,
@@ -108,7 +115,7 @@ internal sealed class SkillsManagementDialog
             0,
             4);
 
-        var introText = new Markup("[dim]Browse discovered filesystem skills, validation state, source precedence, and provenance. Activation remains host/tool mediated; opening a skill edits its SKILL.md file.[/]")
+        var introText = new Markup("[dim]Browse discovered filesystem skills, validation state, source precedence, and provenance. Activate loads a valid, unshadowed skill through the host-owned runtime; Open edits SKILL.md.[/]")
         {
             Wrap = true,
         };
@@ -243,6 +250,31 @@ internal sealed class SkillsManagementDialog
         }
 
         await _openFileAsync(descriptor.SkillFilePath);
+    }
+
+    private async Task ActivateSelectedSkillAsync()
+    {
+        if (GetSelectedDescriptor() is not { } descriptor)
+        {
+            return;
+        }
+
+        if (!descriptor.IsValid || descriptor.IsShadowed)
+        {
+            _summaryText = "[warning]Select a valid, unshadowed skill before activating.[/]";
+            return;
+        }
+
+        try
+        {
+            _summaryText = $"[primary]Activating skill '{AnsiMarkup.Escape(descriptor.Name)}'...[/]";
+            await _activateSkillAsync(descriptor.Name);
+            _summaryText = $"[success]Activation requested for skill '{AnsiMarkup.Escape(descriptor.Name)}'.[/]";
+        }
+        catch (Exception ex)
+        {
+            _summaryText = $"[error]Failed to activate skill '{AnsiMarkup.Escape(descriptor.Name)}': {AnsiMarkup.Escape(ex.Message)}[/]";
+        }
     }
 
     private SkillDescriptor? GetSelectedDescriptor()

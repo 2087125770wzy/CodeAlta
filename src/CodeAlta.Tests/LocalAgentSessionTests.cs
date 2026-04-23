@@ -341,6 +341,80 @@ public sealed class LocalAgentSessionTests
     }
 
     [TestMethod]
+    public async Task LocalAgentSession_SendAsync_UserSkillInputPersistsUserActivation()
+    {
+        using var temp = TestTempDirectory.Create();
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(Path.Combine(temp.Path, "machine", "agents")));
+        var provider = CreateProvider();
+        var summary = CreateSummary("session-user-skill-activation") with { WorkingDirectory = temp.Path };
+        var state = CreateState("session-user-skill-activation");
+        await store.UpsertSessionAsync(summary).ConfigureAwait(false);
+        await store.UpsertStateAsync(state).ConfigureAwait(false);
+
+        var skillRoot = Path.Combine(temp.Path, ".alta", "skills", "code-review");
+        Directory.CreateDirectory(skillRoot);
+        var skillFilePath = Path.Combine(skillRoot, "SKILL.md");
+        await File.WriteAllTextAsync(skillFilePath, "# Skill").ConfigureAwait(false);
+        var payload = CreateSkillPayload("code-review", skillFilePath, "Review code for regressions.");
+
+        await using var session = new LocalAgentSession(
+            AgentBackendIds.OpenAIResponses,
+            provider,
+            summary,
+            state,
+            [],
+            store,
+            new ScriptedTurnExecutor(
+                (request, _, _) =>
+                {
+                    Assert.IsNotNull(request.DeveloperInstructions);
+                    StringAssert.Contains(request.DeveloperInstructions, "<active_skills>");
+                    StringAssert.Contains(request.DeveloperInstructions, "code-review");
+                    StringAssert.Contains(request.DeveloperInstructions, "Review code for regressions.");
+                    Assert.AreEqual(1, request.Conversation.Count);
+                    Assert.AreEqual(LocalAgentConversationRole.User, request.Conversation[0].Role);
+                    Assert.IsTrue(request.Conversation[0].Parts.OfType<LocalAgentMessagePart.Text>().Any(part => part.Value.Contains("<skill_content", StringComparison.Ordinal)));
+                    return Task.FromResult(
+                        new LocalAgentTurnResponse
+                        {
+                            AssistantMessage = new LocalAgentConversationMessage(
+                                LocalAgentConversationRole.Assistant,
+                                [new LocalAgentMessagePart.Text("Skill is active.")]),
+                            Usage = CreateUsageSnapshot(8, 3),
+                        });
+                }),
+            new AgentSessionCreateOptions
+            {
+                ProviderKey = provider.ProviderKey,
+                Model = "gpt-5.4",
+                WorkingDirectory = temp.Path,
+                OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+            });
+
+        _ = await session.SendAsync(
+                new AgentSendOptions
+                {
+                    Input = new AgentInput(
+                    [
+                        new AgentInputItem.Skill("code-review", skillFilePath),
+                        new AgentInputItem.Text(payload),
+                    ]),
+                })
+            .ConfigureAwait(false);
+
+        var history = await session.GetHistoryAsync().ConfigureAwait(false);
+        Assert.IsTrue(history.OfType<AgentRawEvent>().Any(static evt => evt.BackendEventType == "local.skillActivation"));
+        Assert.IsTrue(history.OfType<AgentActivityEvent>().Any(static evt => evt.Kind == AgentActivityKind.Skill && evt.Phase == AgentActivityPhase.Completed));
+
+        var persistedState = await store.GetStateAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
+        Assert.IsNotNull(persistedState);
+        Assert.AreEqual(1, persistedState.LoadedSkills.Count);
+        Assert.AreEqual("code-review", persistedState.LoadedSkills[0].Name);
+        Assert.AreEqual("user", persistedState.LoadedSkills[0].ActivationMode);
+        Assert.IsTrue(persistedState.LoadedSkills[0].ActivationId.StartsWith("user-skill:", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task LocalAgentSession_ResumeSession_SurfacesMissingLoadedSkills()
     {
         using var temp = TestTempDirectory.Create();

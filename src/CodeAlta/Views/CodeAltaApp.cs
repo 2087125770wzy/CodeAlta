@@ -285,6 +285,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
             ? new SkillsManagementCoordinator(
                 new SkillsManagementService(_ownedServices.SkillCatalog, _catalogOptions, GetSelectedProject),
                 path => _fileEditorWorkspaceCoordinator.OpenFilePathAsync(path),
+                skillName => _threadCommandCoordinator.ActivateSelectedSkillAsync(skillName),
                 () => DialogBoundsResolver.ResolveAppBounds(ThreadInput is Visual threadInput ? threadInput : _sidebarCoordinator.View.Tree),
                 () => ThreadInput is Visual threadInput ? threadInput : _sidebarCoordinator.View.Tree)
             : null;

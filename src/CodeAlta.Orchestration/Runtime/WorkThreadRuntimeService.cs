@@ -423,6 +423,59 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
     }
 
     /// <summary>
+    /// Activates a CodeAlta-managed skill for a thread through the host-owned local runtime path.
+    /// </summary>
+    /// <param name="thread">Target thread.</param>
+    /// <param name="options">Execution options used to resolve the backing session.</param>
+    /// <param name="skillName">Skill name to activate.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The run identifier that received the activated skill content.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="thread"/> or <paramref name="options"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="skillName"/> is empty.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the thread backend owns its native skills.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the requested skill cannot be resolved.</exception>
+    public async Task<AgentRunId> ActivateSkillAsync(
+        WorkThreadDescriptor thread,
+        WorkThreadExecutionOptions options,
+        string skillName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(skillName);
+
+        if (UsesProviderManagedSkills(options.BackendId))
+        {
+            throw new InvalidOperationException(
+                $"Backend '{options.BackendId.Value}' manages its own native skills; CodeAlta-managed skill activation is not injected into that session.");
+        }
+
+        var project = await ResolveProjectAsync(thread, cancellationToken).ConfigureAwait(false);
+        var query = BuildSkillCatalogQuery(project, options.ProjectRoots);
+        var activation = await _skillCatalog.ActivateAsync(query, skillName, cancellationToken).ConfigureAwait(false)
+            ?? throw new KeyNotFoundException($"Skill '{skillName}' was not found or is not activatable for this thread.");
+
+        var input = new AgentInput(
+        [
+            new AgentInputItem.Skill(activation.Descriptor.Name, activation.Descriptor.SkillFilePath),
+            new AgentInputItem.Text(
+                $"""
+                The user activated the CodeAlta skill '{activation.Descriptor.Name}' for this thread.
+                Treat the following host-provided skill content as active session context.
+
+                {activation.Payload}
+                """),
+        ]);
+
+        return await SendAsync(
+                thread,
+                options,
+                new AgentSendOptions { Input = input },
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Steers the current coordinator run for a thread.
     /// </summary>
     public async Task<AgentRunId> SteerAsync(
