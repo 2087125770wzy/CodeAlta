@@ -67,12 +67,12 @@ CodeAlta should own:
 - skill content injection
 - skill resource reads
 
-The important architectural rule is:
+The important architectural rule for CodeAlta-managed local/raw backend sessions is:
 
 - skills are handled by the **CodeAlta host/local runtime/agent loop**
-- skills are **not** delegated to backend-native skill systems as the primary implementation
+- skills are **not** delegated to backend-native skill systems as the primary implementation for those backends
 
-CodeAlta may observe or map backend-native skill concepts for compatibility, but they should not be the source of truth for discovery, activation, or behavior.
+Codex and Copilot are the current exception: those providers manage their own native skills, so CodeAlta must not inject CodeAlta-managed skill advertisements or activation tools into Codex/Copilot sessions. CodeAlta may still observe or map backend-native skill concepts for compatibility/telemetry, but those provider-managed skills are not CodeAlta catalog state.
 
 ### 2.4 Do not build a full plugin system yet
 
@@ -492,31 +492,29 @@ Recommended shared model:
 
 Recommended mapping:
 
-- do not rely on Codex-native skill discovery or activation for CodeAlta-managed skills
-- expose CodeAlta skill activation through local tool/runtime orchestration
-- inject the canonical activated-skill payload into the transcript like any other tool result
-- keep any native Codex skill support only as optional compatibility plumbing, not as the main path
+- Codex manages its own native skills, so CodeAlta should not register the CodeAlta `codealta.skills.activate` tool or inject CodeAlta skill advertisements into Codex sessions
+- keep `AgentInputItem.Skill` only as compatibility plumbing for explicit native Codex skill references
+- do not treat Codex-native skills as CodeAlta catalog state
 
 ## 8.3 Copilot
 
 Recommended mapping:
 
-- do not depend on Copilot-native skill-directory/session handling for CodeAlta-managed skills
-- advertise skills through CodeAlta-composed instructions
-- activate skills through CodeAlta local tools/runtime orchestration
-- normalize any observed native Copilot skill events only for compatibility/telemetry, not for core behavior
+- Copilot manages its own native skills, so CodeAlta should not register the CodeAlta `codealta.skills.activate` tool or inject CodeAlta skill advertisements into Copilot sessions
+- normalize observed native Copilot skill events only for compatibility/telemetry
+- do not treat Copilot-native skills as CodeAlta catalog state
 
 ## 8.4 Local raw-API runtimes
 
-Local runtimes should use the exact same host-owned skill flow.
+Local runtimes and raw-API backend adapters should use the host-owned skill flow.
 
-This is the reference behavior for all backends:
+This is the reference behavior for CodeAlta-managed skills:
 
 - advertise available skills in composed instructions
 - expose skill activation through CodeAlta local tools
 - inject the canonical activated-skill payload into the conversation history
 
-Codex and Copilot integrations should be aligned to this same model rather than treated as special native skill runtimes.
+Codex and Copilot are intentionally excluded from CodeAlta-managed skill registration because those providers own their native skill systems.
 
 ## 9. MCP surface
 
@@ -792,6 +790,6 @@ Adopt the following model:
 - full skill bodies are loaded only on activation
 - activated skills are injected as ordinary auditable content/tool output
 - local-runtime session logs should persist replay-significant skill activation events so loaded skills can be restored and surfaced in the TUI
-- Codex and Copilot should consume CodeAlta-managed skills through the host runtime, not act as the primary skill runtime
+- Codex and Copilot should keep managing their own native skills; CodeAlta should not inject CodeAlta-managed skill tools or advertisements into those backend sessions
 - UI should support browsing, activation, validation, and provenance inspection
 - future plugins should extend skills by contributing roots, not by redefining the skill model

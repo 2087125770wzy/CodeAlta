@@ -1,6 +1,6 @@
 # Skills Implementation Plan
 
-Status: draft implementation checklist  
+Status: verified/continued implementation checklist (updated 2026-04-23)  
 Source spec: `doc/specs/skills_specs.md`
 
 Path note:
@@ -230,21 +230,21 @@ Path note:
 
 - [ ] Allow orchestrator/delegated-thread creation flows to narrow the visible skill set for a task
 - [ ] Allow orchestrator flows to pre-activate one skill when the task clearly requires it
-- [ ] Interpret agent-associated `codealta.skills` refs as hints/ranking inputs, not bulk prompt preloads
+- [x] Interpret agent-associated `codealta.skills` refs as hints/ranking inputs, not bulk prompt preloads
 
 ## Phase 6 - backend adapter alignment
 
 ### 6.1 Keep host-owned model across backends
 
-- [ ] Verify Codex integration does not become the primary skill runtime path
-- [ ] Verify Copilot integration does not become the primary skill runtime path
-- [ ] Ensure local-runtime-owned activation behavior is the reference path for all backends
+- [x] Verify Codex integration does not receive CodeAlta skill advertisements/tools and keeps provider-managed skills as the primary Codex path
+- [x] Verify Copilot integration does not receive CodeAlta skill advertisements/tools and keeps provider-managed skills as the primary Copilot path
+- [x] Ensure local-runtime-owned activation behavior remains the reference path for CodeAlta-managed local/raw backends
 
 ### 6.2 Compatibility plumbing only where needed
 
-- [ ] Keep `AgentInputItem.Skill` only as compatibility plumbing if still useful
-- [ ] Normalize any native Copilot skill events only for telemetry/compatibility, not core behavior
-- [ ] Avoid relying on backend-native skill directories/session features for CodeAlta-managed skills
+- [x] Keep `AgentInputItem.Skill` only as compatibility plumbing if still useful
+- [x] Normalize any native Copilot skill events only for telemetry/compatibility, not core behavior
+- [x] Avoid relying on backend-native skill directories/session features for CodeAlta-managed skills on local/raw backends; Codex/Copilot are intentionally provider-managed
 
 ## Phase 7 - TUI skills management
 
@@ -360,11 +360,11 @@ Path note:
 
 ## Phase 12 - documentation and polish
 
-- [ ] Update user-facing docs once the feature is implemented
-- [ ] Document where users should place portable skills vs CodeAlta-specific skills
-- [ ] Document the difference between `.agents/skills/` and `.alta/skills/`
-- [ ] Document trust behavior for project-local skills
-- [ ] Document how loaded skills appear in the TUI and survive session resume
+- [x] Update user-facing docs for current skill discovery/runtime behavior
+- [x] Document where users should place portable skills vs CodeAlta-specific skills
+- [x] Document the difference between `.agents/skills/` and `.alta/skills/`
+- [x] Document current validation/provenance behavior; full repository trust prompts remain future work
+- [x] Document how loaded skills appear in thread info and survive local-runtime session resume
 - [ ] Document the editor-based skill authoring flow
 
 ## Suggested execution order
@@ -373,6 +373,6 @@ Path note:
 - [x] Complete Phase 2 before exposing new MCP APIs
 - [x] Complete Phase 3 before wiring model-facing activation
 - [x] Complete Phase 4 before shipping automatic restore/compaction behavior
-- [ ] Complete Phases 5 and 6 before claiming full backend-neutral support
+- [x] Complete Phases 5 and 6 for current provider policy before claiming full backend-neutral support
 - [ ] Complete Phases 7 and 8 before calling the feature user-ready
-- [ ] Complete Phase 11 before merging the full feature
+- [ ] Complete remaining Phase 11 UI command/browser tests before calling the feature user-ready

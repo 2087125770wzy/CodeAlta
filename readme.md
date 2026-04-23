@@ -13,6 +13,7 @@ An agentic AI coding CLI assistant developed in .NET.
 - FTS5 + embedding-backed hybrid search pipeline (`CodeAlta.Search`)
 - In-process MCP server surface with tools for tasks, artifacts, search, projects, and agents (`CodeAlta.Mcp`)
 - Agent orchestration services for role profiles, context packs, and planner/builder durable workflows (`CodeAlta.Orchestration`)
+- Filesystem skill discovery for Agent Skills-compatible `SKILL.md` packages under project/user `.alta/skills/` and `.agents/skills/`, with validation, deterministic precedence, progressive disclosure, local-runtime activation events, and backend safeguards so Codex/Copilot keep managing their own native skills (`CodeAlta.Catalog`, `CodeAlta.Orchestration`, `CodeAlta.Agent`)
 - .NET first-class services for solution/project discovery, symbol indexing, context snippets, diagnostics, and index refresh (`CodeAlta.DotNet`)
 - Interactive terminal shell wired to project/task/search/.NET/MCP services, with explicit shell-controller/UI-dispatcher/view-presenter seams, rich agent timelines, chat provider/model/reasoning selectors, a footer provider summary button that opens a full model-provider management dialog, compact grouped tool-call chips plus a per-run modified-files recap card with per-file `+/-` diff totals and expandable diff details, a live `ctx --` / `ctx N tok` / `ctx NN%` context-window indicator with normalized usage popup sections and backend-specific detail, and asynchronous backend probing so the TUI starts immediately even when providers are still being configured (`CodeAlta`)
 - Busy-thread prompt queueing with an editable waiting list, per-entry repeat counts, immediate steer conversion where the backend supports live steering, and an `F10` clear-queue shortcut; steer requests also surface as transient pending rows at the top of the strip until the backend echoes the user prompt into the timeline, while unsupported providers such as the current local raw-API OpenAI/Anthropic/Google runtimes automatically re-queue the prompt for the next turn (`CodeAlta`)
@@ -38,6 +39,8 @@ An agentic AI coding CLI assistant developed in .NET.
 ## 📖 User Guide
 
 For more details on how to use CodeAlta, please visit the [user guide](https://github.com/xoofx/CodeAlta/blob/main/doc/readme.md).
+
+See also [CodeAlta skills](doc/skills.md) for skill locations, validation rules, and backend behavior.
 
 ## 🪪 License
 

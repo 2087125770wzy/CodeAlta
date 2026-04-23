@@ -103,7 +103,7 @@ codealta:
 | `default_backend` | enum/string | No | Preferred backend, for example `codex` or `copilot`. |
 | `builtin` | boolean | No | Marks whether the agent is shipped by CodeAlta. |
 | `tags` | string list | No | Free-form classification tags. |
-| `skills` | string list | No | Skill keys associated with the agent. |
+| `skills` | string list | No | Skill keys associated with the agent; treated as ranking hints, not automatic prompt preloads. |
 | `permission_mode` | string | No | Local execution/approval hint for future backend mapping. |
 | `hooks` | object or list | No | Optional lifecycle hooks for future runtime integration. |
 
