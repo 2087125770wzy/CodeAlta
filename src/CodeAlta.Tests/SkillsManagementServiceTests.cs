@@ -1,4 +1,5 @@
 using CodeAlta.App;
+using CodeAlta.Catalog;
 using CodeAlta.Catalog.Skills;
 
 namespace CodeAlta.Tests;
@@ -50,6 +51,71 @@ public sealed class SkillsManagementServiceTests
         var files = SkillsManagementService.ListRelatedFiles(descriptor);
 
         Assert.AreEqual(0, files.Count);
+    }
+
+    [TestMethod]
+    public async Task CreateSkillAsync_CreatesProjectAltaSkillForCombinedScope()
+    {
+        using var temp = TempDirectory.Create();
+        var projectRoot = Path.Combine(temp.Path, "project");
+        var globalRoot = Path.Combine(temp.Path, ".alta");
+        Directory.CreateDirectory(projectRoot);
+        var service = new SkillsManagementService(
+            new SkillCatalog(),
+            new CatalogOptions { GlobalRoot = globalRoot },
+            () => new ProjectDescriptor { ProjectPath = projectRoot });
+
+        var result = await service.CreateSkillAsync(
+            SkillsManagementScope.Combined,
+            "sample-skill",
+            "Use this skill for tests.");
+
+        Assert.AreEqual(SkillCreationTargetKind.ProjectCodeAlta, result.TargetKind);
+        Assert.AreEqual(Path.Combine(projectRoot, ".alta", "skills", "sample-skill"), result.SkillRootPath);
+        Assert.IsTrue(File.Exists(result.SkillFilePath));
+        Assert.IsTrue(Directory.Exists(Path.Combine(result.SkillRootPath, "scripts")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(result.SkillRootPath, "references")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(result.SkillRootPath, "assets")));
+        var contents = await File.ReadAllTextAsync(result.SkillFilePath);
+        StringAssert.Contains(contents, "name: sample-skill");
+        StringAssert.Contains(contents, "description: 'Use this skill for tests.'");
+    }
+
+    [TestMethod]
+    public async Task CreateSkillAsync_CreatesUserAltaSkillWhenNoProjectIsSelected()
+    {
+        using var temp = TempDirectory.Create();
+        var service = new SkillsManagementService(
+            new SkillCatalog(),
+            new CatalogOptions { GlobalRoot = temp.Path },
+            () => null);
+
+        var result = await service.CreateSkillAsync(
+            SkillsManagementScope.Combined,
+            "user-skill",
+            "Use this skill globally.");
+
+        Assert.AreEqual(SkillCreationTargetKind.UserCodeAlta, result.TargetKind);
+        Assert.AreEqual(Path.Combine(temp.Path, "skills", "user-skill"), result.SkillRootPath);
+        Assert.IsTrue(File.Exists(result.SkillFilePath));
+    }
+
+    [TestMethod]
+    [DataRow("BadName")]
+    [DataRow("-bad")]
+    [DataRow("bad-")]
+    [DataRow("bad--name")]
+    [DataRow("bad_name")]
+    public async Task CreateSkillAsync_RejectsInvalidSkillNames(string name)
+    {
+        using var temp = TempDirectory.Create();
+        var service = new SkillsManagementService(
+            new SkillCatalog(),
+            new CatalogOptions { GlobalRoot = temp.Path },
+            () => null);
+
+        await Assert.ThrowsExactlyAsync<ArgumentException>(
+            () => service.CreateSkillAsync(SkillsManagementScope.User, name, "Description.")).ConfigureAwait(false);
     }
 
     private static SkillDescriptor CreateDescriptor(string skillRoot)

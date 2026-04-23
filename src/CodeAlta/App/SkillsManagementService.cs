@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using CodeAlta.Catalog;
 using CodeAlta.Catalog.Skills;
 
@@ -51,6 +53,36 @@ internal sealed class SkillsManagementService
         };
 
         return await _skillCatalog.ListAsync(query, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<SkillCreationResult> CreateSkillAsync(
+        SkillsManagementScope scope,
+        string? name,
+        string? description,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedName = NormalizeSkillName(name);
+        var normalizedDescription = NormalizeDescription(description);
+        var target = ResolveCreationTarget(scope);
+        var skillRootPath = Path.Combine(target.RootPath, normalizedName);
+        if (Directory.Exists(skillRootPath))
+        {
+            throw new InvalidOperationException($"Skill '{normalizedName}' already exists at '{skillRootPath}'.");
+        }
+
+        Directory.CreateDirectory(skillRootPath);
+        Directory.CreateDirectory(Path.Combine(skillRootPath, "scripts"));
+        Directory.CreateDirectory(Path.Combine(skillRootPath, "references"));
+        Directory.CreateDirectory(Path.Combine(skillRootPath, "assets"));
+
+        var skillFilePath = Path.Combine(skillRootPath, "SKILL.md");
+        await File.WriteAllTextAsync(
+                skillFilePath,
+                BuildSkillTemplate(normalizedName, normalizedDescription),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return new SkillCreationResult(normalizedName, skillRootPath, skillFilePath, target.Kind);
     }
 
     public static IReadOnlyList<SkillRelatedFile> ListRelatedFiles(SkillDescriptor descriptor)
@@ -117,6 +149,116 @@ internal sealed class SkillsManagementService
         => path.Length > 0 && (path[^1] == Path.DirectorySeparatorChar || path[^1] == Path.AltDirectorySeparatorChar)
             ? path
             : path + Path.DirectorySeparatorChar;
+
+    private SkillCreationTarget ResolveCreationTarget(SkillsManagementScope scope)
+    {
+        var selectedProject = _getSelectedProject();
+        if (scope is SkillsManagementScope.CurrentProject or SkillsManagementScope.Combined &&
+            !string.IsNullOrWhiteSpace(selectedProject?.ProjectPath))
+        {
+            return new SkillCreationTarget(
+                SkillCreationTargetKind.ProjectCodeAlta,
+                Path.Combine(selectedProject.ProjectPath, ".alta", "skills"));
+        }
+
+        if (scope == SkillsManagementScope.CurrentProject)
+        {
+            throw new InvalidOperationException("Select a project before creating a project skill.");
+        }
+
+        if (string.IsNullOrWhiteSpace(_catalogOptions.GlobalRoot))
+        {
+            throw new InvalidOperationException("CodeAlta global root is not configured.");
+        }
+
+        return new SkillCreationTarget(
+            SkillCreationTargetKind.UserCodeAlta,
+            Path.Combine(_catalogOptions.GlobalRoot, "skills"));
+    }
+
+    private static string NormalizeSkillName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Skill name is required.", nameof(name));
+        }
+
+        var normalized = name.Trim();
+        if (normalized.Length > 64)
+        {
+            throw new ArgumentException("Skill name must be 64 characters or fewer.", nameof(name));
+        }
+
+        if (normalized.StartsWith("-", StringComparison.Ordinal) ||
+            normalized.EndsWith("-", StringComparison.Ordinal) ||
+            normalized.Contains("--", StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Skill name may not start or end with '-' and may not contain consecutive hyphens.", nameof(name));
+        }
+
+        foreach (var rune in normalized.EnumerateRunes())
+        {
+            if (rune.Value == '-')
+            {
+                continue;
+            }
+
+            if (!Rune.IsLetterOrDigit(rune) ||
+                (Rune.IsLetter(rune) && Rune.ToLowerInvariant(rune) != rune))
+            {
+                throw new ArgumentException("Skill name must contain only lowercase Unicode alphanumeric characters and hyphens.", nameof(name));
+            }
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizeDescription(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            throw new ArgumentException("Skill description is required.", nameof(description));
+        }
+
+        var normalized = string.Join(
+            ' ',
+            description.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        if (normalized.Length > 1024)
+        {
+            throw new ArgumentException("Skill description must be 1024 characters or fewer.", nameof(description));
+        }
+
+        return normalized;
+    }
+
+    private static string BuildSkillTemplate(string name, string description)
+    {
+        var title = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name.Replace('-', ' '));
+        return
+            $"""
+            ---
+            name: {name}
+            description: '{EscapeYamlSingleQuoted(description)}'
+            ---
+
+            # {title}
+
+            Use this skill when a task clearly matches this workflow.
+
+            ## When to use
+
+            - Describe the situations where this skill should be activated.
+
+            ## Workflow
+
+            1. Review the user's request and confirm this skill applies.
+            2. Load any supporting files from `references/`, `scripts/`, or `assets/` only when needed.
+            3. Follow normal CodeAlta approval and tool-use rules; do not execute scripts automatically.
+            """;
+    }
+
+    private static string EscapeYamlSingleQuoted(string value)
+        => value.Replace("'", "''", StringComparison.Ordinal);
 }
 
 internal enum SkillsManagementScope
@@ -127,3 +269,13 @@ internal enum SkillsManagementScope
 }
 
 internal sealed record SkillRelatedFile(string Category, string RelativePath, string FullPath);
+
+internal sealed record SkillCreationResult(string Name, string SkillRootPath, string SkillFilePath, SkillCreationTargetKind TargetKind);
+
+internal enum SkillCreationTargetKind
+{
+    ProjectCodeAlta,
+    UserCodeAlta,
+}
+
+internal sealed record SkillCreationTarget(SkillCreationTargetKind Kind, string RootPath);

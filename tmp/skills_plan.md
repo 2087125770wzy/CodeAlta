@@ -290,11 +290,11 @@ Path note:
 
 ### 8.2 Add creation and validation workflow
 
-- [ ] Add a “new skill” flow using a built-in template scaffold
-- [ ] Decide the default creation target:
-  - [ ] project `.alta/skills/`
+- [x] Add a “new skill” flow using a built-in template scaffold
+- [x] Decide the default creation target:
+  - [x] project `.alta/skills/`
   - [ ] project `.agents/skills/`
-  - [ ] user `.alta/skills/`
+  - [x] user `.alta/skills/`
   - [ ] user `.agents/skills/`
 - [ ] Keep validation results near the editing workflow
 - [ ] Make it easy to switch between editor, preview/detail, and validation results

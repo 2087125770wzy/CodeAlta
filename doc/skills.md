@@ -50,6 +50,8 @@ Use **Open SKILL.md** to open the selected skill in the existing editor. Because
 
 The browser also lists related authoring files under the selected skill's `scripts/`, `references/`, and `assets/` folders. Select a related file and use **Open related** to edit it in the same editor flow. CodeAlta only opens these files for inspection/editing; activation still does not execute scripts automatically.
 
+Use **New skill** to scaffold a new Agent Skills-compatible skill. When a project is selected, CodeAlta creates it under the project CodeAlta-specific root (`<project>/.alta/skills/<name>/`); otherwise it falls back to the user CodeAlta root (`~/.alta/skills/<name>/`). The scaffold includes `SKILL.md` plus empty `scripts/`, `references/`, and `assets/` folders, then opens `SKILL.md` in the editor.
+
 ## Validation and collisions
 
 Discovery validates frontmatter, naming, required descriptions, resource paths, and duplicate names. Higher-precedence skills win; lower-precedence duplicates are kept inspectable as shadowed skills but are not advertised to the model.

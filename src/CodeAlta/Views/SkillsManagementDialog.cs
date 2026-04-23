@@ -18,6 +18,7 @@ internal sealed class SkillsManagementDialog
     private readonly SkillsManagementService _service;
     private readonly Func<string, Task> _openFileAsync;
     private readonly Func<string, Task> _activateSkillAsync;
+    private readonly Func<Rectangle?> _getBounds;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Dialog _dialog;
     private readonly EnumSelect<SkillsManagementScope> _scopeSelect;
@@ -46,6 +47,7 @@ internal sealed class SkillsManagementDialog
         _service = service;
         _openFileAsync = openFileAsync;
         _activateSkillAsync = activateSkillAsync;
+        _getBounds = getBounds;
         _getFocusTarget = getFocusTarget;
 
         var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"))
@@ -91,6 +93,9 @@ internal sealed class SkillsManagementDialog
         var refreshButton = new Button("Refresh")
             .Tone(ControlTone.Primary)
             .Click(() => _ = ReloadAsync());
+        var newSkillButton = new Button("New skill")
+            .Tone(ControlTone.Primary)
+            .Click(ShowNewSkillDialog);
         var activateButton = new Button("Activate")
             .Tone(ControlTone.Success)
             .Click(() => _ = ActivateSelectedSkillAsync());
@@ -115,7 +120,7 @@ internal sealed class SkillsManagementDialog
         toolbar.Cell(new TextBlock("Filter") { VerticalAlignment = Align.Center }, 0, 2);
         toolbar.Cell(_filterBox, 0, 3);
         toolbar.Cell(
-            new HStack(activateButton, openSkillButton, openRelatedButton, refreshButton)
+            new HStack(newSkillButton, activateButton, openSkillButton, openRelatedButton, refreshButton)
             {
                 HorizontalAlignment = Align.End,
                 Spacing = 1,
@@ -123,7 +128,7 @@ internal sealed class SkillsManagementDialog
             0,
             4);
 
-        var introText = new Markup("[dim]Browse discovered filesystem skills, validation state, source precedence, and provenance. Activate loads a valid, unshadowed skill through the host-owned runtime; Open edits SKILL.md or related scripts/references/assets.[/]")
+        var introText = new Markup("[dim]Browse discovered filesystem skills, validation state, source precedence, and provenance. New skill creates a template in project .alta/skills when a project is selected, otherwise user .alta/skills; Open edits SKILL.md or related scripts/references/assets.[/]")
         {
             Wrap = true,
         };
@@ -303,6 +308,105 @@ internal sealed class SkillsManagementDialog
         }
 
         await _openFileAsync(_relatedFileSelect.Items[index].File.FullPath);
+    }
+
+    private void ShowNewSkillDialog()
+    {
+        var nameBox = new TextBox()
+            .Placeholder("lowercase-name");
+        var descriptionBox = new TextBox()
+            .Placeholder("Describe when this skill should be used")
+            .HorizontalAlignment(Align.Stretch);
+        var validationText = new TextBlock(string.Empty)
+        {
+            Wrap = true,
+        }.Style(TextBlockStyle.Default with { Foreground = Colors.OrangeRed });
+
+        var form = new Grid
+            {
+                HorizontalAlignment = Align.Stretch,
+                VerticalAlignment = Align.Stretch,
+            }
+            .Rows(
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = GridLength.Auto })
+            .Columns(
+                new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = GridLength.Star(1) });
+        form.Cell(new TextBlock("Name"), 0, 0);
+        form.Cell(nameBox.Stretch(), 0, 1);
+        form.Cell(new TextBlock("Description"), 1, 0);
+        form.Cell(descriptionBox.Stretch(), 1, 1);
+        form.Cell(validationText, 2, 0, columnSpan: 2);
+
+        Dialog? createDialog = null;
+        var createButton = new Button("Create")
+            .Tone(ControlTone.Success)
+            .Click(() => _ = CreateSkillFromDialogAsync(createDialog, nameBox, descriptionBox, validationText));
+        var cancelButton = new Button("Cancel")
+            .Click(() => createDialog?.Close());
+        var content = new VStack(
+            new Markup(BuildNewSkillTargetHint()) { Wrap = true },
+            form,
+            new HStack(cancelButton, createButton)
+            {
+                HorizontalAlignment = Align.End,
+                Spacing = 2,
+            })
+        {
+            HorizontalAlignment = Align.Stretch,
+            VerticalAlignment = Align.Stretch,
+            Spacing = 1,
+        };
+
+        createDialog = new Dialog()
+            .Title("New Skill")
+            .BottomRightText(new Markup("[dim]Esc Cancel[/]"))
+            .IsModal(true)
+            .Padding(1)
+            .Content(content);
+        ResponsiveDialogSize.Apply(createDialog, _getBounds(), minWidth: 76, minHeight: 12, widthFactor: 0.48, heightFactor: 0.32);
+        createDialog.AddCommand(new Command
+        {
+            Id = "CodeAlta.Skills.New.Close",
+            LabelMarkup = "Cancel",
+            DescriptionMarkup = "Close the new skill dialog.",
+            Gesture = new KeyGesture(TerminalKey.Escape),
+            Importance = CommandImportance.Primary,
+            Execute = _ => createDialog.Close(),
+        });
+        createDialog.Show();
+        createDialog.App?.Focus(nameBox);
+    }
+
+    private async Task CreateSkillFromDialogAsync(
+        Dialog? createDialog,
+        TextBox nameBox,
+        TextBox descriptionBox,
+        TextBlock validationText)
+    {
+        validationText.Text = string.Empty;
+        try
+        {
+            var result = await _service.CreateSkillAsync(_scopeSelect.Value, nameBox.Text, descriptionBox.Text);
+            createDialog?.Close();
+            await ReloadAsync();
+            _summaryText = $"[success]Created skill '{AnsiMarkup.Escape(result.Name)}' at {AnsiMarkup.Escape(result.SkillRootPath)}.[/]";
+            await _openFileAsync(result.SkillFilePath);
+        }
+        catch (Exception ex)
+        {
+            validationText.Text = ex.Message;
+        }
+    }
+
+    private string BuildNewSkillTargetHint()
+    {
+        var target = _scopeSelect.Value == SkillsManagementScope.User
+            ? "user CodeAlta skills (`~/.alta/skills/`)"
+            : "project CodeAlta skills (`<project>/.alta/skills/`) when a project is selected, otherwise user CodeAlta skills";
+        return $"[dim]Creates a scaffolded Agent Skills-compatible `SKILL.md` plus `scripts/`, `references/`, and `assets/` folders under {target}.[/]";
     }
 
     private async Task ActivateSelectedSkillAsync()
