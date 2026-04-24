@@ -58,6 +58,105 @@ public sealed class OpenAICodexSubscriptionAuthTests
         StringAssert.Contains(redacted, OpenAICodexSubscriptionSecretRedactor.Redacted);
     }
 
+    [TestMethod]
+    public void CodexAuthFileReader_ResolvesCodexHomeFromEnvironment()
+    {
+        var home = CodexAuthFileReader.ResolveCodexHome(
+            new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["CODEX_HOME"] = @"C:\tmp\codex-home",
+            });
+
+        Assert.AreEqual(@"C:\tmp\codex-home", home);
+    }
+
+    [TestMethod]
+    public async Task CodexAuthFileReader_ReadsTokenAuthWithoutWritingFile()
+    {
+        using var temp = TempDirectory.Create();
+        var authPath = Path.Combine(temp.Path, "auth.json");
+        await File.WriteAllTextAsync(
+            authPath,
+            """
+            {
+              "auth_mode": "chatgpt",
+              "OPENAI_API_KEY": "ignored-api-key",
+              "tokens": {
+                "access_token": "access-secret",
+                "refresh_token": "refresh-secret",
+                "id_token": "id-secret",
+                "expires_at": "2026-04-24T12:34:56Z",
+                "account_id": "acct_123",
+                "account_label": "Workspace",
+                "is_fedramp": true,
+                "scopes": ["openid", "offline_access"]
+              },
+              "last_refresh": "2026-04-24T11:34:56Z"
+            }
+            """).ConfigureAwait(false);
+        var before = File.GetLastWriteTimeUtc(authPath);
+
+        var credential = await CodexAuthFileReader.ReadAuthJsonAsync(temp.Path).ConfigureAwait(false);
+
+        Assert.IsNotNull(credential);
+        Assert.AreEqual("access-secret", credential!.AccessToken);
+        Assert.AreEqual("refresh-secret", credential.RefreshToken);
+        Assert.AreEqual("id-secret", credential.IdToken);
+        Assert.AreEqual(DateTimeOffset.Parse("2026-04-24T12:34:56Z"), credential.ExpiresAt);
+        Assert.AreEqual("acct_123", credential.AccountId);
+        Assert.AreEqual("Workspace", credential.AccountLabel);
+        Assert.IsTrue(credential.IsFedRamp);
+        CollectionAssert.AreEqual(new[] { "openid", "offline_access" }, credential.Scopes);
+        Assert.AreEqual(before, File.GetLastWriteTimeUtc(authPath));
+    }
+
+    [TestMethod]
+    public async Task CodexAuthFileReader_IgnoresApiKeyOnlyAuth()
+    {
+        using var temp = TempDirectory.Create();
+        await File.WriteAllTextAsync(
+            Path.Combine(temp.Path, "auth.json"),
+            """
+            {
+              "auth_mode": "apikey",
+              "OPENAI_API_KEY": "ignored-api-key"
+            }
+            """).ConfigureAwait(false);
+
+        Assert.IsNull(await CodexAuthFileReader.ReadAuthJsonAsync(temp.Path).ConfigureAwait(false));
+    }
+
+    [TestMethod]
+    public async Task CodexAuthFileReader_ImportCopiesIntoCodeAltaStore()
+    {
+        using var codexHome = TempDirectory.Create();
+        using var codeAltaState = TempDirectory.Create();
+        await File.WriteAllTextAsync(
+            Path.Combine(codexHome.Path, "auth.json"),
+            """
+            {
+              "tokens": {
+                "access_token": "access-secret",
+                "expires_at": 1777034096,
+                "scope": "openid offline_access"
+              }
+            }
+            """).ConfigureAwait(false);
+        var store = new FileOpenAICodexSubscriptionCredentialStore(codeAltaState.Path);
+
+        var imported = await CodexAuthFileReader.ImportAuthJsonAsync(
+                codexHome.Path,
+                store,
+                "codex_subscription")
+            .ConfigureAwait(false);
+        var stored = await store.LoadAsync("codex_subscription").ConfigureAwait(false);
+
+        Assert.IsNotNull(imported);
+        Assert.IsNotNull(stored);
+        Assert.AreEqual("access-secret", stored!.AccessToken);
+        CollectionAssert.AreEqual(new[] { "openid", "offline_access" }, stored.Scopes);
+    }
+
     private sealed class TempDirectory(string path) : IDisposable
     {
         public string Path { get; } = path;
