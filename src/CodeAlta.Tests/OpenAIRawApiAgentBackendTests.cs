@@ -1296,6 +1296,67 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_TranslatesCodexHttpErrors()
+    {
+        var cases = new (HttpStatusCode StatusCode, string Expected)[]
+        {
+            (HttpStatusCode.Forbidden, "account, workspace, plan, or policy"),
+            (HttpStatusCode.TooManyRequests, "rate limit"),
+            (HttpStatusCode.ServiceUnavailable, "temporarily unavailable"),
+            (HttpStatusCode.BadRequest, "request shape"),
+        };
+
+        foreach (var testCase in cases)
+        {
+            var exceptionToThrow = new HttpRequestException(
+                testCase.StatusCode.ToString(),
+                null,
+                testCase.StatusCode);
+            exceptionToThrow.Data["Retry-After"] = TimeSpan.Zero;
+            var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+            {
+                ProviderKey = "codex_subscription",
+                ResponsesClientFactory = _ => new ThrowingOpenAIResponseClient(exceptionToThrow),
+                CodexSubscription = new OpenAICodexSubscriptionOptions
+                {
+                    Experimental = true,
+                },
+            });
+
+            var exception = await Assert.ThrowsExactlyAsync<LocalAgentTurnExecutionException>(
+                    () => executor.ExecuteTurnAsync(
+                        CreateCodexTurnRequest(),
+                        static (_, _) => ValueTask.CompletedTask))
+                .ConfigureAwait(false);
+
+            StringAssert.Contains(exception.Failure.Message, testCase.Expected);
+        }
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_TranslatesCodexProtocolDriftErrors()
+    {
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => new RecordingOpenAIResponseClient([[]]),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+
+        var exception = await Assert.ThrowsExactlyAsync<LocalAgentTurnExecutionException>(
+                () => executor.ExecuteTurnAsync(
+                    CreateCodexTurnRequest(),
+                    static (_, _) => ValueTask.CompletedTask))
+            .ConfigureAwait(false);
+
+        StringAssert.Contains(exception.Failure.Message, "expected protocol");
+        StringAssert.Contains(exception.Failure.Message, "terminal response payload");
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_RefreshesCodexCredentialOnceAfterUnauthorized()
     {
         var unauthorized = new HttpRequestException("Unauthorized.", null, HttpStatusCode.Unauthorized);

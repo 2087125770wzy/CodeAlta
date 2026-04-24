@@ -740,6 +740,17 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             return new InvalidOperationException(message, exception);
         }
 
+        if (exception is JsonException ||
+            exception is InvalidOperationException invalidOperationException &&
+            invalidOperationException.Message.Contains(
+                "stream completed without a terminal response payload",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return new InvalidOperationException(
+                "ChatGPT/Codex response stream did not match the expected protocol; no terminal response payload was received.",
+                exception);
+        }
+
         return exception;
     }
 
