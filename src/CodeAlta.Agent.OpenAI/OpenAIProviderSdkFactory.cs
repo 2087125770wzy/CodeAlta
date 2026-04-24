@@ -193,6 +193,8 @@ internal static class OpenAIProviderSdkFactory
         return exception switch
         {
             HttpRequestException => true,
+            InvalidOperationException invalidOperationException
+                when invalidOperationException.Message.Contains("login is required", StringComparison.OrdinalIgnoreCase) => true,
             JsonException => true,
             CodexSubscriptionModelDiscoveryException { StatusCode: System.Net.HttpStatusCode.NotFound } => true,
             CodexSubscriptionModelDiscoveryException { StatusCode: null } => true,
