@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using CodeAlta.Agent;
 using CodeAlta.Agent.Codex;
 using CodeAlta.Agent.Copilot;
 using CodeAlta.Agent.ModelCatalog;
+using CodeAlta.Agent.OpenAI.CodexSubscription;
 using CodeAlta.Catalog;
 using CodeAlta.CodexSdk;
 using CodeAlta.Models;
@@ -108,6 +110,106 @@ internal sealed class ProviderFrontendCoordinator
         return new ProviderTestResult(true, $"Connected successfully · {models.Count} model(s) discovered.", models.Count);
     }
 
+    public async Task<ProviderTestResult> LoginCodexSubscriptionWithBrowserAsync(
+        CodeAltaProviderDocument definition,
+        Action<string> reportStatus,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(reportStatus);
+
+        var manager = CreateCodexSubscriptionLoginManager(definition);
+        var login = manager.BeginBrowserLogin(definition.AccountId);
+        var waitForCallbackTask = manager.WaitForBrowserCallbackAsync(login, cancellationToken).AsTask();
+        reportStatus($"Open ChatGPT login in your browser: {login.AuthorizeUri}");
+        TryOpenBrowser(login.AuthorizeUri);
+        var credential = await waitForCallbackTask.ConfigureAwait(false);
+        return new ProviderTestResult(
+            true,
+            FormatCodexCredentialMessage("ChatGPT browser login completed", credential),
+            0);
+    }
+
+    public async Task<ProviderTestResult> LoginCodexSubscriptionWithDeviceCodeAsync(
+        CodeAltaProviderDocument definition,
+        Action<string> reportStatus,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(reportStatus);
+
+        var manager = CreateCodexSubscriptionLoginManager(definition);
+        var credential = await manager.CompleteDeviceLoginAsync(
+                (deviceCode, _) =>
+                {
+                    reportStatus(
+                        $"Open {deviceCode.VerificationUri} and enter code {deviceCode.UserCode}. Waiting for ChatGPT authorization...");
+                    return ValueTask.CompletedTask;
+                },
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return new ProviderTestResult(
+            true,
+            FormatCodexCredentialMessage("ChatGPT device-code login completed", credential),
+            0);
+    }
+
+    public async Task<ProviderTestResult> LogoutCodexSubscriptionAsync(
+        CodeAltaProviderDocument definition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        var manager = CreateCodexSubscriptionLoginManager(definition);
+        await manager.DeleteCredentialAsync(cancellationToken).ConfigureAwait(false);
+        return new ProviderTestResult(true, "Deleted CodeAlta-owned ChatGPT/Codex credentials for this provider.", 0);
+    }
+
+    public async Task<ProviderTestResult> TestCodexSubscriptionAuthenticationAsync(
+        CodeAltaProviderDocument definition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        var authManager = CreateCodexSubscriptionAuthManager(definition);
+        var context = await authManager.GetAccountContextAsync(cancellationToken).ConfigureAwait(false);
+        var account = string.IsNullOrWhiteSpace(context.AccountId) ? "no account/workspace id in token" : context.AccountId;
+        return new ProviderTestResult(true, $"Authenticated without sending a model turn · account/workspace: {account}.", 0);
+    }
+
+    public async Task<ProviderTestResult> ListCodexSubscriptionModelsAsync(
+        CodeAltaProviderDocument definition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        var result = await TestProviderAsync(definition, cancellationToken).ConfigureAwait(false);
+        return result.Success
+            ? result with { Message = $"Model listing completed without sending a model turn · {result.ModelCount} model(s) available." }
+            : result;
+    }
+
+    public async Task<ProviderTestResult> ListCodexSubscriptionAccountsAsync(
+        CodeAltaProviderDocument definition,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        var store = new FileOpenAICodexSubscriptionCredentialStore(GetProviderStateRootPath());
+        var credential = await store.LoadAsync(definition.ProviderKey, cancellationToken).ConfigureAwait(false);
+        if (credential is null)
+        {
+            return new ProviderTestResult(false, "Login required before account/workspace metadata can be listed.", 0);
+        }
+
+        var accountId = OpenAICodexSubscriptionAuthManager.ResolveAccountId(definition.AccountId, credential);
+        var accountLabel = string.IsNullOrWhiteSpace(credential.AccountLabel) ? "ChatGPT account/workspace" : credential.AccountLabel;
+        var accountMessage = string.IsNullOrWhiteSpace(accountId)
+            ? $"{accountLabel}: token did not expose an account/workspace id; enter one in Account/Workspace Id if required."
+            : $"{accountLabel}: {accountId}";
+        return new ProviderTestResult(true, accountMessage, string.IsNullOrWhiteSpace(accountId) ? 0 : 1);
+    }
+
     internal static bool TryBuildActiveBackendTestResult(
         CodeAltaProviderDocument definition,
         IReadOnlyDictionary<string, ChatBackendState> chatBackendStates,
@@ -185,6 +287,61 @@ internal sealed class ProviderFrontendCoordinator
 
         backend = createBackend();
         return true;
+    }
+
+    private OpenAICodexSubscriptionLoginManager CreateCodexSubscriptionLoginManager(CodeAltaProviderDocument definition)
+    {
+        if (!string.Equals(definition.ProviderType, "openai-codex-subscription", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Select a Codex (ChatGPT subscription) provider first.");
+        }
+
+        return new OpenAICodexSubscriptionLoginManager(
+            new FileOpenAICodexSubscriptionCredentialStore(GetProviderStateRootPath()),
+            new OpenAICodexSubscriptionOAuthClient(new HttpClient()),
+            definition.ProviderKey);
+    }
+
+    private OpenAICodexSubscriptionAuthManager CreateCodexSubscriptionAuthManager(CodeAltaProviderDocument definition)
+    {
+        if (!string.Equals(definition.ProviderType, "openai-codex-subscription", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Select a Codex (ChatGPT subscription) provider first.");
+        }
+
+        return new OpenAICodexSubscriptionAuthManager(
+            new FileOpenAICodexSubscriptionCredentialStore(GetProviderStateRootPath()),
+            new OpenAICodexSubscriptionOAuthClient(new HttpClient()),
+            definition.ProviderKey,
+            definition.AuthSource ?? "codealta_oauth",
+            definition.AccountId,
+            CodexAuthFileReader.ResolveCodexHome());
+    }
+
+    private string GetProviderStateRootPath()
+        => _ownedServices?.CatalogOptions.GlobalRoot
+           ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".alta");
+
+    private static string FormatCodexCredentialMessage(string prefix, OpenAICodexSubscriptionCredential credential)
+    {
+        var account = string.IsNullOrWhiteSpace(credential.AccountId) ? "account/workspace unknown" : credential.AccountId;
+        return $"{prefix} · account/workspace: {account}.";
+    }
+
+    private static void TryOpenBrowser(Uri uri)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = uri.ToString(),
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception)
+        {
+            // Headless terminals can use the reported authorization URL instead.
+        }
     }
 
     private void SyncChatBackendCatalog()

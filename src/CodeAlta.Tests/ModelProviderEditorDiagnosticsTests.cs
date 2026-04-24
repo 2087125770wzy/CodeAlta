@@ -125,6 +125,30 @@ public sealed class ModelProviderEditorDiagnosticsTests
         Assert.AreEqual("Missing credentials", snapshot.StatusText);
     }
 
+    [TestMethod]
+    public void CodexSubscriptionEditor_RoundTripsAccountAuthAndModelDiscoveryFields()
+    {
+        var item = CreateCodexSubscriptionItem(enabled: true, experimental: true);
+        item.UseDefaultAuthSource = false;
+        item.AuthSource = "codex_auth_import";
+        item.UseDefaultAccountId = false;
+        item.AccountId = "acct_123";
+        item.UseDefaultModelDiscovery = false;
+        item.ModelDiscovery = "static";
+        item.SetTestResult(success: false, "account selection required");
+
+        var definition = item.ToDocument();
+
+        Assert.AreEqual("codex_auth_import", definition.AuthSource);
+        Assert.AreEqual("acct_123", definition.AccountId);
+        Assert.AreEqual("static", definition.ModelDiscovery);
+        Assert.AreEqual(true, definition.Experimental);
+
+        item.AccountId = "acct_456";
+        Assert.AreEqual(ModelProviderLastTestState.None, item.LastTestState);
+        Assert.IsNull(item.LastTestMessage);
+    }
+
     private static ModelProviderEditorItemViewModel CreateCodexSubscriptionItem(bool enabled, bool experimental)
         => ModelProviderEditorItemViewModel.FromDocument(new CodeAlta.Catalog.CodeAltaProviderDocument
         {

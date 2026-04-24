@@ -41,6 +41,12 @@ internal sealed class ModelProvidersDialog
     private readonly Func<IReadOnlyList<CodeAltaProviderDocument>> _loadDefinitions;
     private readonly Func<IReadOnlyList<CodeAltaProviderDocument>, Task> _saveDefinitionsAsync;
     private readonly Func<CodeAltaProviderDocument, Task<ProviderTestResult>> _testProviderAsync;
+    private readonly Func<CodeAltaProviderDocument, Action<string>, Task<ProviderTestResult>> _browserLoginAsync;
+    private readonly Func<CodeAltaProviderDocument, Action<string>, Task<ProviderTestResult>> _deviceLoginAsync;
+    private readonly Func<CodeAltaProviderDocument, Task<ProviderTestResult>> _logoutAsync;
+    private readonly Func<CodeAltaProviderDocument, Task<ProviderTestResult>> _testAuthAsync;
+    private readonly Func<CodeAltaProviderDocument, Task<ProviderTestResult>> _listModelsAsync;
+    private readonly Func<CodeAltaProviderDocument, Task<ProviderTestResult>> _listAccountsAsync;
     private readonly Func<Rectangle?> _getBounds;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Dialog _dialog;
@@ -59,7 +65,13 @@ internal sealed class ModelProvidersDialog
         Func<IReadOnlyList<CodeAltaProviderDocument>, Task> saveDefinitionsAsync,
         Func<CodeAltaProviderDocument, Task<ProviderTestResult>> testProviderAsync,
         Func<Rectangle?> getBounds,
-        Func<Visual?> getFocusTarget)
+        Func<Visual?> getFocusTarget,
+        Func<CodeAltaProviderDocument, Action<string>, Task<ProviderTestResult>>? browserLoginAsync = null,
+        Func<CodeAltaProviderDocument, Action<string>, Task<ProviderTestResult>>? deviceLoginAsync = null,
+        Func<CodeAltaProviderDocument, Task<ProviderTestResult>>? logoutAsync = null,
+        Func<CodeAltaProviderDocument, Task<ProviderTestResult>>? testAuthAsync = null,
+        Func<CodeAltaProviderDocument, Task<ProviderTestResult>>? listModelsAsync = null,
+        Func<CodeAltaProviderDocument, Task<ProviderTestResult>>? listAccountsAsync = null)
     {
         ArgumentNullException.ThrowIfNull(loadDefinitions);
         ArgumentNullException.ThrowIfNull(saveDefinitionsAsync);
@@ -70,6 +82,12 @@ internal sealed class ModelProvidersDialog
         _loadDefinitions = loadDefinitions;
         _saveDefinitionsAsync = saveDefinitionsAsync;
         _testProviderAsync = testProviderAsync;
+        _browserLoginAsync = browserLoginAsync ?? ((_, _) => Task.FromResult(new ProviderTestResult(false, "Browser login is unavailable in this host.", 0)));
+        _deviceLoginAsync = deviceLoginAsync ?? ((_, _) => Task.FromResult(new ProviderTestResult(false, "Device-code login is unavailable in this host.", 0)));
+        _logoutAsync = logoutAsync ?? (_ => Task.FromResult(new ProviderTestResult(false, "Logout is unavailable in this host.", 0)));
+        _testAuthAsync = testAuthAsync ?? testProviderAsync;
+        _listModelsAsync = listModelsAsync ?? testProviderAsync;
+        _listAccountsAsync = listAccountsAsync ?? (_ => Task.FromResult(new ProviderTestResult(false, "Account/workspace listing is unavailable in this host.", 0)));
         _getBounds = getBounds;
         _getFocusTarget = getFocusTarget;
 
@@ -358,6 +376,76 @@ internal sealed class ModelProvidersDialog
             });
     }
 
+    private void StartProviderAction(
+        ModelProviderEditorItemViewModel item,
+        string operationDescription,
+        string progressMessage,
+        Func<CodeAltaProviderDocument, Task<ProviderTestResult>> actionAsync)
+    {
+        StartProviderAction(
+            item,
+            operationDescription,
+            progressMessage,
+            (definition, _) => actionAsync(definition));
+    }
+
+    private void StartProviderAction(
+        ModelProviderEditorItemViewModel item,
+        string operationDescription,
+        string progressMessage,
+        Func<CodeAltaProviderDocument, Action<string>, Task<ProviderTestResult>> actionAsync)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationDescription);
+        ArgumentException.ThrowIfNullOrWhiteSpace(progressMessage);
+        ArgumentNullException.ThrowIfNull(actionAsync);
+
+        if (!_providers.Contains(item))
+        {
+            _statusText = $"[warning]Select a provider to {AnsiMarkup.Escape(operationDescription)}.[/]";
+            return;
+        }
+
+        if (!TryBuildDefinition(item, out var definition, out var errorMessage))
+        {
+            _statusText = $"[warning]{AnsiMarkup.Escape(errorMessage)}[/]";
+            return;
+        }
+
+        if (!TryBeginDialogOperation(operationDescription))
+        {
+            return;
+        }
+
+        _statusText = $"[primary]{AnsiMarkup.Escape(progressMessage)}[/]";
+        QueueBackgroundOperation(
+            () => actionAsync(
+                definition,
+                message => _ = _dialog.Dispatcher.InvokeAsync(
+                    () => _statusText = $"[primary]{AnsiMarkup.Escape(message)}[/]")),
+            result =>
+            {
+                if (_providers.Contains(item))
+                {
+                    item.SetTestResult(result.Success, result.Message);
+                }
+
+                _statusText = result.Success
+                    ? $"[success]{AnsiMarkup.Escape(result.Message)}[/]"
+                    : $"[warning]{AnsiMarkup.Escape(result.Message)}[/]";
+            },
+            ex =>
+            {
+                var message = ex.GetBaseException().Message;
+                if (_providers.Contains(item))
+                {
+                    item.SetTestResult(success: false, message);
+                }
+
+                _statusText = $"[error]{AnsiMarkup.Escape(message)}[/]";
+            });
+    }
+
     private Visual BuildDetailPane(ModelProviderEditorItemViewModel item)
     {
         var bindings = GetBindings(item);
@@ -373,6 +461,9 @@ internal sealed class ModelProvidersDialog
         var testButton = new Button("Test Provider")
             .Tone(ControlTone.Primary)
             .Click(() => StartTest(item));
+        var codexActions = item.ProviderType == "openai-codex-subscription"
+            ? CreateCodexSubscriptionActions(item)
+            : null;
 
         var form = new Grid
             {
@@ -427,17 +518,33 @@ internal sealed class ModelProvidersDialog
             AddTextRow(form, ref row, "Single Model Id", CreateDefaultTextField(bindings.SingleModelId, () => item.UseDefaultSingleModelId), CreateDefaultCheckBox("Default", bindings.UseDefaultSingleModelId));
         }
 
+        if (item.ProviderType == "openai-codex-subscription")
+        {
+            AddTextRow(form, ref row, "Auth Source", CreateDefaultTextField(bindings.AuthSource, () => item.UseDefaultAuthSource), CreateDefaultCheckBox("Default", bindings.UseDefaultAuthSource));
+            AddTextRow(form, ref row, "Account/Workspace Id", CreateDefaultTextField(bindings.AccountId, () => item.UseDefaultAccountId), CreateDefaultCheckBox("Default", bindings.UseDefaultAccountId));
+            AddTextRow(form, ref row, "Model Discovery", CreateDefaultTextField(bindings.ModelDiscovery, () => item.UseDefaultModelDiscovery), CreateDefaultCheckBox("Default", bindings.UseDefaultModelDiscovery));
+        }
+
         var advancedNotice = new Markup("[dim]Advanced provider TOML sections such as profile, compaction, extra_body, and model_overrides are preserved unchanged when you save from this dialog.[/]")
         {
             Wrap = true,
         };
 
-        return new VStack(
+        var detailContent = new List<Visual>
+        {
             title,
             summary,
             testButton,
-            form,
-            advancedNotice)
+        };
+        if (codexActions is not null)
+        {
+            detailContent.Add(codexActions);
+        }
+
+        detailContent.Add(form);
+        detailContent.Add(advancedNotice);
+
+        return new VStack(detailContent.ToArray())
         {
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Stretch,
@@ -453,6 +560,60 @@ internal sealed class ModelProvidersDialog
                 .IsEnabled(!item.IsReserved),
             () => ModelProviderEditorDiagnostics.ValidateProviderKey(item, _providers));
     }
+
+    private Visual CreateCodexSubscriptionActions(ModelProviderEditorItemViewModel item)
+        => new VStack(
+            new Markup("[dim]ChatGPT/Codex subscription actions never send a model turn. Use Account/Workspace Id to pin a specific account when required.[/]") { Wrap = true },
+            new HStack(
+                new Button("Browser Login")
+                    .Tone(ControlTone.Primary)
+                    .Click(() => StartProviderAction(
+                        item,
+                        "start ChatGPT browser login",
+                        "Starting ChatGPT browser login...",
+                        _browserLoginAsync)),
+                new Button("Device Login")
+                    .Tone(ControlTone.Primary)
+                    .Click(() => StartProviderAction(
+                        item,
+                        "start ChatGPT device-code login",
+                        "Requesting ChatGPT device code...",
+                        _deviceLoginAsync)),
+                new Button("Test Auth")
+                    .Tone(ControlTone.Primary)
+                    .Click(() => StartProviderAction(
+                        item,
+                        "test ChatGPT authentication",
+                        "Testing ChatGPT authentication without sending a model turn...",
+                        _testAuthAsync)),
+                new Button("List Models")
+                    .Tone(ControlTone.Default)
+                    .Click(() => StartProviderAction(
+                        item,
+                        "list Codex subscription models",
+                        "Listing Codex subscription models without sending a model turn...",
+                        _listModelsAsync)),
+                new Button("List Accounts")
+                    .Tone(ControlTone.Default)
+                    .Click(() => StartProviderAction(
+                        item,
+                        "list ChatGPT accounts/workspaces",
+                        "Reading ChatGPT account/workspace metadata...",
+                        _listAccountsAsync)),
+                new Button("Logout")
+                    .Tone(ControlTone.Error)
+                    .Click(() => StartProviderAction(
+                        item,
+                        "logout ChatGPT credentials",
+                        "Deleting CodeAlta-owned ChatGPT/Codex credentials...",
+                        _logoutAsync)))
+            {
+                Spacing = 1,
+            })
+        {
+            HorizontalAlignment = Align.Stretch,
+            Spacing = 1,
+        };
 
     private Select<ProviderTypeOption> CreateTypeSelect(ModelProviderEditorItemViewModel item)
     {
@@ -1032,7 +1193,11 @@ internal sealed class ModelProvidersDialog
             definition.Project,
             definition.Location,
             definition.ModelsDevProviderId,
-            definition.SingleModelId);
+            definition.SingleModelId,
+            definition.AuthSource,
+            definition.AccountId,
+            definition.ModelDiscovery,
+            definition.Experimental);
     }
 
     private readonly record struct ProviderDraftSnapshot(
@@ -1050,5 +1215,9 @@ internal sealed class ModelProvidersDialog
         string? Project,
         string? Location,
         string? ModelsDevProviderId,
-        string? SingleModelId);
+        string? SingleModelId,
+        string? AuthSource,
+        string? AccountId,
+        string? ModelDiscovery,
+        bool? Experimental);
 }

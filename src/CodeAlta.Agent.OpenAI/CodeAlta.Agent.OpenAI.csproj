@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="alta" />
     <InternalsVisibleTo Include="CodeAlta.Tests" />
   </ItemGroup>
 

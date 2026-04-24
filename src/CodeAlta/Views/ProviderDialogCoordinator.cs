@@ -32,7 +32,13 @@ internal sealed class ProviderDialogCoordinator
             definitions => _providerUi.SaveProviderDefinitionsAsync(definitions, CancellationToken.None),
             definition => _providerUi.TestProviderAsync(definition, CancellationToken.None),
             _getBounds,
-            _getFocusTarget)).Show();
+            _getFocusTarget,
+            (definition, report) => _providerUi.LoginCodexSubscriptionWithBrowserAsync(definition, report, CancellationToken.None),
+            (definition, report) => _providerUi.LoginCodexSubscriptionWithDeviceCodeAsync(definition, report, CancellationToken.None),
+            definition => _providerUi.LogoutCodexSubscriptionAsync(definition, CancellationToken.None),
+            definition => _providerUi.TestCodexSubscriptionAuthenticationAsync(definition, CancellationToken.None),
+            definition => _providerUi.ListCodexSubscriptionModelsAsync(definition, CancellationToken.None),
+            definition => _providerUi.ListCodexSubscriptionAccountsAsync(definition, CancellationToken.None))).Show();
         return Task.CompletedTask;
     }
 }

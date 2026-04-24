@@ -42,6 +42,12 @@ internal sealed partial class ModelProviderEditorItemViewModel
         UseDefaultModelsDevProviderId = source.ModelsDevProviderId is null;
         SingleModelId = source.SingleModelId;
         UseDefaultSingleModelId = source.SingleModelId is null;
+        AuthSource = source.AuthSource ?? "codealta_oauth";
+        UseDefaultAuthSource = source.AuthSource is null;
+        AccountId = source.AccountId;
+        UseDefaultAccountId = source.AccountId is null;
+        ModelDiscovery = source.ModelDiscovery ?? "codex_endpoint_with_static_fallback";
+        UseDefaultModelDiscovery = source.ModelDiscovery is null;
         Experimental = source.Experimental == true;
         _isInitialized = true;
     }
@@ -136,6 +142,24 @@ internal sealed partial class ModelProviderEditorItemViewModel
     public partial bool UseDefaultSingleModelId { get; set; }
 
     [Bindable]
+    public partial string? AuthSource { get; set; }
+
+    [Bindable]
+    public partial bool UseDefaultAuthSource { get; set; }
+
+    [Bindable]
+    public partial string? AccountId { get; set; }
+
+    [Bindable]
+    public partial bool UseDefaultAccountId { get; set; }
+
+    [Bindable]
+    public partial string? ModelDiscovery { get; set; }
+
+    [Bindable]
+    public partial bool UseDefaultModelDiscovery { get; set; }
+
+    [Bindable]
     public partial bool Experimental { get; set; }
 
     public string Label => string.IsNullOrWhiteSpace(DisplayName) ? ProviderKey ?? string.Empty : DisplayName.Trim();
@@ -169,6 +193,9 @@ internal sealed partial class ModelProviderEditorItemViewModel
         definition.Location = UseDefaultLocation ? null : NormalizeText(Location);
         definition.ModelsDevProviderId = UseDefaultModelsDevProviderId ? null : NormalizeText(ModelsDevProviderId);
         definition.SingleModelId = UseDefaultSingleModelId ? null : NormalizeText(SingleModelId);
+        definition.AuthSource = ProviderType == "openai-codex-subscription" && !UseDefaultAuthSource ? NormalizeText(AuthSource) : null;
+        definition.AccountId = ProviderType == "openai-codex-subscription" && !UseDefaultAccountId ? NormalizeText(AccountId) : null;
+        definition.ModelDiscovery = ProviderType == "openai-codex-subscription" && !UseDefaultModelDiscovery ? NormalizeText(ModelDiscovery) : null;
         definition.Experimental = ProviderType == "openai-codex-subscription" ? Experimental : null;
         return definition;
     }
@@ -218,6 +245,12 @@ internal sealed partial class ModelProviderEditorItemViewModel
     partial void OnUseDefaultModelsDevProviderIdChanged(bool value) => ClearTestResultOnEdit();
     partial void OnSingleModelIdChanged(string? value) => ClearTestResultOnEdit();
     partial void OnUseDefaultSingleModelIdChanged(bool value) => ClearTestResultOnEdit();
+    partial void OnAuthSourceChanged(string? value) => ClearTestResultOnEdit();
+    partial void OnUseDefaultAuthSourceChanged(bool value) => ClearTestResultOnEdit();
+    partial void OnAccountIdChanged(string? value) => ClearTestResultOnEdit();
+    partial void OnUseDefaultAccountIdChanged(bool value) => ClearTestResultOnEdit();
+    partial void OnModelDiscoveryChanged(string? value) => ClearTestResultOnEdit();
+    partial void OnUseDefaultModelDiscoveryChanged(bool value) => ClearTestResultOnEdit();
     partial void OnExperimentalChanged(bool value) => ClearTestResultOnEdit();
 
     private static CodeAltaProviderDocument Clone(CodeAltaProviderDocument definition)
