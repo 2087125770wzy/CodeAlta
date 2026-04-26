@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Agent.LocalRuntime;
 
@@ -81,6 +82,44 @@ public sealed class LocalAgentBackendTests
     }
 
     [TestMethod]
+    public async Task LocalAgentBackend_SendAsync_EmitsTurnDiffForBuiltInFileChanges()
+    {
+        using var temp = TestTempDirectory.Create();
+        var workspacePath = Path.Combine(temp.Path, "workspace");
+        Directory.CreateDirectory(workspacePath);
+        var executor = new FileWritingTurnExecutor();
+        var backend = CreateBackend(temp.Path, executor);
+
+        await using var session = await backend.CreateSessionAsync(
+                new AgentSessionCreateOptions
+                {
+                    ProviderKey = "openai",
+                    Model = "gpt-5.4",
+                    WorkingDirectory = workspacePath,
+                    OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+                })
+            .ConfigureAwait(false);
+
+        _ = await session.SendAsync(
+                new AgentSendOptions
+                {
+                    Input = AgentInput.Text("Create a file"),
+                })
+            .ConfigureAwait(false);
+
+        var history = await session.GetHistoryAsync().ConfigureAwait(false);
+        var diffUpdated = history
+            .OfType<AgentSessionUpdateEvent>()
+            .Single(@event => @event.Kind == AgentSessionUpdateKind.DiffUpdated);
+        var diff = diffUpdated.Details?.GetProperty("diff").GetString();
+        Assert.IsNotNull(diff);
+        StringAssert.Contains(diff, "diff --git a/created.txt b/created.txt");
+        StringAssert.Contains(diff, "--- /dev/null");
+        StringAssert.Contains(diff, "+++ b/created.txt");
+        StringAssert.Contains(diff, "+hello");
+    }
+
+    [TestMethod]
     public async Task LocalAgentBackend_ResumeSession_RepairsRecoveredUsageUsingEquivalentModelIds()
     {
         using var temp = TestTempDirectory.Create();
@@ -138,6 +177,11 @@ public sealed class LocalAgentBackendTests
     private static LocalAgentBackend CreateBackend(string tempRoot, out RecordingTurnExecutor executor)
     {
         executor = new RecordingTurnExecutor();
+        return CreateBackend(tempRoot, executor);
+    }
+
+    private static LocalAgentBackend CreateBackend(string tempRoot, ILocalAgentTurnExecutor executor)
+    {
         return new LocalAgentBackend(
             AgentBackendIds.OpenAIResponses,
             "OpenAI Responses",
@@ -172,6 +216,7 @@ public sealed class LocalAgentBackendTests
                 ],
             });
     }
+
     private sealed class RecordingTurnExecutor : ILocalAgentTurnExecutor
     {
         public List<LocalAgentTurnRequest> Requests { get; } = [];
@@ -202,6 +247,54 @@ public sealed class LocalAgentBackendTests
                     AssistantMessage = new LocalAgentConversationMessage(
                         LocalAgentConversationRole.Assistant,
                         [new LocalAgentMessagePart.Text($"Echo #{Requests.Count}")]),
+                });
+        }
+    }
+
+    private sealed class FileWritingTurnExecutor : ILocalAgentTurnExecutor
+    {
+        private int _requestCount;
+
+        public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(
+            LocalAgentProviderDescriptor provider,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
+            [
+                new AgentModelInfo("gpt-5.4", "GPT-5.4"),
+            ]);
+
+        public Task<LocalAgentTurnResponse> ExecuteTurnAsync(
+            LocalAgentTurnRequest request,
+            Func<LocalAgentTurnDelta, CancellationToken, ValueTask> onUpdate,
+            CancellationToken cancellationToken = default)
+        {
+            _requestCount++;
+            if (_requestCount == 1)
+            {
+                var arguments = JsonSerializer.SerializeToElement(new
+                {
+                    input = """
+                            *** Begin Patch
+                            *** Add File: created.txt
+                            +hello
+                            *** End Patch
+                            """,
+                });
+                return Task.FromResult(
+                    new LocalAgentTurnResponse
+                    {
+                        AssistantMessage = new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.Assistant,
+                            [new LocalAgentMessagePart.ToolCall("call-1", "apply_patch", arguments)]),
+                    });
+            }
+
+            return Task.FromResult(
+                new LocalAgentTurnResponse
+                {
+                    AssistantMessage = new LocalAgentConversationMessage(
+                        LocalAgentConversationRole.Assistant,
+                        [new LocalAgentMessagePart.Text("Done.")]),
                 });
         }
     }

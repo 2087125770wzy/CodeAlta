@@ -159,6 +159,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
 
         try
         {
+            var fileChangeTracker = new LocalAgentTurnFileChangeTracker(_summary.WorkingDirectory);
             await AppendUserMessageAsync(options.Input, runId, linkedCts.Token).ConfigureAwait(false);
 
             var instructionBundle = LocalAgentInstructionComposer.Compose(_options, _state.LoadedSkills);
@@ -228,6 +229,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                         continue;
                     }
 
+                    await AppendTurnDiffUpdatedAsync(fileChangeTracker, runId, linkedCts.Token).ConfigureAwait(false);
                     await CompleteActiveRunAsync(runId, CancellationToken.None).ConfigureAwait(false);
                     await MaybeCompactForThresholdAsync(
                             runId,
@@ -277,6 +279,12 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
 
                     using var progressGate = new SemaphoreSlim(1, 1);
                     var toolOutputContentId = $"{toolCall.CallId}:output";
+                    var trackedModifiedFiles = GetTrackedFileMutationPaths(toolCall, _summary.WorkingDirectory);
+                    if (trackedModifiedFiles.Count > 0)
+                    {
+                        await fileChangeTracker.CaptureBeforeAsync(trackedModifiedFiles, linkedCts.Token).ConfigureAwait(false);
+                    }
+
                     AgentToolResult result;
                     try
                     {
@@ -324,6 +332,11 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         result = CreateToolExecutionFailureResult(toolCall.Name, ex);
+                    }
+
+                    if (trackedModifiedFiles.Count > 0)
+                    {
+                        await fileChangeTracker.CaptureAfterAsync(trackedModifiedFiles, linkedCts.Token).ConfigureAwait(false);
                     }
 
                     var toolMessage = new LocalAgentConversationMessage(
@@ -749,6 +762,28 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         await AppendEventsAsync([usageEvent], LocalAgentEventPersistenceMode.TransientOnly, cancellationToken).ConfigureAwait(false);
         await _store.UpsertStateAsync(_state, cancellationToken).ConfigureAwait(false);
         await _store.UpsertSessionAsync(_summary, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task AppendTurnDiffUpdatedAsync(
+        LocalAgentTurnFileChangeTracker fileChangeTracker,
+        AgentRunId runId,
+        CancellationToken cancellationToken)
+    {
+        var diff = fileChangeTracker.CreateUnifiedDiff();
+        if (string.IsNullOrWhiteSpace(diff))
+        {
+            return;
+        }
+
+        var diffUpdated = new AgentSessionUpdateEvent(
+            BackendId,
+            SessionId,
+            DateTimeOffset.UtcNow,
+            runId,
+            AgentSessionUpdateKind.DiffUpdated,
+            "Turn diff updated.",
+            CreateDiffDetails(diff));
+        await AppendEventsAsync([diffUpdated], cancellationToken).ConfigureAwait(false);
     }
 
     private async Task AppendAssistantMessageAsync(
@@ -1554,6 +1589,19 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         return JsonDocument.Parse(stream.ToArray()).RootElement.Clone();
     }
 
+    private static JsonElement CreateDiffDetails(string diff)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("diff", diff);
+            writer.WriteEndObject();
+        }
+
+        return JsonDocument.Parse(stream.ToArray()).RootElement.Clone();
+    }
+
     private static JsonElement CreateToolCallDetails(LocalAgentMessagePart.ToolCall toolCall, string? workingDirectory)
     {
         var fileActivity = GetToolFileActivity(toolCall, workingDirectory);
@@ -1702,6 +1750,23 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
 
         return new ToolFileActivity(readFiles, modifiedFiles);
     }
+
+    private static IReadOnlyList<string> GetTrackedFileMutationPaths(LocalAgentMessagePart.ToolCall toolCall, string? workingDirectory)
+    {
+        if (!IsTrackedFileMutationTool(toolCall.Name))
+        {
+            return [];
+        }
+
+        return GetToolFileActivity(toolCall, workingDirectory).ModifiedFiles;
+    }
+
+    private static bool IsTrackedFileMutationTool(string toolName)
+        => toolName is "write_file" or
+            "replace_in_file" or
+            "delete_file_or_dir" or
+            "rename_file_or_dir" or
+            "apply_patch";
 
     private static bool IsSkillActivationTool(string toolName)
         => string.Equals(toolName, "codealta.skills.activate", StringComparison.Ordinal) ||
