@@ -941,6 +941,56 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_SetsCodexToolControlFieldsWithoutTools()
+    {
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-codex-compaction",
+                    modelId: "gpt-5.3-codex",
+                    text: "Summary.",
+                    reasoningText: "Summarizing.",
+                    encryptedReasoning: "encrypted-reasoning"),
+            ],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                IncludeEncryptedReasoning = true,
+            },
+        });
+        var request = CreateCodexTurnRequest() with
+        {
+            MaxOutputTokens = 1024,
+            ReasoningEffort = null,
+            Tools = [],
+        };
+
+        _ = await executor.ExecuteTurnAsync(
+            request,
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        var options = responsesClient.Requests[0].Options;
+        Assert.IsTrue(options.ParallelToolCallsEnabled);
+        Assert.IsNotNull(options.ToolChoice);
+        Assert.IsNull(options.MaxOutputTokenCount);
+        Assert.AreEqual(0, options.Tools.Count);
+
+        using var document = JsonDocument.Parse(responsesClient.Requests[0].SerializedOptions);
+        Assert.IsTrue(document.RootElement.GetProperty("parallel_tool_calls").GetBoolean());
+        Assert.IsTrue(document.RootElement.TryGetProperty("tool_choice", out _));
+        Assert.IsFalse(document.RootElement.TryGetProperty("max_output_tokens", out _));
+        Assert.IsFalse(document.RootElement.TryGetProperty("tools", out _));
+        Assert.IsTrue(document.RootElement.GetProperty("include").EnumerateArray().Any(
+            static item => item.GetString() == "reasoning.encrypted_content"));
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_OmitsCodexInstallationMetadataByDefault()
     {
         var responsesClient = new RecordingOpenAIResponseClient(
@@ -1858,6 +1908,7 @@ public sealed class OpenAIRawApiAgentBackendTests
                 ParallelToolCallsEnabled = options?.ParallelToolCallsEnabled,
                 StoredOutputEnabled = options?.StoredOutputEnabled,
                 PreviousResponseId = options?.PreviousResponseId,
+                MaxOutputTokenCount = options?.MaxOutputTokenCount,
                 ToolChoice = options?.ToolChoice,
                 StreamingEnabled = options?.StreamingEnabled,
                 ReasoningOptions = options?.ReasoningOptions is null

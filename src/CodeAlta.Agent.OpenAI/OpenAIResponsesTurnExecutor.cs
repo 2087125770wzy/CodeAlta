@@ -449,12 +449,10 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         options.StoredOutputEnabled = false;
         options.StreamingEnabled = true;
         options.PreviousResponseId = null;
-
-        if (request.Tools.Count > 0)
-        {
-            options.ParallelToolCallsEnabled = true;
-            options.ToolChoice ??= ResponseToolChoice.CreateAutoChoice();
-        }
+        // The Codex subscription responses endpoint currently rejects max_output_tokens.
+        options.MaxOutputTokenCount = null;
+        options.ParallelToolCallsEnabled = true;
+        options.ToolChoice ??= ResponseToolChoice.CreateAutoChoice();
 
         if (codexOptions.IncludeEncryptedReasoning &&
             !options.IncludedProperties.Contains(IncludedResponseProperty.ReasoningEncryptedContent))
