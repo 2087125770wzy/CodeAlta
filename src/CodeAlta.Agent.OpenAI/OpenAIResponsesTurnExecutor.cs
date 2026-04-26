@@ -1,7 +1,9 @@
 #pragma warning disable OPENAI001
 #pragma warning disable SCME0001
 
+using System.ClientModel.Primitives;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Agent.LocalRuntime.Tools;
 using CodeAlta.Agent.OpenAI.CodexSubscription;
@@ -51,6 +53,9 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                             request.Provider));
                     var options = await CreateRequestPayloadAsync(request, cancellationToken).ConfigureAwait(false);
                     LogCodexDiagnostic("request", request, attempt);
+                    WriteCodexConsoleDiagnostic(
+                        provider,
+                        $"request attempt={attempt} session={request.SessionId} run={request.RunId.Value} payload={FormatCodexConsolePayload(SerializeModel(options))}");
                     ResponseResult? completedResponse = null;
                     ResponseResult? latestResponse = null;
                     var streamedOutputItems = new SortedDictionary<int, ResponseItem>();
@@ -58,6 +63,9 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                     await foreach (var update in client.CreateResponseStreamingAsync(options, cancellationToken).ConfigureAwait(false))
                     {
                         streamStarted = true;
+                        WriteCodexConsoleDiagnostic(
+                            provider,
+                            $"stream update={update.GetType().Name} payload={FormatCodexConsolePayload(SerializeModel(update))}");
                         switch (update)
                         {
                             case StreamingResponseCreatedUpdate created:
@@ -124,7 +132,14 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                         }
                     }
 
-                    completedResponse ??= TryCreateResponseWithoutTerminalPayload(request, latestResponse, streamedOutputItems);
+                    WriteCodexConsoleDiagnostic(
+                        provider,
+                        $"stream end latestOutputItems={latestResponse?.OutputItems.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(none)"} streamedOutputItems={streamedOutputItems.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} terminal={(completedResponse is null ? "(none)" : completedResponse.Status.ToString())}");
+                    completedResponse = CreateResponseFromTerminalOrStreamedItems(
+                        request,
+                        completedResponse,
+                        latestResponse,
+                        streamedOutputItems);
 
                     if (completedResponse is null)
                     {
@@ -143,6 +158,9 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                     }
 
                     var (assistantMessage, assistantPartContentIds) = MapAssistantMessage(completedResponse);
+                    WriteCodexConsoleDiagnostic(
+                        provider,
+                        $"mapped assistantParts={assistantMessage.Parts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} textParts={assistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Count().ToString(System.Globalization.CultureInfo.InvariantCulture)} reasoningParts={assistantMessage.Parts.OfType<LocalAgentMessagePart.Reasoning>().Count().ToString(System.Globalization.CultureInfo.InvariantCulture)} toolCalls={assistantMessage.Parts.OfType<LocalAgentMessagePart.ToolCall>().Count().ToString(System.Globalization.CultureInfo.InvariantCulture)} response={completedResponse.Id ?? "(none)"}");
                     LogCodexDiagnostic("response", request, attempt, completedResponse.Id);
                     return new LocalAgentTurnResponse
                     {
@@ -244,6 +262,35 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             errorType));
     }
 
+    private static void WriteCodexConsoleDiagnostic(OpenAIProviderOptions provider, string message)
+    {
+        if (provider.CodexSubscription is null ||
+            string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CODEALTA_CODEX_SUB_DEBUG")))
+        {
+            return;
+        }
+
+        Console.WriteLine($"[codex-sub-debug] {message}");
+    }
+
+    private static string SerializeModel<T>(T model)
+        where T : notnull
+        => model is IPersistableModel<T> persistable
+            ? persistable.Write(new ModelReaderWriterOptions("J")).ToString()
+            : model.ToString() ?? string.Empty;
+
+    private static string TruncateForConsole(string text, int maxLength)
+        => text.Length <= maxLength ? text : text[..maxLength] + "…";
+
+    private static string FormatCodexConsolePayload(string payload)
+        => TruncateForConsole(
+            Regex.Replace(
+                OpenAICodexSubscriptionSecretRedactor.Redact(payload),
+                "\"encrypted_content\"\\s*:\\s*\"[^\"]*\"",
+                "\"encrypted_content\":\"(redacted)\"",
+                RegexOptions.CultureInvariant),
+            2048);
+
     private static System.Net.HttpStatusCode? GetHttpStatusCode(Exception exception)
         => exception is HttpRequestException { StatusCode: { } statusCode } ? statusCode : null;
 
@@ -270,6 +317,22 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             codexOptions.MaxConcurrentRequests,
             cancellationToken).ConfigureAwait(false);
 
+    private static ResponseResult? CreateResponseFromTerminalOrStreamedItems(
+        LocalAgentTurnRequest request,
+        ResponseResult? completedResponse,
+        ResponseResult? latestResponse,
+        IReadOnlyDictionary<int, ResponseItem> streamedOutputItems)
+    {
+        if (completedResponse is not null)
+        {
+            return completedResponse.OutputItems.Count > 0 || streamedOutputItems.Count == 0
+                ? completedResponse
+                : CreateResponseWithStreamedOutputItems(request, completedResponse, streamedOutputItems);
+        }
+
+        return TryCreateResponseWithoutTerminalPayload(request, latestResponse, streamedOutputItems);
+    }
+
     private static ResponseResult? TryCreateResponseWithoutTerminalPayload(
         LocalAgentTurnRequest request,
         ResponseResult? latestResponse,
@@ -285,15 +348,23 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             return null;
         }
 
+        return CreateResponseWithStreamedOutputItems(request, latestResponse, streamedOutputItems);
+    }
+
+    private static ResponseResult CreateResponseWithStreamedOutputItems(
+        LocalAgentTurnRequest request,
+        ResponseResult? sourceResponse,
+        IReadOnlyDictionary<int, ResponseItem> streamedOutputItems)
+    {
         var response = new ResponseResult
         {
-            Id = latestResponse?.Id,
-            Model = latestResponse?.Model ?? request.ModelId,
-            CreatedAt = latestResponse?.CreatedAt ?? DateTimeOffset.UtcNow,
-            Status = latestResponse?.Status ?? ResponseStatus.Completed,
-            Error = latestResponse?.Error,
-            Usage = latestResponse?.Usage,
-            IncompleteStatusDetails = latestResponse?.IncompleteStatusDetails,
+            Id = sourceResponse?.Id,
+            Model = sourceResponse?.Model ?? request.ModelId,
+            CreatedAt = sourceResponse?.CreatedAt ?? DateTimeOffset.UtcNow,
+            Status = sourceResponse?.Status ?? ResponseStatus.Completed,
+            Error = sourceResponse?.Error,
+            Usage = sourceResponse?.Usage,
+            IncompleteStatusDetails = sourceResponse?.IncompleteStatusDetails,
         };
 
         foreach (var item in streamedOutputItems.OrderBy(static pair => pair.Key).Select(static pair => pair.Value))

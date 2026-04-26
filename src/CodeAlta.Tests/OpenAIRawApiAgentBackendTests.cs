@@ -607,6 +607,48 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_UsesStreamedOutputItemsWhenCompletedPayloadOmitsOutput()
+    {
+        var completedResponse = new ResponseResult
+        {
+            Id = "response-empty-terminal",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Model = "gpt-test",
+            Status = ResponseStatus.Completed,
+        };
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateCreatedResponseUpdate(
+                    responseId: "response-empty-terminal",
+                    modelId: "gpt-test"),
+                CreateOutputItemDoneUpdate(
+                    outputIndex: 0,
+                    item: ResponseItem.CreateFunctionCallItem(
+                        "call-read",
+                        "read_file",
+                        BinaryData.FromString("""{"path":"readme.md","offset":1,"limit":120}"""))),
+                CreateCompletedUpdate(completedResponse),
+            ],
+        ]);
+
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "openai",
+            ResponsesClientFactory = _ => responsesClient,
+        });
+
+        var response = await executor.ExecuteTurnAsync(
+            CreateTurnRequest(),
+            static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        var toolCall = response.AssistantMessage.Parts.OfType<LocalAgentMessagePart.ToolCall>().Single();
+        Assert.AreEqual("call-read", toolCall.CallId);
+        Assert.AreEqual("read_file", toolCall.Name);
+        Assert.AreEqual("response-empty-terminal", response.ProviderSessionId);
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_MapsErrorUpdateToContextOverflowFailure()
     {
         var responsesClient = new RecordingOpenAIResponseClient(
