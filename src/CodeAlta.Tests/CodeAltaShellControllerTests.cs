@@ -100,6 +100,49 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
+    public async Task InitializeAsync_AppliesRecoverableThreadsAsProviderProgressCompletes()
+    {
+        var log = new List<string>();
+        var shell = new FakeShell(log);
+        var codexBackendId = new AgentBackendId("codex");
+        var slowBackendId = new AgentBackendId("slow");
+        var importer = new FakeProgressImporter(log, codexBackendId, slowBackendId);
+        var project = new ProjectDescriptor { Id = "project-1", DisplayName = "CodeAlta", ProjectPath = @"C:\repo", Slug = "codealta" };
+        var threadSource = new FakeRecoverableThreadSource(
+            log,
+            [
+                CreateThread("thread-codex", backendId: codexBackendId.Value),
+                CreateThread("thread-slow", backendId: slowBackendId.Value),
+            ]);
+        var controller = new CodeAltaShellController(
+            shell,
+            importer,
+            new FakeProjectCatalogStore(log, [project]),
+            threadSource,
+            new FakeWorkThreadDeleter(log),
+            [
+                new AgentBackendDescriptor(codexBackendId, "Codex"),
+                new AgentBackendDescriptor(slowBackendId, "Slow"),
+            ]);
+        controller.AttachUiDispatcher(new FakeUiDispatcher());
+
+        var initializationTask = controller.InitializeAsync(CancellationToken.None);
+
+        await WaitUntilAsync(() => importer.FirstProgressReported.Task.IsCompleted).ConfigureAwait(false);
+        await WaitUntilAsync(() => log.Contains("Shell.ApplyRecoveredCatalogState:1:1:KeepMissing")).ConfigureAwait(false);
+
+        Assert.IsFalse(initializationTask.IsCompleted, "Initialization should not wait for every provider before applying the first recovered batch.");
+        CollectionAssert.Contains(log, "ThreadSource.List:codex");
+        Assert.IsFalse(log.Contains("ThreadSource.List:slow"), "The slow provider should not be queried before it reports completion.");
+
+        importer.AllowCompletion();
+        await initializationTask.ConfigureAwait(false);
+
+        CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:2:KeepMissing");
+        CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:2");
+    }
+
+    [TestMethod]
     public async Task ApplyRuntimeEventAsync_RoutesEventThroughDispatcher()
     {
         var log = new List<string>();
@@ -533,13 +576,16 @@ public sealed class CodeAltaShellControllerTests
                 delta));
     }
 
-    private static WorkThreadDescriptor CreateThread(string threadId, string projectId = "project-1")
+    private static WorkThreadDescriptor CreateThread(
+        string threadId,
+        string projectId = "project-1",
+        string? backendId = null)
     {
         return new WorkThreadDescriptor
         {
             ThreadId = threadId,
             Kind = WorkThreadKind.ProjectThread,
-            BackendId = AgentBackendIds.Codex.Value,
+            BackendId = backendId ?? AgentBackendIds.Codex.Value,
             BackendSessionId = $"session-{threadId}",
             ProjectRef = projectId,
             WorkingDirectory = @"C:\repo",
@@ -549,6 +595,20 @@ public sealed class CodeAltaShellControllerTests
             UpdatedAt = DateTimeOffset.UtcNow,
             LastActiveAt = DateTimeOffset.UtcNow,
         };
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (!condition())
+        {
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                Assert.Fail("The expected condition was not reached before the timeout elapsed.");
+            }
+
+            await Task.Delay(10).ConfigureAwait(false);
+        }
     }
 
     private sealed class FakeShell(List<string> log) : ICodeAltaShell
@@ -568,8 +628,11 @@ public sealed class CodeAltaShellControllerTests
         {
         }
 
-        public void ApplyRecoveredCatalogState(IReadOnlyList<ProjectDescriptor> projects, IReadOnlyList<WorkThreadDescriptor> threads)
-            => log.Add($"Shell.ApplyRecoveredCatalogState:{projects.Count}:{threads.Count}");
+        public void ApplyRecoveredCatalogState(
+            IReadOnlyList<ProjectDescriptor> projects,
+            IReadOnlyList<WorkThreadDescriptor> threads,
+            bool pruneMissingThreads = true)
+            => log.Add($"Shell.ApplyRecoveredCatalogState:{projects.Count}:{threads.Count}" + (pruneMissingThreads ? string.Empty : ":KeepMissing"));
 
         public void SetReadyStatusForCurrentSelection()
             => log.Add("Shell.SetReadyStatus");
@@ -616,6 +679,31 @@ public sealed class CodeAltaShellControllerTests
 
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class FakeProgressImporter(List<string> log, AgentBackendId firstBackendId, AgentBackendId secondBackendId) : IKnownProjectImporterWithProgress
+    {
+        private readonly TaskCompletionSource _allowCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource FirstProgressReported { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task ImportAsync(CancellationToken cancellationToken)
+            => ImportAsync(static _ => { }, cancellationToken);
+
+        public async Task ImportAsync(Action<ProviderSessionLoadProgress> reportProgress, CancellationToken cancellationToken)
+        {
+            log.Add("ProgressImporter.Import.Start");
+            reportProgress(new ProviderSessionLoadProgress(firstBackendId, "Codex", 1, 2, ["Slow"]));
+            FirstProgressReported.TrySetResult();
+
+            await _allowCompletion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+            reportProgress(new ProviderSessionLoadProgress(secondBackendId, "Slow", 2, 2, []));
+            log.Add("ProgressImporter.Import.End");
+        }
+
+        public void AllowCompletion()
+            => _allowCompletion.TrySetResult();
     }
 
     private sealed class FakeProjectCatalogStore(List<string> log, IReadOnlyList<ProjectDescriptor> projects) : IProjectCatalogStore
@@ -673,6 +761,24 @@ public sealed class CodeAltaShellControllerTests
         {
             log.Add("ThreadSource.List");
             return Task.FromResult(threads);
+        }
+
+        public Task<IReadOnlyList<WorkThreadDescriptor>> ListRecoverableThreadsAsync(
+            Func<AgentBackendId, bool>? shouldListBackendSessions,
+            CancellationToken cancellationToken)
+        {
+            var filteredThreads = threads
+                .Where(thread => shouldListBackendSessions?.Invoke(new AgentBackendId(thread.BackendId)) != false)
+                .ToArray();
+            var backendIds = filteredThreads
+                .Select(static thread => thread.BackendId)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static backendId => backendId, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            log.Add(backendIds.Length == 0
+                ? "ThreadSource.List:empty"
+                : $"ThreadSource.List:{string.Join(",", backendIds)}");
+            return Task.FromResult<IReadOnlyList<WorkThreadDescriptor>>(filteredThreads);
         }
     }
 

@@ -81,7 +81,8 @@ internal sealed class CodeAltaFrontendComposition
             knownProjectImporter,
             new ProjectCatalogStore(projectCatalog),
             new RecoverableThreadSource(runtimeService) { ShouldListBackendSessions = ShouldLoadProviderSessions },
-            new WorkThreadDeleter(runtimeService));
+            new WorkThreadDeleter(runtimeService),
+            backendDescriptors);
         var runtimeEventPump = new RuntimeEventPump(runtimeService, shellController);
         var terminalLoopCoordinator = new TerminalLoopCoordinator(
             shellController,

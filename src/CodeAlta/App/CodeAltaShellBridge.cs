@@ -26,8 +26,9 @@ internal sealed class CodeAltaShellBridge : ICodeAltaShell
 
     public void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads)
-        => _app.ApplyRecoveredCatalogState(projects, threads);
+        IReadOnlyList<WorkThreadDescriptor> threads,
+        bool pruneMissingThreads = true)
+        => _app.ApplyRecoveredCatalogState(projects, threads, pruneMissingThreads);
 
     public void SetReadyStatusForCurrentSelection()
         => _app.SetReadyStatusForCurrentSelection();

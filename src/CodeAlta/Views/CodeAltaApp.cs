@@ -712,8 +712,11 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     internal async Task InitializeChatBackendsAsync(CancellationToken cancellationToken)
         => await _chatBackendInitializationCoordinator.InitializeAsync(cancellationToken);
 
-    internal void ApplyRecoveredCatalogState(IReadOnlyList<ProjectDescriptor> projects, IReadOnlyList<WorkThreadDescriptor> threads)
-        => _threadStateCoordinator.ApplyRecoveredCatalogState(projects, threads);
+    internal void ApplyRecoveredCatalogState(
+        IReadOnlyList<ProjectDescriptor> projects,
+        IReadOnlyList<WorkThreadDescriptor> threads,
+        bool pruneMissingThreads = true)
+        => _threadStateCoordinator.ApplyRecoveredCatalogState(projects, threads, pruneMissingThreads);
 
     internal void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken)
         => _threadStateCoordinator.TrySchedulePendingStartupThreadRestore(cancellationToken);

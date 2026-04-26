@@ -55,7 +55,8 @@ internal sealed class ShellCatalogStateCoordinator
         IReadOnlyList<ProjectDescriptor> projects,
         IReadOnlyList<WorkThreadDescriptor> threads,
         WorkThreadViewState viewState,
-        string? pendingStartupThreadRestoreId)
+        string? pendingStartupThreadRestoreId,
+        bool pruneMissingThreads = true)
     {
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(threads);
@@ -63,10 +64,16 @@ internal sealed class ShellCatalogStateCoordinator
 
         _projects = projects;
         _threads = _viewStateCoordinator.ApplyThreadLocalState(threads, viewState);
-        _openThreadRegistry.PruneRetainedThreadState(_threads);
+        if (pruneMissingThreads)
+        {
+            _openThreadRegistry.PruneRetainedThreadState(_threads);
+        }
         viewState.Selection ??= WorkThreadSelectionState.GlobalDraft();
 
-        viewState.OpenThreadIds.RemoveAll(id => _threads.All(thread => !string.Equals(thread.ThreadId, id, StringComparison.OrdinalIgnoreCase)));
+        if (pruneMissingThreads)
+        {
+            viewState.OpenThreadIds.RemoveAll(id => _threads.All(thread => !string.Equals(thread.ThreadId, id, StringComparison.OrdinalIgnoreCase)));
+        }
         if (viewState.Selection.Surface == WorkThreadSelectionSurface.Thread &&
             (!viewState.OpenThreadIds.Contains(viewState.Selection.ThreadId, StringComparer.OrdinalIgnoreCase) ||
              FindThread(viewState.Selection.ThreadId) is null))

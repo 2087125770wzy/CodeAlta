@@ -14,7 +14,8 @@ internal interface ICodeAltaShell
 
     void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads);
+        IReadOnlyList<WorkThreadDescriptor> threads,
+        bool pruneMissingThreads = true);
 
     void SetReadyStatusForCurrentSelection();
 

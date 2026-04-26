@@ -153,6 +153,34 @@ public sealed class ShellThreadStateCoordinatorTests
     }
 
     [TestMethod]
+    public void ApplyRecoveredCatalogState_PartialRecoveryPreservesPendingStartupRestore()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var coordinator = CreateCoordinator(options);
+        var project = CreateProject("project-1", "CodeAlta");
+        var fastThread = CreateThread("thread-fast", project.Id);
+        var slowThread = CreateThread("thread-slow", project.Id);
+        coordinator.ViewState = new WorkThreadViewState
+        {
+            OpenThreadIds = [slowThread.ThreadId],
+            SelectedThreadId = slowThread.ThreadId,
+            Selection = WorkThreadSelectionState.Thread(slowThread.ThreadId, project.Id),
+        };
+        coordinator.PendingStartupThreadRestoreId = slowThread.ThreadId;
+
+        coordinator.ApplyRecoveredCatalogState([project], [fastThread], pruneMissingThreads: false);
+
+        Assert.AreEqual(slowThread.ThreadId, coordinator.PendingStartupThreadRestoreId);
+        CollectionAssert.Contains(coordinator.ViewState.OpenThreadIds, slowThread.ThreadId);
+
+        coordinator.ApplyRecoveredCatalogState([project], [fastThread, slowThread], pruneMissingThreads: false);
+
+        Assert.AreEqual(slowThread.ThreadId, coordinator.SelectedThreadId);
+        CollectionAssert.Contains(coordinator.ViewState.OpenThreadIds, slowThread.ThreadId);
+    }
+
+    [TestMethod]
     public async Task SaveNavigatorSettingsAsync_PersistsUpdatedSettings()
     {
         using var temp = TempDirectory.Create();

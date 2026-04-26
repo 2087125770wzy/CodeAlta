@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
 using CodeAlta.Orchestration.Runtime;
@@ -37,7 +36,7 @@ internal sealed class KnownProjectImporter : IKnownProjectImporterWithProgress
         ArgumentNullException.ThrowIfNull(reportProgress);
 
         var descriptors = _backendDescriptors.ToArray();
-        var workingDirectories = new ConcurrentBag<string?>();
+        using var importGate = new SemaphoreSlim(initialCount: 1, maxCount: 1);
         var progressGate = new object();
         var loadingProviderNames = descriptors.Select(static descriptor => descriptor.DisplayName).ToList();
         var completedProviderCount = 0;
@@ -45,8 +44,6 @@ internal sealed class KnownProjectImporter : IKnownProjectImporterWithProgress
 
         var importTasks = descriptors.Select(ImportBackendProjectsAsync).ToArray();
         await Task.WhenAll(importTasks).ConfigureAwait(false);
-
-        await _projectCatalog.ImportWorkingDirectoriesAsync(workingDirectories, cancellationToken).ConfigureAwait(false);
         return;
 
         async Task ImportBackendProjectsAsync(AgentBackendDescriptor descriptor)
@@ -61,9 +58,20 @@ internal sealed class KnownProjectImporter : IKnownProjectImporterWithProgress
             try
             {
                 var sessions = await _agentHub.ListSessionsAsync(descriptor.BackendId, cancellationToken: cancellationToken).ConfigureAwait(false);
+                var workingDirectories = new List<string?>();
                 foreach (var session in sessions)
                 {
                     workingDirectories.Add(session.Context?.Cwd ?? session.WorkspacePath);
+                }
+
+                await importGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await _projectCatalog.ImportWorkingDirectoriesAsync(workingDirectories, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    importGate.Release();
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

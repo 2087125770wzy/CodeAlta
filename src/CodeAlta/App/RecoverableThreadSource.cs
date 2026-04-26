@@ -18,4 +18,12 @@ internal sealed class RecoverableThreadSource : IRecoverableThreadSource
 
     public Task<IReadOnlyList<WorkThreadDescriptor>> ListRecoverableThreadsAsync(CancellationToken cancellationToken)
         => _runtimeService.ListRecoverableThreadsAsync(ShouldListBackendSessions, cancellationToken);
+
+    public Task<IReadOnlyList<WorkThreadDescriptor>> ListRecoverableThreadsAsync(
+        Func<AgentBackendId, bool>? shouldListBackendSessions,
+        CancellationToken cancellationToken)
+        => _runtimeService.ListRecoverableThreadsAsync(
+            backendId => (ShouldListBackendSessions?.Invoke(backendId) ?? true) &&
+                         (shouldListBackendSessions?.Invoke(backendId) ?? true),
+            cancellationToken);
 }

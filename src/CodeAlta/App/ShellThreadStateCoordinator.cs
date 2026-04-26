@@ -152,19 +152,25 @@ internal sealed class ShellThreadStateCoordinator
 
     public void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads)
+        IReadOnlyList<WorkThreadDescriptor> threads,
+        bool pruneMissingThreads = true)
     {
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(threads);
 
+        var previousPendingStartupThreadRestoreId = PendingStartupThreadRestoreId;
         var recovery = _catalogStateCoordinator.ApplyRecoveredCatalogState(
             projects,
             threads,
             ViewState,
-            PendingStartupThreadRestoreId);
+            PendingStartupThreadRestoreId,
+            pruneMissingThreads);
 
         _selectionCoordinator.ApplyInitialSelection(ViewState, Projects, Threads);
-        PendingStartupThreadRestoreId = recovery.RestoredThreadId ?? PendingStartupThreadRestoreId;
+        PendingStartupThreadRestoreId = recovery.RestoredThreadId ??
+            (!pruneMissingThreads && !string.IsNullOrWhiteSpace(previousPendingStartupThreadRestoreId)
+                ? previousPendingStartupThreadRestoreId
+                : PendingStartupThreadRestoreId);
 
         EnsureSelectionDefaults();
         _refreshCatalogAndThreadWorkspace();
