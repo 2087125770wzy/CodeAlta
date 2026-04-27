@@ -52,6 +52,7 @@
     <PackageReference Include="XenoAtom.Terminal.UI.Extensions.CodeEditor.TextMateSharp" />
     <PackageReference Include="XenoAtom.Terminal.UI.Extensions.Markdown" />
     <PackageReference Include="XenoAtom.Terminal.UI.Extensions.Screenshot" />
+    <PackageReference Include="XenoAtom.Terminal.UI.Graphics" />
   </ItemGroup>
 
   <ItemGroup>
