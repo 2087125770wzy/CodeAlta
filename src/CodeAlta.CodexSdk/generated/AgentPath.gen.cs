@@ -10,13 +10,13 @@ internal sealed class AgentPathJsonConverter : JsonConverter<AgentPath>
 {
     public override AgentPath Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var value = JsonSerializer.Deserialize<string>(ref reader, options)!;
+        var value = reader.GetString()!;
         return new AgentPath { Value = value };
     }
 
     public override void Write(Utf8JsonWriter writer, AgentPath value, JsonSerializerOptions options)
     {
-        JsonSerializer.Serialize(writer, value.Value, options);
+        writer.WriteStringValue(value.Value);
     }
 }
 

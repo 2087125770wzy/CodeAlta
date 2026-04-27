@@ -401,7 +401,7 @@ internal static class CopilotAgentMapper
                 new AgentRunId(delta.Data.MessageId),
                 AgentContentKind.Assistant,
                 delta.Data.MessageId,
-                delta.Data.ParentToolCallId,
+                null,
                 delta.Data.DeltaContent),
 
             AssistantMessageEvent message => new AgentContentCompletedEvent(
@@ -411,7 +411,7 @@ internal static class CopilotAgentMapper
                 new AgentRunId(message.Data.MessageId),
                 GetAssistantMessageContentKind(message.Data),
                 message.Data.MessageId,
-                message.Data.ParentToolCallId,
+                null,
                 message.Data.Content),
 
             UserMessageEvent userMessage => new AgentContentCompletedEvent(
@@ -469,7 +469,7 @@ internal static class CopilotAgentMapper
                 GetCopilotToolActivityKind(toolStart.Data.ToolName, toolStart.Data.McpToolName),
                 AgentActivityPhase.Started,
                 toolStart.Data.ToolCallId,
-                toolStart.Data.ParentToolCallId,
+                null,
                 GetCopilotToolDisplayName(toolStart.Data.ToolName, toolStart.Data.McpToolName, toolStart.Data.Arguments),
                 toolStart.Data.McpServerName,
                 CreateToolExecutionStartDetails(toolStart.Data)),
@@ -503,7 +503,7 @@ internal static class CopilotAgentMapper
                 GetCopilotToolActivityKind(toolComplete.Data),
                 IsCopilotToolExecutionFailure(toolComplete.Data) ? AgentActivityPhase.Failed : AgentActivityPhase.Completed,
                 toolComplete.Data.ToolCallId,
-                toolComplete.Data.ParentToolCallId,
+                null,
                 GetCopilotToolDisplayName(toolComplete.Data),
                 ResolveCopilotToolCompletionMessage(toolComplete.Data),
                 CreateToolExecutionCompleteDetails(toolComplete.Data)),
@@ -691,7 +691,7 @@ internal static class CopilotAgentMapper
             new AgentRunId(message.Data.MessageId),
             AgentContentKind.Reasoning,
             $"{message.Data.MessageId}:reasoning",
-            message.Data.ParentToolCallId,
+            null,
             message.Data.ReasoningText);
     }
 
@@ -976,7 +976,7 @@ internal static class CopilotAgentMapper
                 Cost: data.Cost,
                 DurationMs: data.Duration,
                 Initiator: data.Initiator,
-                ParentToolCallId: data.ParentToolCallId,
+                ParentToolCallId: null,
                 ReasoningEffort: null,
                 Label: "Last API call"),
             Scope: AgentUsageScope.LastOperation,
@@ -992,7 +992,7 @@ internal static class CopilotAgentMapper
                     Cost: data.Cost,
                     DurationMs: data.Duration,
                     Initiator: data.Initiator,
-                    ParentToolCallId: data.ParentToolCallId,
+                    ParentToolCallId: null,
                     ReasoningEffort: null,
                     TotalNanoAiu: data.CopilotUsage?.TotalNanoAiu,
                     TokenDetails: data.CopilotUsage?.TokenDetails
@@ -1742,8 +1742,6 @@ internal static class CopilotAgentMapper
         return CreateObjectElement(writer =>
         {
             writer.WriteString("toolCallId", data.ToolCallId);
-            if (!string.IsNullOrWhiteSpace(data.ParentToolCallId))
-                writer.WriteString("parentToolCallId", data.ParentToolCallId);
             writer.WriteString("toolName", data.ToolName);
             if (!string.IsNullOrWhiteSpace(data.McpToolName))
                 writer.WriteString("mcpToolName", data.McpToolName);
@@ -1778,8 +1776,6 @@ internal static class CopilotAgentMapper
         return CreateObjectElement(writer =>
         {
             writer.WriteString("toolCallId", data.ToolCallId);
-            if (!string.IsNullOrWhiteSpace(data.ParentToolCallId))
-                writer.WriteString("parentToolCallId", data.ParentToolCallId);
             writer.WriteBoolean("success", data.Success);
             if (TryResolveCopilotTerminalExitCode(data.Result, out var exitCode))
                 writer.WriteNumber("exitCode", exitCode);

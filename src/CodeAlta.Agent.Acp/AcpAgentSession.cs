@@ -146,7 +146,7 @@ public sealed class AcpAgentSession : IAgentSession
                     runId,
                     AgentSessionUpdateKind.Idle,
                     $"Prompt completed ({AcpJsonHelpers.GetStringValue(response.StopReason.Value) ?? "completed"}).",
-                    Details: response.Meta is null ? null : JsonSerializer.SerializeToElement(response.Meta),
+                    Details: response.Meta is null ? null : AcpJsonHelpers.CreateObjectElement(response.Meta),
                     Usage: usage),
                 cancellationToken)
             .ConfigureAwait(false);

@@ -341,13 +341,14 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             var reasoningEffortValue = reasoningEffort.Value.ToString().ToLowerInvariant();
             var configUpdate = new SetSessionConfigOptionRequest
             {
-                Value = JsonSerializer.SerializeToElement(
-                    new
-                    {
-                        sessionId = session.SessionId,
-                        configId = "model_reasoning_effort",
-                        value = reasoningEffortValue
-                    })
+                Value = AcpJsonHelpers.CreateElement(writer =>
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("sessionId", session.SessionId);
+                    writer.WriteString("configId", "model_reasoning_effort");
+                    writer.WriteString("value", reasoningEffortValue);
+                    writer.WriteEndObject();
+                })
             };
 
             try
@@ -631,7 +632,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
 
     private async Task HandleSessionUpdateAsync(AcpServerMessage message, CancellationToken cancellationToken)
     {
-        var notification = message.Params.Deserialize<SessionNotification>(AcpClient.CreateJsonSerializerOptions())
+        var notification = AcpJsonHelpers.DeserializeAcp<SessionNotification>(message.Params)
             ?? throw new InvalidOperationException("Failed to deserialize ACP session update.");
         if (!_sessions.TryGetValue(notification.SessionId.Value, out var session))
         {
@@ -669,7 +670,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
 
             case "tool_call":
             {
-                var toolCall = update.Deserialize<ToolCall>(AcpClient.CreateJsonSerializerOptions())
+                var toolCall = AcpJsonHelpers.DeserializeAcp<ToolCall>(update)
                     ?? throw new InvalidOperationException("Failed to deserialize ACP tool call.");
                 var phase = AcpAgentMapper.ToActivityPhase(toolCall.Status, AgentActivityPhase.Requested);
                 await session.PublishAsync(
@@ -691,7 +692,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             }
             case "tool_call_update":
             {
-                var toolCall = update.Deserialize<ToolCallUpdate>(AcpClient.CreateJsonSerializerOptions())
+                var toolCall = AcpJsonHelpers.DeserializeAcp<ToolCallUpdate>(update)
                     ?? throw new InvalidOperationException("Failed to deserialize ACP tool call update.");
                 var details = AcpAgentMapper.BuildToolDetails(toolCall);
                 var activityKind = toolCall.Kind is null
@@ -716,7 +717,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             }
             case "plan":
             {
-                var plan = update.Deserialize<Plan>(AcpClient.CreateJsonSerializerOptions())
+                var plan = AcpJsonHelpers.DeserializeAcp<Plan>(update)
                     ?? throw new InvalidOperationException("Failed to deserialize ACP plan.");
                 await session.PublishAsync(
                         new AgentPlanSnapshotEvent(
@@ -731,7 +732,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             }
             case "current_mode_update":
             {
-                var mode = update.Deserialize<CurrentModeUpdate>(AcpClient.CreateJsonSerializerOptions())
+                var mode = AcpJsonHelpers.DeserializeAcp<CurrentModeUpdate>(update)
                     ?? throw new InvalidOperationException("Failed to deserialize ACP mode update.");
                 await session.PublishAsync(
                         new AgentSessionUpdateEvent(
@@ -741,14 +742,14 @@ public sealed partial class AcpAgentBackend : IAgentBackend
                             runId,
                             AgentSessionUpdateKind.ModeChanged,
                             $"Mode changed to {mode.CurrentModeId.Value}.",
-                            Details: JsonSerializer.SerializeToElement(mode)),
+                            Details: AcpJsonHelpers.SerializeAcpToElement(mode)),
                         cancellationToken)
                     .ConfigureAwait(false);
                 break;
             }
             case "config_option_update":
             {
-                var config = update.Deserialize<ConfigOptionUpdate>(AcpClient.CreateJsonSerializerOptions())
+                var config = AcpJsonHelpers.DeserializeAcp<ConfigOptionUpdate>(update)
                     ?? throw new InvalidOperationException("Failed to deserialize ACP config update.");
                 await session.PublishAsync(
                         new AgentSessionUpdateEvent(
@@ -758,14 +759,14 @@ public sealed partial class AcpAgentBackend : IAgentBackend
                             runId,
                             AgentSessionUpdateKind.Info,
                             "Session configuration updated.",
-                            Details: JsonSerializer.SerializeToElement(config)),
+                            Details: AcpJsonHelpers.SerializeAcpToElement(config)),
                         cancellationToken)
                     .ConfigureAwait(false);
                 break;
             }
             case "session_info_update":
             {
-                var info = update.Deserialize<SessionInfoUpdate>(AcpClient.CreateJsonSerializerOptions())
+                var info = AcpJsonHelpers.DeserializeAcp<SessionInfoUpdate>(update)
                     ?? throw new InvalidOperationException("Failed to deserialize ACP session info update.");
                 await session.PublishAsync(
                         new AgentSessionUpdateEvent(
@@ -775,7 +776,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
                             runId,
                             info.Title is null ? AgentSessionUpdateKind.ContextChanged : AgentSessionUpdateKind.TitleChanged,
                             info.Title ?? "Session metadata updated.",
-                            Details: JsonSerializer.SerializeToElement(info)),
+                            Details: AcpJsonHelpers.SerializeAcpToElement(info)),
                         cancellationToken)
                     .ConfigureAwait(false);
                 break;
@@ -794,7 +795,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
                 break;
             case "usage_update":
             {
-                var usage = update.Deserialize<UsageUpdate>(AcpClient.CreateJsonSerializerOptions())
+                var usage = AcpJsonHelpers.DeserializeAcp<UsageUpdate>(update)
                     ?? throw new InvalidOperationException("Failed to deserialize ACP usage update.");
                 await session.PublishAsync(
                         new AgentSessionUpdateEvent(
@@ -804,7 +805,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
                             runId,
                             AgentSessionUpdateKind.UsageUpdated,
                             "Session usage updated.",
-                            Details: JsonSerializer.SerializeToElement(usage),
+                            Details: AcpJsonHelpers.SerializeAcpToElement(usage),
                             Usage: new AgentSessionUsage(
                                 Window: new AgentWindowUsageSnapshot(
                                     CurrentTokens: usage.Used > long.MaxValue ? long.MaxValue : (long)usage.Used,
@@ -828,7 +829,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             return;
         }
 
-        var request = message.Params.Deserialize<RequestPermissionRequest>(AcpClient.CreateJsonSerializerOptions())
+        var request = AcpJsonHelpers.DeserializeAcp<RequestPermissionRequest>(message.Params)
             ?? throw new InvalidOperationException("Failed to deserialize ACP permission request.");
         if (!_sessions.TryGetValue(request.SessionId.Value, out var session))
         {
@@ -838,7 +839,12 @@ public sealed partial class AcpAgentBackend : IAgentBackend
                     {
                         Outcome = new RequestPermissionOutcome
                         {
-                            Value = JsonSerializer.SerializeToElement(new { outcome = "cancelled" })
+                            Value = AcpJsonHelpers.CreateElement(writer =>
+                            {
+                                writer.WriteStartObject();
+                                writer.WriteString("outcome", "cancelled");
+                                writer.WriteEndObject();
+                            })
                         }
                     },
                     cancellationToken)
@@ -1051,7 +1057,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
 
     private async Task HandleElicitationCompleteAsync(AcpServerMessage message, CancellationToken cancellationToken)
     {
-        var notification = message.Params.Deserialize<ElicitationCompleteNotification>(AcpClient.CreateJsonSerializerOptions());
+        var notification = AcpJsonHelpers.DeserializeAcp<ElicitationCompleteNotification>(message.Params);
         if (notification is null)
         {
             return;
@@ -1065,7 +1071,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
                         session.SessionId,
                         DateTimeOffset.UtcNow,
                         "session/elicitation/complete",
-                        JsonSerializer.SerializeToElement(notification),
+                        AcpJsonHelpers.SerializeAcpToElement(notification),
                         session.GetActiveRunId()),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -1079,7 +1085,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             return;
         }
 
-        var request = message.Params.Deserialize<ReadTextFileRequest>(AcpClient.CreateJsonSerializerOptions())
+        var request = AcpJsonHelpers.DeserializeAcp<ReadTextFileRequest>(message.Params)
             ?? throw new InvalidOperationException("Failed to deserialize ACP read_text_file request.");
         ValidateAbsolutePath(request.Path);
         var content = await ReadFileSliceAsync(request, cancellationToken).ConfigureAwait(false);
@@ -1097,7 +1103,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             return;
         }
 
-        var request = message.Params.Deserialize<WriteTextFileRequest>(AcpClient.CreateJsonSerializerOptions())
+        var request = AcpJsonHelpers.DeserializeAcp<WriteTextFileRequest>(message.Params)
             ?? throw new InvalidOperationException("Failed to deserialize ACP write_text_file request.");
         ValidateAbsolutePath(request.Path);
         Directory.CreateDirectory(Path.GetDirectoryName(request.Path)!);
@@ -1112,7 +1118,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             return;
         }
 
-        var request = message.Params.Deserialize<CreateTerminalRequest>(AcpClient.CreateJsonSerializerOptions())
+        var request = AcpJsonHelpers.DeserializeAcp<CreateTerminalRequest>(message.Params)
             ?? throw new InvalidOperationException("Failed to deserialize ACP terminal/create request.");
         var response = await _terminalBridge.CreateAsync(request, cancellationToken).ConfigureAwait(false);
         await Client.RespondToRequestAsync(message.RequestId.Value, response, cancellationToken).ConfigureAwait(false);
@@ -1125,7 +1131,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             return;
         }
 
-        var request = message.Params.Deserialize<TerminalOutputRequest>(AcpClient.CreateJsonSerializerOptions())
+        var request = AcpJsonHelpers.DeserializeAcp<TerminalOutputRequest>(message.Params)
             ?? throw new InvalidOperationException("Failed to deserialize ACP terminal/output request.");
         var response = await _terminalBridge.GetOutputAsync(request, cancellationToken).ConfigureAwait(false);
         await Client.RespondToRequestAsync(message.RequestId.Value, response, cancellationToken).ConfigureAwait(false);
@@ -1138,7 +1144,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             return;
         }
 
-        var request = message.Params.Deserialize<WaitForTerminalExitRequest>(AcpClient.CreateJsonSerializerOptions())
+        var request = AcpJsonHelpers.DeserializeAcp<WaitForTerminalExitRequest>(message.Params)
             ?? throw new InvalidOperationException("Failed to deserialize ACP terminal/wait_for_exit request.");
         var response = await _terminalBridge.WaitForExitAsync(request, cancellationToken).ConfigureAwait(false);
         await Client.RespondToRequestAsync(message.RequestId.Value, response, cancellationToken).ConfigureAwait(false);
@@ -1151,7 +1157,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             return;
         }
 
-        var request = message.Params.Deserialize<KillTerminalRequest>(AcpClient.CreateJsonSerializerOptions())
+        var request = AcpJsonHelpers.DeserializeAcp<KillTerminalRequest>(message.Params)
             ?? throw new InvalidOperationException("Failed to deserialize ACP terminal/kill request.");
         var response = await _terminalBridge.KillAsync(request, cancellationToken).ConfigureAwait(false);
         await Client.RespondToRequestAsync(message.RequestId.Value, response, cancellationToken).ConfigureAwait(false);
@@ -1164,7 +1170,7 @@ public sealed partial class AcpAgentBackend : IAgentBackend
             return;
         }
 
-        var request = message.Params.Deserialize<ReleaseTerminalRequest>(AcpClient.CreateJsonSerializerOptions())
+        var request = AcpJsonHelpers.DeserializeAcp<ReleaseTerminalRequest>(message.Params)
             ?? throw new InvalidOperationException("Failed to deserialize ACP terminal/release request.");
         var response = await _terminalBridge.ReleaseAsync(request, cancellationToken).ConfigureAwait(false);
         await Client.RespondToRequestAsync(message.RequestId.Value, response, cancellationToken).ConfigureAwait(false);

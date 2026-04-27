@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -108,7 +109,6 @@ public sealed partial class AcpClient : IAsyncDisposable
         TResult result,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(requestId);
         ObjectDisposedException.ThrowIf(_disposed, this);
         return _transport.SendResponseAsync(requestId, result, cancellationToken);
     }
@@ -182,10 +182,22 @@ public sealed partial class AcpClient : IAsyncDisposable
             ClientCapabilities = options.ClientCapabilities,
             ProtocolVersion = new ProtocolVersion
             {
-                Value = JsonSerializer.SerializeToElement(options.ProtocolVersion)
+                Value = CreateNumberElement(options.ProtocolVersion)
             },
         };
         _initializeResponse = await InitializeCoreAsync(initializeRequest, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static JsonElement CreateNumberElement(ushort value)
+    {
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteNumberValue(value);
+        }
+
+        using var document = JsonDocument.Parse(buffer.WrittenMemory);
+        return document.RootElement.Clone();
     }
 
     private Task<InitializeResponse> InitializeCoreAsync(

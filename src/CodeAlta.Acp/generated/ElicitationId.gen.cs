@@ -17,13 +17,13 @@ internal sealed class ElicitationIdJsonConverter : JsonConverter<ElicitationId>
 {
     public override ElicitationId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var value = JsonSerializer.Deserialize<string>(ref reader, options)!;
+        var value = reader.GetString()!;
         return new ElicitationId { Value = value };
     }
 
     public override void Write(Utf8JsonWriter writer, ElicitationId value, JsonSerializerOptions options)
     {
-        JsonSerializer.Serialize(writer, value.Value, options);
+        writer.WriteStringValue(value.Value);
     }
 }
 

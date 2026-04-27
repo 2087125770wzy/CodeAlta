@@ -13,13 +13,13 @@ internal sealed class PermissionOptionIdJsonConverter : JsonConverter<Permission
 {
     public override PermissionOptionId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var value = JsonSerializer.Deserialize<string>(ref reader, options)!;
+        var value = reader.GetString()!;
         return new PermissionOptionId { Value = value };
     }
 
     public override void Write(Utf8JsonWriter writer, PermissionOptionId value, JsonSerializerOptions options)
     {
-        JsonSerializer.Serialize(writer, value.Value, options);
+        writer.WriteStringValue(value.Value);
     }
 }
 

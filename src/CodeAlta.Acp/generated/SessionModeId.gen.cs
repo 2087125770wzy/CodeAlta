@@ -13,13 +13,13 @@ internal sealed class SessionModeIdJsonConverter : JsonConverter<SessionModeId>
 {
     public override SessionModeId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var value = JsonSerializer.Deserialize<string>(ref reader, options)!;
+        var value = reader.GetString()!;
         return new SessionModeId { Value = value };
     }
 
     public override void Write(Utf8JsonWriter writer, SessionModeId value, JsonSerializerOptions options)
     {
-        JsonSerializer.Serialize(writer, value.Value, options);
+        writer.WriteStringValue(value.Value);
     }
 }
 

@@ -13,13 +13,13 @@ internal sealed class ElicitationSchemaTypeJsonConverter : JsonConverter<Elicita
 {
     public override ElicitationSchemaType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var value = JsonSerializer.Deserialize<string>(ref reader, options)!;
+        var value = reader.GetString()!;
         return new ElicitationSchemaType { Value = value };
     }
 
     public override void Write(Utf8JsonWriter writer, ElicitationSchemaType value, JsonSerializerOptions options)
     {
-        JsonSerializer.Serialize(writer, value.Value, options);
+        writer.WriteStringValue(value.Value);
     }
 }
 

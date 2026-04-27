@@ -13,13 +13,13 @@ internal sealed class ElicitationStringTypeJsonConverter : JsonConverter<Elicita
 {
     public override ElicitationStringType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var value = JsonSerializer.Deserialize<string>(ref reader, options)!;
+        var value = reader.GetString()!;
         return new ElicitationStringType { Value = value };
     }
 
     public override void Write(Utf8JsonWriter writer, ElicitationStringType value, JsonSerializerOptions options)
     {
-        JsonSerializer.Serialize(writer, value.Value, options);
+        writer.WriteStringValue(value.Value);
     }
 }
 

@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.IO.Pipelines;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Threading.Channels;
 using XenoAtom.Logging;
 
@@ -64,13 +65,13 @@ internal sealed class AcpJsonRpcTransport : IAsyncDisposable
                     writer =>
                     {
                         writer.WritePropertyName("params");
-                        JsonSerializer.Serialize(writer, parameters, _jsonOptions);
+                        JsonSerializer.Serialize(writer, parameters, GetJsonTypeInfo<TParams>());
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
 
             var resultElement = await tcs.Task.ConfigureAwait(false);
-            return resultElement.Deserialize<TResult>(_jsonOptions)
+            return resultElement.Deserialize(GetJsonTypeInfo<TResult>())
                 ?? throw new AcpJsonRpcException(-1, $"Failed to deserialize ACP response for '{method}'.");
         }
         finally
@@ -92,7 +93,7 @@ internal sealed class AcpJsonRpcTransport : IAsyncDisposable
                 writer =>
                 {
                     writer.WritePropertyName("params");
-                    JsonSerializer.Serialize(writer, parameters, _jsonOptions);
+                    JsonSerializer.Serialize(writer, parameters, GetJsonTypeInfo<TParams>());
                 },
                 cancellationToken)
             .ConfigureAwait(false);
@@ -103,17 +104,15 @@ internal sealed class AcpJsonRpcTransport : IAsyncDisposable
         TResult result,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(id);
-
         var bufferWriter = new ArrayBufferWriter<byte>();
         using (var writer = new Utf8JsonWriter(bufferWriter))
         {
             writer.WriteStartObject();
             writer.WriteString("jsonrpc", "2.0");
             writer.WritePropertyName("id");
-            JsonSerializer.Serialize(writer, id, _jsonOptions);
+            JsonSerializer.Serialize(writer, id, GetJsonTypeInfo<RequestId>());
             writer.WritePropertyName("result");
-            JsonSerializer.Serialize(writer, result, _jsonOptions);
+            JsonSerializer.Serialize(writer, result, GetJsonTypeInfo<TResult>());
             writer.WriteEndObject();
         }
 
@@ -295,10 +294,21 @@ internal sealed class AcpJsonRpcTransport : IAsyncDisposable
         RequestId? requestId = null;
         if (hasId)
         {
-            requestId = idProp.Deserialize<RequestId>(_jsonOptions);
+            requestId = idProp.Deserialize(GetJsonTypeInfo<RequestId>());
         }
         var method = methodProp.GetString() ?? string.Empty;
         var parameters = element.TryGetProperty("params", out var paramsProp) ? paramsProp.Clone() : default;
         _incomingMessages.Writer.TryWrite(new AcpServerMessage(method, parameters, requestId));
+    }
+
+    private JsonTypeInfo<T> GetJsonTypeInfo<T>()
+    {
+        var typeInfo = _jsonOptions.GetTypeInfo(typeof(T));
+        if (typeInfo is JsonTypeInfo<T> typedTypeInfo)
+        {
+            return typedTypeInfo;
+        }
+
+        throw new InvalidOperationException($"ACP JSON metadata is not available for type '{typeof(T).FullName}'.");
     }
 }

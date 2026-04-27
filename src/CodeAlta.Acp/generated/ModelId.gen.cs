@@ -17,13 +17,13 @@ internal sealed class ModelIdJsonConverter : JsonConverter<ModelId>
 {
     public override ModelId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var value = JsonSerializer.Deserialize<string>(ref reader, options)!;
+        var value = reader.GetString()!;
         return new ModelId { Value = value };
     }
 
     public override void Write(Utf8JsonWriter writer, ModelId value, JsonSerializerOptions options)
     {
-        JsonSerializer.Serialize(writer, value.Value, options);
+        writer.WriteStringValue(value.Value);
     }
 }
 

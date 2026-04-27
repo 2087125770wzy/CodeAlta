@@ -935,13 +935,19 @@ public class CSharpEmitter
         sb.AppendLine("{");
         sb.AppendLine($"    public override {def.Name} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)");
         sb.AppendLine("    {");
-        sb.AppendLine($"        var value = JsonSerializer.Deserialize<{csType}>(ref reader, options)!;");
+        if (csType == "string")
+            sb.AppendLine("        var value = reader.GetString()!;");
+        else
+            sb.AppendLine($"        var value = JsonSerializer.Deserialize<{csType}>(ref reader, options)!;");
         sb.AppendLine($"        return new {def.Name} {{ Value = value }};");
         sb.AppendLine("    }");
         sb.AppendLine();
         sb.AppendLine($"    public override void Write(Utf8JsonWriter writer, {def.Name} value, JsonSerializerOptions options)");
         sb.AppendLine("    {");
-        sb.AppendLine($"        JsonSerializer.Serialize(writer, value.Value, options);");
+        if (csType == "string")
+            sb.AppendLine("        writer.WriteStringValue(value.Value);");
+        else
+            sb.AppendLine($"        JsonSerializer.Serialize(writer, value.Value, options);");
         sb.AppendLine("    }");
         sb.AppendLine("}");
         sb.AppendLine();

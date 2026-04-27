@@ -134,36 +134,46 @@ internal static class AcpAgentMapper
     {
         ArgumentNullException.ThrowIfNull(toolCall);
 
-        var details = new Dictionary<string, object?>(StringComparer.Ordinal)
+        var output = ExtractToolOutput(toolCall.Content);
+        var diff = ExtractDiff(toolCall.Content);
+        return AcpJsonHelpers.CreateElement(writer =>
         {
-            ["toolCallId"] = toolCall.ToolCallId.Value,
-            ["title"] = toolCall.Title,
-            ["kind"] = AcpJsonHelpers.GetStringValue(toolCall.Kind.Value),
-            ["rawInput"] = toolCall.RawInput?.Clone(),
-            ["rawOutput"] = toolCall.RawOutput?.Clone(),
-        };
-
-        AddLocations(details, toolCall.Locations);
-        AddToolContent(details, toolCall.Content);
-        return JsonSerializer.SerializeToElement(details);
+            writer.WriteStartObject();
+            writer.WriteString("toolCallId", toolCall.ToolCallId.Value);
+            writer.WriteString("title", toolCall.Title);
+            writer.WriteString("kind", AcpJsonHelpers.GetStringValue(toolCall.Kind.Value));
+            WriteJsonElementOrNull(writer, "rawInput", toolCall.RawInput);
+            WriteJsonElementOrNull(writer, "rawOutput", toolCall.RawOutput);
+            WriteLocations(writer, toolCall.Locations);
+            if (!string.IsNullOrWhiteSpace(output))
+                writer.WriteString("aggregatedOutput", output);
+            if (!string.IsNullOrWhiteSpace(diff))
+                writer.WriteString("diff", diff);
+            writer.WriteEndObject();
+        });
     }
 
     internal static JsonElement BuildToolDetails(ToolCallUpdate toolCall)
     {
         ArgumentNullException.ThrowIfNull(toolCall);
 
-        var details = new Dictionary<string, object?>(StringComparer.Ordinal)
+        var output = ExtractToolOutput(toolCall.Content);
+        var diff = ExtractDiff(toolCall.Content);
+        return AcpJsonHelpers.CreateElement(writer =>
         {
-            ["toolCallId"] = toolCall.ToolCallId.Value,
-            ["title"] = toolCall.Title,
-            ["kind"] = toolCall.Kind is null ? null : AcpJsonHelpers.GetStringValue(toolCall.Kind.Value.Value),
-            ["rawInput"] = toolCall.RawInput?.Clone(),
-            ["rawOutput"] = toolCall.RawOutput?.Clone(),
-        };
-
-        AddLocations(details, toolCall.Locations);
-        AddToolContent(details, toolCall.Content);
-        return JsonSerializer.SerializeToElement(details);
+            writer.WriteStartObject();
+            writer.WriteString("toolCallId", toolCall.ToolCallId.Value);
+            writer.WriteString("title", toolCall.Title);
+            writer.WriteString("kind", toolCall.Kind is null ? null : AcpJsonHelpers.GetStringValue(toolCall.Kind.Value.Value));
+            WriteJsonElementOrNull(writer, "rawInput", toolCall.RawInput);
+            WriteJsonElementOrNull(writer, "rawOutput", toolCall.RawOutput);
+            WriteLocations(writer, toolCall.Locations);
+            if (!string.IsNullOrWhiteSpace(output))
+                writer.WriteString("aggregatedOutput", output);
+            if (!string.IsNullOrWhiteSpace(diff))
+                writer.WriteString("diff", diff);
+            writer.WriteEndObject();
+        });
     }
 
     internal static string? ExtractToolOutput(IReadOnlyList<ToolCallContent>? content)
@@ -244,7 +254,7 @@ internal static class AcpAgentMapper
             runId,
             request.ToolCall.ToolCallId.Value,
             "acpPermission",
-            JsonSerializer.SerializeToElement(request));
+            AcpJsonHelpers.SerializeAcpToElement(request));
     }
 
     internal static RequestPermissionResponse ToPermissionResponse(
@@ -260,7 +270,7 @@ internal static class AcpAgentMapper
             {
                 Outcome = new RequestPermissionOutcome
                 {
-                    Value = JsonSerializer.SerializeToElement(new { outcome = "cancelled" })
+                    Value = CreateOutcomeElement("cancelled")
                 }
             };
         }
@@ -271,11 +281,7 @@ internal static class AcpAgentMapper
         {
             Outcome = new RequestPermissionOutcome
             {
-                Value = JsonSerializer.SerializeToElement(new
-                {
-                    outcome = "selected",
-                    optionId = option.OptionId.Value
-                })
+                Value = CreateOutcomeElement("selected", option.OptionId.Value)
             }
         };
     }
@@ -395,12 +401,21 @@ internal static class AcpAgentMapper
         {
             Action = new ElicitationAction
             {
-                Value = JsonSerializer.SerializeToElement(
-                    new
+                Value = AcpJsonHelpers.CreateElement(writer =>
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("action", "accept");
+                    writer.WritePropertyName("content");
+                    writer.WriteStartObject();
+                    foreach (var entry in content)
                     {
-                        action = "accept",
-                        content,
-                    })
+                        writer.WritePropertyName(entry.Key);
+                        entry.Value.WriteTo(writer);
+                    }
+
+                    writer.WriteEndObject();
+                    writer.WriteEndObject();
+                })
             }
         };
     }
@@ -411,7 +426,7 @@ internal static class AcpAgentMapper
         {
             Action = new ElicitationAction
             {
-                Value = JsonSerializer.SerializeToElement(new { action = "decline" })
+                Value = CreateActionElement("decline")
             }
         };
     }
@@ -422,7 +437,7 @@ internal static class AcpAgentMapper
         {
             Action = new ElicitationAction
             {
-                Value = JsonSerializer.SerializeToElement(new { action = "cancel" })
+                Value = CreateActionElement("cancel")
             }
         };
     }
@@ -431,12 +446,20 @@ internal static class AcpAgentMapper
     {
         ArgumentNullException.ThrowIfNull(response);
 
-        return JsonSerializer.SerializeToElement(
-            new
+        return AcpJsonHelpers.CreateElement(writer =>
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("answerCount", response.Answers.Count);
+            writer.WritePropertyName("answers");
+            writer.WriteStartObject();
+            foreach (var answer in response.Answers)
             {
-                answerCount = response.Answers.Count,
-                answers = response.Answers,
-            });
+                writer.WriteString(answer.Key, answer.Value);
+            }
+
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        });
     }
 
     private static ISet<string>? GetRequiredProperties(JsonElement schema)
@@ -607,12 +630,13 @@ internal static class AcpAgentMapper
     {
         return new ContentBlock
         {
-            Value = JsonSerializer.SerializeToElement(
-                new
-                {
-                    type = "text",
-                    text,
-                })
+            Value = AcpJsonHelpers.CreateElement(writer =>
+            {
+                writer.WriteStartObject();
+                writer.WriteString("type", "text");
+                writer.WriteString("text", text);
+                writer.WriteEndObject();
+            })
         };
     }
 
@@ -639,35 +663,70 @@ internal static class AcpAgentMapper
             : $" ({range.StartLine}-{range.EndLine})";
     }
 
-    private static void AddLocations(Dictionary<string, object?> details, IReadOnlyList<ToolCallLocation>? locations)
+    private static void WriteJsonElementOrNull(Utf8JsonWriter writer, string propertyName, JsonElement? value)
+    {
+        writer.WritePropertyName(propertyName);
+        if (value is { } element)
+        {
+            element.WriteTo(writer);
+        }
+        else
+        {
+            writer.WriteNullValue();
+        }
+    }
+
+    private static void WriteLocations(Utf8JsonWriter writer, IReadOnlyList<ToolCallLocation>? locations)
     {
         if (locations is not { Count: > 0 })
         {
             return;
         }
 
-        details["locations"] = locations
-            .Select(static location => new Dictionary<string, object?>
+        writer.WritePropertyName("locations");
+        writer.WriteStartArray();
+        foreach (var location in locations)
+        {
+            writer.WriteStartObject();
+            writer.WriteString("path", location.Path);
+            if (location.Line is not null)
             {
-                ["path"] = location.Path,
-                ["line"] = location.Line,
-            })
-            .ToArray();
+                writer.WriteNumber("line", location.Line.Value);
+            }
+            else
+            {
+                writer.WriteNull("line");
+            }
+
+            writer.WriteEndObject();
+        }
+
+        writer.WriteEndArray();
     }
 
-    private static void AddToolContent(Dictionary<string, object?> details, IReadOnlyList<ToolCallContent>? content)
+    private static JsonElement CreateActionElement(string action)
     {
-        var output = ExtractToolOutput(content);
-        if (!string.IsNullOrWhiteSpace(output))
+        return AcpJsonHelpers.CreateElement(writer =>
         {
-            details["aggregatedOutput"] = output;
-        }
+            writer.WriteStartObject();
+            writer.WriteString("action", action);
+            writer.WriteEndObject();
+        });
+    }
 
-        var diff = ExtractDiff(content);
-        if (!string.IsNullOrWhiteSpace(diff))
+    private static JsonElement CreateOutcomeElement(string outcome, string? optionId = null)
+    {
+        return AcpJsonHelpers.CreateElement(writer =>
         {
-            details["diff"] = diff;
-        }
+            writer.WriteStartObject();
+            writer.WriteString("outcome", outcome);
+            if (optionId is not null)
+            {
+                writer.WriteString("optionId", optionId);
+            }
+
+            writer.WriteEndObject();
+        });
     }
 
     private static PermissionOption? SelectPermissionOption(
@@ -886,12 +945,20 @@ internal static class AcpAgentMapper
 
         return AcpJsonHelpers.GetDiscriminator(schema, "type") switch
         {
-            "boolean" => JsonSerializer.SerializeToElement(ParseBoolean(value, propertyName)),
-            "integer" => JsonSerializer.SerializeToElement(ParseInt64(value, propertyName)),
-            "number" => JsonSerializer.SerializeToElement(ParseDouble(value, propertyName)),
-            "array" => JsonSerializer.SerializeToElement(
-                value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)),
-            _ => JsonSerializer.SerializeToElement(value),
+            "boolean" => AcpJsonHelpers.CreateBooleanElement(ParseBoolean(value, propertyName)),
+            "integer" => AcpJsonHelpers.CreateNumberElement(ParseInt64(value, propertyName)),
+            "number" => AcpJsonHelpers.CreateNumberElement(ParseDouble(value, propertyName)),
+            "array" => AcpJsonHelpers.CreateElement(writer =>
+            {
+                writer.WriteStartArray();
+                foreach (var item in value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                {
+                    writer.WriteStringValue(item);
+                }
+
+                writer.WriteEndArray();
+            }),
+            _ => AcpJsonHelpers.CreateStringElement(value),
         };
     }
 

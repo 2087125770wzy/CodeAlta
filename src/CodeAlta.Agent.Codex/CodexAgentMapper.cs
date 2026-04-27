@@ -2309,7 +2309,7 @@ internal static class CodexAgentMapper
             if (TryResolveLocalShellCommandText(item.Action, out var command))
                 writer.WriteString("command", command);
             writer.WritePropertyName("action");
-            JsonSerializer.Serialize(writer, item.Action);
+            JsonSerializer.Serialize(writer, item.Action, CodexJsonSerializerContext.Default.LocalShellAction);
         });
     }
 
@@ -2398,7 +2398,7 @@ internal static class CodexAgentMapper
             return action.Type;
         }
 
-        return JsonSerializer.Serialize(action);
+        return JsonSerializer.Serialize(action, CodexJsonSerializerContext.Default.LocalShellAction);
     }
 
     private static bool TryResolveLocalShellCommandText(LocalShellAction action, out string? command)
