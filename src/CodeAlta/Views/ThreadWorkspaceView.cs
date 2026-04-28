@@ -725,7 +725,11 @@ internal sealed class ThreadWorkspaceView
         Dialog? dialog = null;
         var titleState = new State<string?>(image.Title);
         var titleBox = new TextBox().Text(titleState).HorizontalAlignment(Align.Stretch);
-        var preview = CreatePromptImagePreview(image, cellWidth: 56, cellHeight: 16);
+        var size = ResponsiveDialogSize.Resolve(ThreadPaneLayout.GetAbsoluteBounds(), minWidth: 64, minHeight: 22, widthFactor: 0.65, heightFactor: 0.65);
+        var preview = CreatePromptImagePreview(
+            image,
+            cellWidth: Math.Max(24, size.Width - 6),
+            cellHeight: Math.Max(8, size.Height - 9));
         var addButton = new Button(new TextBlock("Add To Prompt"));
         var cancelButton = new Button(new TextBlock("Cancel"));
 
@@ -746,21 +750,12 @@ internal sealed class ThreadWorkspaceView
 
         addButton.Click(AddImage);
         cancelButton.Click(Cancel);
-        var form = new Grid()
-            .Rows(new RowDefinition { Height = GridLength.Auto })
-            .Columns(new ColumnDefinition { Width = GridLength.Auto }, new ColumnDefinition { Width = GridLength.Star(1) })
-            .Cell(new TextBlock("Title"), 0, 0)
-            .Cell(titleBox, 0, 1);
-        var buttons = new HStack([addButton, cancelButton]) { Spacing = 2, HorizontalAlignment = Align.End };
-        var content = new VStack(
-            new Border(preview).Padding(1),
-            form,
-            buttons)
-        {
-            Spacing = 1,
-            HorizontalAlignment = Align.Stretch,
-            VerticalAlignment = Align.Stretch,
-        };
+        var content = new DockLayout()
+            .Top(new Markup("[dim]Review the pasted image and choose a title before adding it to the prompt.[/]") { Wrap = true })
+            .Content(new Border(preview).Padding(1))
+            .Bottom(CreatePromptImageDialogBottom(titleBox, addButton, cancelButton))
+            .HorizontalAlignment(Align.Stretch)
+            .VerticalAlignment(Align.Stretch);
 
         dialog = new Dialog()
             .Title("Add Image To Prompt")
@@ -768,7 +763,7 @@ internal sealed class ThreadWorkspaceView
             .IsModal(true)
             .Padding(1)
             .Content(content);
-        ResponsiveDialogSize.Apply(dialog, ThreadPaneLayout.GetAbsoluteBounds(), minWidth: 64, minHeight: 22, widthFactor: 0.65, heightFactor: 0.65);
+        dialog.Width(size.Width).Height(size.Height).MinWidth(64).MinHeight(22);
         dialog.AddCommand(new Command { Id = "CodeAlta.Prompt.ImageAdd.Accept", LabelMarkup = "Add To Prompt", DescriptionMarkup = "Add the pasted image to the prompt.", Gesture = new KeyGesture(TerminalKey.Enter, TerminalModifiers.Ctrl), Importance = CommandImportance.Primary, Execute = _ => AddImage() });
         dialog.AddCommand(new Command { Id = "CodeAlta.Prompt.ImageAdd.Cancel", LabelMarkup = "Cancel", DescriptionMarkup = "Cancel adding the pasted image.", Gesture = new KeyGesture(TerminalKey.Escape), Importance = CommandImportance.Primary, Execute = _ => Cancel() });
         dialog.Show();
@@ -821,21 +816,12 @@ internal sealed class ThreadWorkspaceView
         saveButton.Click(Rename);
         deleteButton.Click(Delete);
         closeButton.Click(Close);
-        var form = new Grid()
-            .Rows(new RowDefinition { Height = GridLength.Auto })
-            .Columns(new ColumnDefinition { Width = GridLength.Auto }, new ColumnDefinition { Width = GridLength.Star(1) })
-            .Cell(new TextBlock("Title"), 0, 0)
-            .Cell(titleBox, 0, 1);
-        var buttons = new HStack([saveButton, deleteButton, closeButton]) { Spacing = 2, HorizontalAlignment = Align.End };
-        var content = new VStack(
-            new Border(preview).Padding(1),
-            form,
-            buttons)
-        {
-            Spacing = 1,
-            HorizontalAlignment = Align.Stretch,
-            VerticalAlignment = Align.Stretch,
-        };
+        var content = new DockLayout()
+            .Top(new Markup("[dim]Preview, rename, or remove this prompt image attachment.[/]") { Wrap = true })
+            .Content(new Border(preview).Padding(1))
+            .Bottom(CreatePromptImageDialogBottom(titleBox, saveButton, deleteButton, closeButton))
+            .HorizontalAlignment(Align.Stretch)
+            .VerticalAlignment(Align.Stretch);
 
         dialog = new Dialog()
             .Title(image.Title)
@@ -847,6 +833,29 @@ internal sealed class ThreadWorkspaceView
         dialog.AddCommand(new Command { Id = "CodeAlta.Prompt.ImageDetails.Close", LabelMarkup = "Close", DescriptionMarkup = "Close image preview.", Gesture = new KeyGesture(TerminalKey.Escape), Importance = CommandImportance.Primary, Execute = _ => Close() });
         dialog.Show();
         dialog.App?.Focus(titleBox);
+    }
+
+    private static Visual CreatePromptImageDialogBottom(TextBox titleBox, params Button[] buttons)
+    {
+        ArgumentNullException.ThrowIfNull(titleBox);
+        ArgumentNullException.ThrowIfNull(buttons);
+
+        var titleEditor = new Grid()
+            .Rows(new RowDefinition { Height = GridLength.Auto })
+            .Columns(new ColumnDefinition { Width = GridLength.Auto }, new ColumnDefinition { Width = GridLength.Star(1) })
+            .Cell(new TextBlock("Title") { Wrap = false }, 0, 0)
+            .Cell(titleBox, 0, 1);
+        var buttonRow = new HStack(buttons)
+        {
+            Spacing = 2,
+            HorizontalAlignment = Align.End,
+        };
+
+        return new Grid()
+            .Rows(new RowDefinition { Height = GridLength.Auto })
+            .Columns(new ColumnDefinition { Width = GridLength.Star(1) }, new ColumnDefinition { Width = GridLength.Auto })
+            .Cell(titleEditor, 0, 0)
+            .Cell(buttonRow, 0, 1);
     }
 
     private static Visual CreatePromptImagePreview(PromptImageAttachment image, int cellWidth, int cellHeight)

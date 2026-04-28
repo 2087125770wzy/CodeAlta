@@ -2,9 +2,11 @@ using CodeAlta.App;
 using CodeAlta.Catalog;
 using CodeAlta.ViewModels;
 using XenoAtom.Terminal;
+using XenoAtom.Terminal.Graphics;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Controls;
 using XenoAtom.Terminal.UI.Extensions.Screenshot;
+using XenoAtom.Terminal.UI.Graphics;
 
 namespace CodeAlta.Views;
 
@@ -14,6 +16,7 @@ internal sealed class DeferredCodeAltaApp : IAsyncDisposable
     private readonly Padder _sidebarHost;
     private readonly Padder _workspaceHost;
     private readonly Padder _commandBarHost;
+    private readonly TerminalImageGraphicsPresenter _graphicsPresenter;
     private Task<CodeAltaOwnedServices>? _ownedServicesTask;
     private CodeAltaApp? _app;
     private ConfigRecoveryDialog? _configRecoveryDialog;
@@ -24,6 +27,12 @@ internal sealed class DeferredCodeAltaApp : IAsyncDisposable
 
     public DeferredCodeAltaApp()
     {
+        var sixelOptions = new TerminalSixelEncoderOptions();
+        _graphicsPresenter = new TerminalImageGraphicsPresenter(new TerminalImageGraphicsPresenterOptions
+        {
+            SixelOptions = sixelOptions,
+        });
+
         // Build a synchronous placeholder shell first so Program can enter Terminal.RunAsync
         // without awaiting startup work before the UI claims the main thread.
         _sidebarHost = CreateStretchHost(BuildMessage("Loading sidebar..."));
@@ -42,20 +51,31 @@ internal sealed class DeferredCodeAltaApp : IAsyncDisposable
         => Terminal.RunAsync(
             _rootHost,
             _ => OnIteration(cancellationToken),
-            new TerminalRunOptions { UpdateWaitDuration = TimeSpan.FromMilliseconds(1) },
+            new TerminalRunOptions
+            {
+                GraphicsPresenter = _graphicsPresenter,
+                UpdateWaitDuration = TimeSpan.FromMilliseconds(1),
+            },
             cancellationToken);
 
     public async ValueTask DisposeAsync()
     {
-        if (_app is not null)
+        try
         {
-            await _app.DisposeAsync();
-            return;
-        }
+            if (_app is not null)
+            {
+                await _app.DisposeAsync();
+                return;
+            }
 
-        if (_ownedServicesTask is { IsCompletedSuccessfully: true })
+            if (_ownedServicesTask is { IsCompletedSuccessfully: true })
+            {
+                await _ownedServicesTask.Result.DisposeAsync();
+            }
+        }
+        finally
         {
-            await _ownedServicesTask.Result.DisposeAsync();
+            _graphicsPresenter.Dispose();
         }
     }
 
