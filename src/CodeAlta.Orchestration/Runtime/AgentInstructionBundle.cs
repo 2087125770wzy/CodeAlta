@@ -1,3 +1,5 @@
+using CodeAlta.Orchestration.Runtime.SystemPrompts;
+
 namespace CodeAlta.Orchestration.Runtime;
 
 /// <summary>
@@ -19,4 +21,9 @@ public sealed record AgentInstructionBundle
     /// Gets the developer instructions override.
     /// </summary>
     public string? DeveloperInstructions { get; init; }
+
+    /// <summary>
+    /// Gets the file-backed prompt bundle used to produce the instruction text, when available.
+    /// </summary>
+    public SystemPromptBundle? PromptBundle { get; init; }
 }

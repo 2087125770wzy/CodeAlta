@@ -545,13 +545,23 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
     }
 
     private static string CombineDeveloperInstructions(string? developerInstructions, string runtimeContext)
-        => string.IsNullOrWhiteSpace(developerInstructions)
-            ? runtimeContext
-            : $"""
+    {
+        if (string.IsNullOrWhiteSpace(developerInstructions))
+        {
+            return runtimeContext;
+        }
+
+        if (string.IsNullOrWhiteSpace(runtimeContext))
+        {
+            return developerInstructions.Trim();
+        }
+
+        return $"""
                {developerInstructions.Trim()}
 
                {runtimeContext}
                """;
+    }
 
     private LocalAgentTurnRequest CreateTurnRequest(
         AgentRunId runId,

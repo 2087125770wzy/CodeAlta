@@ -14,32 +14,42 @@ internal static class LocalAgentInstructionComposer
         ArgumentNullException.ThrowIfNull(options);
 
         var systemMessage = Normalize(options.SystemMessage);
-        var runtimeContext = BuildRuntimeContextSection(options.WorkingDirectory, options.ProjectRoots);
+        var developerInstructionsInput = Normalize(options.DeveloperInstructions);
+        var runtimeContext = ContainsSection(developerInstructionsInput, "# Runtime Context")
+            ? string.Empty
+            : BuildRuntimeContextSection(options.WorkingDirectory, options.ProjectRoots);
         var developerSections = new List<string>();
-        if (!string.IsNullOrWhiteSpace(options.DeveloperInstructions))
+        if (!string.IsNullOrWhiteSpace(developerInstructionsInput))
         {
-            developerSections.Add(options.DeveloperInstructions.Trim());
+            developerSections.Add(developerInstructionsInput);
         }
 
-        foreach (var path in EnumerateAgentInstructionFiles(options.WorkingDirectory, options.ProjectRoots))
+        if (!ContainsSection(developerInstructionsInput, "# Project Context"))
         {
-            var content = File.ReadAllText(path).Trim();
-            if (content.Length == 0)
+            foreach (var path in EnumerateAgentInstructionFiles(options.WorkingDirectory, options.ProjectRoots))
             {
-                continue;
-            }
+                var content = File.ReadAllText(path).Trim();
+                if (content.Length == 0)
+                {
+                    continue;
+                }
 
-            developerSections.Add(
-                $"""
-                File: {path}
-                {content}
-                """);
+                developerSections.Add(
+                    $"""
+                    File: {path}
+                    {content}
+                    """);
+            }
         }
 
-        var activeSkillsSection = BuildActiveSkillsSection(loadedSkills);
-        if (!string.IsNullOrWhiteSpace(activeSkillsSection))
+        if (!ContainsSection(developerInstructionsInput, "# Active Skills") &&
+            !ContainsSection(developerInstructionsInput, "<active_skills>"))
         {
-            developerSections.Add(activeSkillsSection);
+            var activeSkillsSection = BuildActiveSkillsSection(loadedSkills);
+            if (!string.IsNullOrWhiteSpace(activeSkillsSection))
+            {
+                developerSections.Add(activeSkillsSection);
+            }
         }
 
         var developerInstructions = developerSections.Count == 0
@@ -51,6 +61,9 @@ internal static class LocalAgentInstructionComposer
 
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool ContainsSection(string? value, string marker)
+        => !string.IsNullOrWhiteSpace(value) && value.Contains(marker, StringComparison.OrdinalIgnoreCase);
 
     private static string BuildRuntimeContextSection(string? workingDirectory, IReadOnlyList<string> projectRoots)
     {

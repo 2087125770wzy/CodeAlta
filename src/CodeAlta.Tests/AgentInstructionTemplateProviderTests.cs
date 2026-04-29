@@ -19,7 +19,11 @@ public sealed class AgentInstructionTemplateProviderTests
 
         Assert.IsFalse(string.IsNullOrWhiteSpace(instructions.SystemMessage));
         StringAssert.Contains(instructions.SystemMessage, "You are CodeAlta");
-        Assert.IsNull(instructions.DeveloperInstructions);
+        Assert.IsNotNull(instructions.DeveloperInstructions);
+        StringAssert.Contains(instructions.DeveloperInstructions, "# Role");
+        StringAssert.Contains(instructions.DeveloperInstructions, "# Runtime Context");
+        StringAssert.Contains(instructions.DeveloperInstructions, "# Tool Guidance");
+        Assert.IsNotNull(instructions.PromptBundle);
     }
 
     [TestMethod]
@@ -31,7 +35,9 @@ public sealed class AgentInstructionTemplateProviderTests
 
         Assert.IsFalse(string.IsNullOrWhiteSpace(instructions.SystemMessage));
         StringAssert.Contains(instructions.SystemMessage, "software engineering agent");
-        Assert.IsNull(instructions.DeveloperInstructions);
+        Assert.IsNotNull(instructions.DeveloperInstructions);
+        StringAssert.Contains(instructions.DeveloperInstructions, "# Role");
+        Assert.IsNotNull(instructions.PromptBundle);
     }
 
     [TestMethod]
@@ -74,6 +80,7 @@ public sealed class AgentInstructionTemplateProviderTests
             CreateProfile(skills: ["code-review"]));
 
         Assert.IsNotNull(instructions.DeveloperInstructions);
+        StringAssert.Contains(instructions.DeveloperInstructions, "# Available Skills");
         StringAssert.Contains(instructions.DeveloperInstructions, "<available_skills>");
         StringAssert.Contains(instructions.DeveloperInstructions, "code-review");
         StringAssert.Contains(instructions.DeveloperInstructions, "preferred=\"true\"");
@@ -82,6 +89,66 @@ public sealed class AgentInstructionTemplateProviderTests
         var preferredIndex = instructions.DeveloperInstructions.IndexOf("code-review", StringComparison.Ordinal);
         var otherIndex = instructions.DeveloperInstructions.IndexOf("dotnet-test", StringComparison.Ordinal);
         Assert.IsTrue(preferredIndex >= 0 && otherIndex >= 0 && preferredIndex < otherIndex);
+    }
+
+    [TestMethod]
+    public void SystemPromptBuilder_AppliesTemplateAndUserOverrides()
+    {
+        using var temp = TestTempDirectory.Create();
+        var roots = CreatePromptRoots(temp.Path);
+        File.WriteAllText(Path.Combine(roots.UserPromptRoot, "template.yml"), "base: team\nrole: reviewer\nproject_context: false\ntool_guidance: false");
+        File.WriteAllText(Path.Combine(roots.ShippedPromptRoot, "base", "team.system-prompt.md"), "Built-in team base.");
+        File.WriteAllText(Path.Combine(roots.ShippedPromptRoot, "roles", "reviewer.role.md"), "Built-in reviewer role.");
+        Directory.CreateDirectory(Path.Combine(roots.UserPromptRoot, "base"));
+        Directory.CreateDirectory(Path.Combine(roots.UserPromptRoot, "roles"));
+        File.WriteAllText(Path.Combine(roots.UserPromptRoot, "base", "team.system-prompt.md"), "User team base.");
+        File.WriteAllText(Path.Combine(roots.UserPromptRoot, "roles", "reviewer.role.md"), "User reviewer role.");
+        var builder = new SystemPromptBuilder(new FixedPromptContentLocator(roots));
+
+        var bundle = builder.Build(new SystemPromptBuildRequest
+        {
+            ProviderKey = "provider",
+            Thread = CreateThread(temp.Path),
+        });
+
+        Assert.AreEqual("User team base.", bundle.SystemMessage);
+        Assert.IsNotNull(bundle.DeveloperInstructions);
+        StringAssert.Contains(bundle.DeveloperInstructions, "User reviewer role.");
+        Assert.IsFalse(bundle.DeveloperInstructions.Contains("# Project Context", StringComparison.Ordinal));
+        Assert.IsFalse(bundle.DeveloperInstructions.Contains("# Tool Guidance", StringComparison.Ordinal));
+        Assert.AreEqual("team", bundle.Manifest.Template.BaseName);
+        Assert.AreEqual("reviewer", bundle.Manifest.Template.RoleName);
+        Assert.IsTrue(bundle.Manifest.Parts.Any(static part => part.Status == "replaced"));
+    }
+
+    [TestMethod]
+    public void SystemPromptBuilder_RendersProjectContextUsingLargestRecognizedFilePerDirectory()
+    {
+        using var temp = TestTempDirectory.Create();
+        var roots = CreatePromptRoots(temp.Path);
+        var repoRoot = Path.Combine(temp.Path, "repo");
+        var projectRoot = Path.Combine(repoRoot, "src", "Project");
+        Directory.CreateDirectory(projectRoot);
+        Directory.CreateDirectory(Path.Combine(projectRoot, ".github"));
+        File.WriteAllText(Path.Combine(repoRoot, "AGENTS.md"), "root");
+        File.WriteAllText(Path.Combine(repoRoot, "CLAUDE.md"), "root claude instructions are longer");
+        File.WriteAllText(Path.Combine(projectRoot, "AGENTS.md"), "project agents");
+        File.WriteAllText(Path.Combine(projectRoot, ".github", "copilot-instructions.md"), "project copilot instructions are much longer than agents");
+        var builder = new SystemPromptBuilder(new FixedPromptContentLocator(roots));
+
+        var bundle = builder.Build(new SystemPromptBuildRequest
+        {
+            ProviderKey = "provider",
+            Thread = CreateThread(projectRoot),
+            ProjectRoots = [projectRoot],
+        });
+
+        Assert.IsNotNull(bundle.DeveloperInstructions);
+        StringAssert.Contains(bundle.DeveloperInstructions, "# Project Context");
+        StringAssert.Contains(bundle.DeveloperInstructions, Path.Combine(repoRoot, "CLAUDE.md"));
+        Assert.IsFalse(bundle.DeveloperInstructions.Contains(Path.Combine(repoRoot, "AGENTS.md"), StringComparison.Ordinal));
+        StringAssert.Contains(bundle.DeveloperInstructions, Path.Combine(projectRoot, ".github", "copilot-instructions.md"));
+        Assert.IsFalse(bundle.DeveloperInstructions.Contains(Path.Combine(projectRoot, "AGENTS.md"), StringComparison.Ordinal));
     }
 
     private static async Task WriteSkillAsync(string projectRoot, string name, string description)
@@ -137,4 +204,34 @@ public sealed class AgentInstructionTemplateProviderTests
             Skills = skills ?? [],
             SourcePath = "role.md",
         };
+
+    private static SystemPromptContentRoots CreatePromptRoots(string root)
+    {
+        var shippedRoot = Path.Combine(root, "app", "content", "system_prompts");
+        var docsRoot = Path.Combine(root, "app", "content", "docs");
+        var userRoot = Path.Combine(root, "user", ".alta", "system_prompts");
+        Directory.CreateDirectory(Path.Combine(shippedRoot, "base"));
+        Directory.CreateDirectory(Path.Combine(shippedRoot, "roles"));
+        Directory.CreateDirectory(docsRoot);
+        Directory.CreateDirectory(userRoot);
+        File.WriteAllText(Path.Combine(shippedRoot, "base", "default.system-prompt.md"), "Built-in base.");
+        File.WriteAllText(Path.Combine(shippedRoot, "roles", "default.role.md"), "Built-in role.");
+        return new SystemPromptContentRoots(shippedRoot, docsRoot, userRoot, null, false);
+    }
+
+    private sealed class FixedPromptContentLocator : ISystemPromptContentLocator
+    {
+        private readonly SystemPromptContentRoots _roots;
+
+        public FixedPromptContentLocator(SystemPromptContentRoots roots)
+        {
+            _roots = roots;
+        }
+
+        public SystemPromptContentRoots GetRoots(SystemPromptDiscoveryContext context) => _roots;
+
+        public string ResolveBuiltInPromptPath(string relativePromptPath) => Path.Combine(_roots.ShippedPromptRoot, relativePromptPath);
+
+        public string ResolveBuiltInDocPath(string fileName) => Path.Combine(_roots.ShippedDocsRoot, fileName);
+    }
 }

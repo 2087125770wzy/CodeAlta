@@ -13,7 +13,7 @@ public sealed class AgentInstructionTemplateProvider
 {
     private readonly SkillCatalog? _skillCatalog;
     private readonly CatalogOptions? _catalogOptions;
-    private readonly ISystemPromptContentLocator _contentLocator;
+    private readonly SystemPromptBuilder _promptBuilder;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AgentInstructionTemplateProvider"/> class.
@@ -27,7 +27,7 @@ public sealed class AgentInstructionTemplateProvider
     {
         _skillCatalog = skillCatalog;
         _catalogOptions = catalogOptions;
-        _contentLocator = contentLocator ?? new FileSystemPromptContentLocator();
+        _promptBuilder = new SystemPromptBuilder(contentLocator);
     }
 
     /// <summary>
@@ -48,10 +48,12 @@ public sealed class AgentInstructionTemplateProvider
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(profile);
 
+        var bundle = BuildPromptBundle(thread, project, profile);
         return new AgentInstructionBundle
         {
-            SystemMessage = LoadDefaultSystemPrompt(),
-            DeveloperInstructions = BuildSkillsDeveloperInstructions(thread, project, profile),
+            SystemMessage = bundle.SystemMessage,
+            DeveloperInstructions = bundle.DeveloperInstructions,
+            PromptBundle = bundle,
         };
     }
 
@@ -73,11 +75,35 @@ public sealed class AgentInstructionTemplateProvider
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(profile);
 
+        var bundle = BuildPromptBundle(thread, project, profile);
         return new AgentInstructionBundle
         {
-            SystemMessage = LoadDefaultSystemPrompt(),
-            DeveloperInstructions = BuildSkillsDeveloperInstructions(thread, project, profile),
+            SystemMessage = bundle.SystemMessage,
+            DeveloperInstructions = bundle.DeveloperInstructions,
+            PromptBundle = bundle,
         };
+    }
+
+    private SystemPromptBundle BuildPromptBundle(
+        WorkThreadDescriptor thread,
+        ProjectDescriptor? project,
+        RoleProfile profile)
+    {
+        var projectRoots = string.IsNullOrWhiteSpace(project?.ProjectPath)
+            ? Array.Empty<string>()
+            : [project.ProjectPath];
+        return _promptBuilder.Build(new SystemPromptBuildRequest
+        {
+            ProviderKey = thread.ResolvedProviderKey,
+            ProviderType = thread.BackendId,
+            ProtocolFamily = thread.BackendId,
+            Model = profile.DefaultModel,
+            Thread = thread,
+            Project = project,
+            WorkingDirectory = thread.WorkingDirectory,
+            ProjectRoots = projectRoots,
+            AvailableSkillsMarkdown = BuildSkillsDeveloperInstructions(thread, project, profile),
+        });
     }
 
     private string? BuildSkillsDeveloperInstructions(
@@ -186,20 +212,4 @@ public sealed class AgentInstructionTemplateProvider
             .Replace(">", "&gt;", StringComparison.Ordinal)
             .Replace("\"", "&quot;", StringComparison.Ordinal);
 
-    private string LoadDefaultSystemPrompt()
-    {
-        var promptPath = _contentLocator.ResolveBuiltInPromptPath(Path.Combine("base", "default.system-prompt.md"));
-        if (!File.Exists(promptPath))
-        {
-            throw new InvalidOperationException($"Built-in system prompt '{promptPath}' was not found.");
-        }
-
-        var prompt = File.ReadAllText(promptPath).Trim();
-        if (string.IsNullOrWhiteSpace(prompt))
-        {
-            throw new InvalidOperationException($"Built-in system prompt '{promptPath}' is empty.");
-        }
-
-        return prompt;
-    }
 }
