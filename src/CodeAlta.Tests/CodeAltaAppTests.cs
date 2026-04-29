@@ -138,6 +138,23 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void BuildCopyMarkdown_IncludesCollapsibleSections()
+    {
+        var markdown = ChatTimelineVisualFactory.BuildCopyMarkdown(
+            "System Prompt changed: `hash`\n- Tokens: 42",
+            [
+                new ChatCollapsibleMarkdownSection("Verbatim prompt", "<!-- SystemMessage -->\nsystem"),
+                new ChatCollapsibleMarkdownSection("Prompt diff", "```diff\n-old\n+new\n```"),
+            ]);
+
+        StringAssert.Contains(markdown, "System Prompt changed: `hash`");
+        StringAssert.Contains(markdown, "## Verbatim prompt");
+        StringAssert.Contains(markdown, "<!-- SystemMessage -->\nsystem");
+        StringAssert.Contains(markdown, "## Prompt diff");
+        StringAssert.Contains(markdown, "```diff\n-old\n+new\n```");
+    }
+
+    [TestMethod]
     public async Task BuildUserPromptTimelineItems_CanBeCalledFromWorkerThread()
     {
         var pending = ChatTimelineVisualFactory.CreatePendingChatMessage("hello");

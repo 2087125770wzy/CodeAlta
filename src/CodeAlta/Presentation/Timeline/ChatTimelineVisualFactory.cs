@@ -1,5 +1,6 @@
 using CodeAlta.Threading;
 using System.Globalization;
+using System.Text;
 using CodeAlta.Agent;
 using CodeAlta.App;
 using CodeAlta.Models;
@@ -265,7 +266,7 @@ internal static class ChatTimelineVisualFactory
         };
 
         var copyButton = new Button(new TextBlock($"{NerdFont.MdContentCopy}"))
-            .Click(() => markdownControl.App?.Terminal.Clipboard.TrySetText(markdownControl.Markdown ?? string.Empty));
+            .Click(() => markdownControl.App?.Terminal.Clipboard.TrySetText(BuildCopyMarkdown(markdownControl.Markdown ?? string.Empty, collapsibleSections)));
 
         var timestampText = new Markup(string.Empty);
 
@@ -317,6 +318,37 @@ internal static class ChatTimelineVisualFactory
             markdownControl,
             timestampText,
             headerText);
+    }
+
+    internal static string BuildCopyMarkdown(string markdown, IReadOnlyList<ChatCollapsibleMarkdownSection>? collapsibleSections = null)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+
+        if (collapsibleSections is not { Count: > 0 })
+        {
+            return markdown;
+        }
+
+        var builder = new StringBuilder(markdown.TrimEnd());
+        foreach (var section in collapsibleSections)
+        {
+            if (string.IsNullOrWhiteSpace(section.Header) || string.IsNullOrWhiteSpace(section.Markdown))
+            {
+                continue;
+            }
+
+            if (builder.Length > 0)
+            {
+                builder.AppendLine().AppendLine();
+            }
+
+            builder.Append("## ")
+                .AppendLine(section.Header.Trim())
+                .AppendLine()
+                .Append(section.Markdown.Trim());
+        }
+
+        return builder.ToString();
     }
 
     private static Visual CreateImageAttachmentStrip(
