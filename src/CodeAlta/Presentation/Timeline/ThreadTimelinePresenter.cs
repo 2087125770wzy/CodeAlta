@@ -359,6 +359,27 @@ internal sealed class ThreadTimelinePresenter
         AppendTimelineItem(entry.Item);
     }
 
+    public void AddCollapsibleStatus(
+        DateTimeOffset timestamp,
+        string markdown,
+        IReadOnlyList<ChatCollapsibleMarkdownSection> collapsibleSections,
+        ChatTimelineTone tone,
+        string? headerOverride = null,
+        string? headerSecondary = null)
+    {
+        ArgumentNullException.ThrowIfNull(collapsibleSections);
+
+        var entry = ChatTimelineVisualFactory.CreateCollapsibleMarkdownItem(
+            markdown,
+            collapsibleSections,
+            tone,
+            headerOverride,
+            headerSecondary,
+            localFileRootPath: _localFileRootPath);
+        ChatTimelineVisualFactory.ApplyTimestamp(entry.TimestampText, timestamp);
+        AppendTimelineItem(entry.Item);
+    }
+
     public void UpsertInteraction(
         string interactionId,
         DateTimeOffset timestamp,

@@ -40,7 +40,7 @@ internal static class FileChangeSummaryFormatter
         ArgumentNullException.ThrowIfNull(entry);
 
         var builder = new StringBuilder();
-        AppendChangeCounts(builder, entry.Additions, entry.Deletions);
+        DiffDisplayFormatter.AppendChangeCountsMarkup(builder, entry.Additions, entry.Deletions);
         return builder.ToString();
     }
 
@@ -54,7 +54,7 @@ internal static class FileChangeSummaryFormatter
             .Append(']')
             .Append(group.Files.Count.ToString(CultureInfo.InvariantCulture))
             .Append(" file(s) · ");
-        AppendChangeCounts(builder, group.TotalAdditions, group.TotalDeletions);
+        DiffDisplayFormatter.AppendChangeCountsMarkup(builder, group.TotalAdditions, group.TotalDeletions);
         builder.Append("[/]");
         return builder.ToString();
     }
@@ -84,51 +84,13 @@ internal static class FileChangeSummaryFormatter
         ArgumentNullException.ThrowIfNull(entry);
 
         var builder = new StringBuilder("[dim]");
-        AppendChangeCounts(builder, entry.Additions, entry.Deletions);
+        DiffDisplayFormatter.AppendChangeCountsMarkup(builder, entry.Additions, entry.Deletions);
         builder.Append(" · ").Append(GetOperationLabel(entry.Operation)).Append("[/]");
         return builder.ToString();
     }
 
     public static string GetDiffLineMarkup(string line)
-    {
-        ArgumentNullException.ThrowIfNull(line);
-
-        string? markup = line switch
-        {
-            _ when line.StartsWith('+') && !line.StartsWith("+++", StringComparison.Ordinal)
-                => UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Completed),
-            _ when line.StartsWith('-') && !line.StartsWith("---", StringComparison.Ordinal)
-                => UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Failed),
-            _ when line.StartsWith("@@", StringComparison.Ordinal)
-                => UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Running),
-            _ when line.StartsWith("diff --git", StringComparison.Ordinal)
-                || line.StartsWith("--- ", StringComparison.Ordinal)
-                || line.StartsWith("+++ ", StringComparison.Ordinal)
-                || line.StartsWith("index ", StringComparison.Ordinal)
-                || line.StartsWith("new file mode", StringComparison.Ordinal)
-                || line.StartsWith("deleted file mode", StringComparison.Ordinal)
-                => UiPalette.MutedMarkup,
-            _ => null,
-        };
-
-        var escaped = AnsiMarkup.Escape(line);
-        return string.IsNullOrWhiteSpace(markup)
-            ? escaped
-            : $"[{markup}]{escaped}[/]";
-    }
-
-    private static void AppendChangeCounts(StringBuilder builder, int additions, int deletions)
-    {
-        builder.Append('[')
-            .Append(UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Completed))
-            .Append("]+")
-            .Append(additions.ToString(CultureInfo.InvariantCulture))
-            .Append("[/] [")
-            .Append(UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Failed))
-            .Append("]-")
-            .Append(deletions.ToString(CultureInfo.InvariantCulture))
-            .Append("[/]");
-    }
+        => DiffDisplayFormatter.GetDiffLineMarkup(line);
 
     private static string GetOperationLabel(FileChangeOperation operation)
     {

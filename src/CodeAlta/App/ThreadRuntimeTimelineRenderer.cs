@@ -155,14 +155,28 @@ internal sealed class ThreadRuntimeTimelineRenderer
                 break;
 
             case AgentSystemPromptEvent systemPrompt:
+                var sections = new List<ChatCollapsibleMarkdownSection>
+                {
+                    new("Verbatim prompt", ChatMarkdownFormatter.FormatSystemPromptVerbatimMarkdown(systemPrompt)),
+                };
+                if (tab.Session.LastRenderedSystemPromptEvent is { } previousSystemPrompt &&
+                    !string.Equals(systemPrompt.Change.Kind, "initial", StringComparison.OrdinalIgnoreCase))
+                {
+                    var promptDiffMarkdown = ChatMarkdownFormatter.FormatSystemPromptDiffMarkdown(previousSystemPrompt, systemPrompt);
+                    if (!string.IsNullOrWhiteSpace(promptDiffMarkdown))
+                    {
+                        sections.Add(new ChatCollapsibleMarkdownSection("Prompt diff", promptDiffMarkdown));
+                    }
+                }
+
                 tab.Timeline.AddCollapsibleStatus(
                     systemPrompt.Timestamp,
                     ChatMarkdownFormatter.FormatSystemPromptSummaryMarkdown(systemPrompt),
-                    "Verbatim prompt",
-                    ChatMarkdownFormatter.FormatSystemPromptVerbatimMarkdown(systemPrompt),
+                    sections,
                     ChatTimelineTone.Notice,
                     headerOverride: "Notice",
                     headerSecondary: "System Prompt");
+                tab.Session.LastRenderedSystemPromptEvent = systemPrompt;
                 break;
 
             case AgentSessionUpdateEvent update:

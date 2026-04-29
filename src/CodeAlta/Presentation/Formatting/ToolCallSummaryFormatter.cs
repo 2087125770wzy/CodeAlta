@@ -38,10 +38,10 @@ internal static class ToolCallSummaryFormatter
         builder.AppendLine()
             .Append("[dim]")
             .Append(AnsiMarkup.Escape(detailLine));
-        if (TryGetDiffStats(entry.DiffText, out var additions, out var deletions))
+        if (DiffDisplayFormatter.TryGetDiffStats(entry.DiffText, out var additions, out var deletions))
         {
             builder.Append(" · ");
-            AppendChangeCounts(builder, additions, deletions);
+            DiffDisplayFormatter.AppendChangeCountsMarkup(builder, additions, deletions);
         }
 
         builder.Append("[/]");
@@ -109,7 +109,7 @@ internal static class ToolCallSummaryFormatter
             builder.Append("- Parent: `").Append(entry.ParentToolCallId).AppendLine("`");
         }
 
-        if (TryGetDiffStats(entry.DiffText, out var additions, out var deletions))
+        if (DiffDisplayFormatter.TryGetDiffStats(entry.DiffText, out var additions, out var deletions))
         {
             builder.Append("- Changes: `+")
                 .Append(additions.ToString(CultureInfo.InvariantCulture))
@@ -182,48 +182,6 @@ internal static class ToolCallSummaryFormatter
         return string.Equals(prefix, SplitPascalCase(entry.Status.ToString()), StringComparison.OrdinalIgnoreCase) && entry.OutputLineCount > 0
             ? $"{entry.OutputLineCount.ToString(CultureInfo.InvariantCulture)}L · {FormatToolCallKilobytes(entry.OutputByteCount)}"
             : $"{prefix} · {entry.OutputLineCount.ToString(CultureInfo.InvariantCulture)}L · {FormatToolCallKilobytes(entry.OutputByteCount)}";
-    }
-
-    private static void AppendChangeCounts(StringBuilder builder, int additions, int deletions)
-    {
-        builder.Append('[')
-            .Append(UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Completed))
-            .Append("]+")
-            .Append(additions.ToString(CultureInfo.InvariantCulture))
-            .Append("[/] [")
-            .Append(UiPalette.GetToolStatusMarkup(ToolCallDisplayStatus.Failed))
-            .Append("]-")
-            .Append(deletions.ToString(CultureInfo.InvariantCulture))
-            .Append("[/]");
-    }
-
-    private static bool TryGetDiffStats(string? diffText, out int additions, out int deletions)
-    {
-        additions = 0;
-        deletions = 0;
-        if (string.IsNullOrWhiteSpace(diffText))
-        {
-            return false;
-        }
-
-        foreach (var line in SplitToolOutputLines(diffText!))
-        {
-            if (line.StartsWith("+++", StringComparison.Ordinal) || line.StartsWith("---", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (line.StartsWith('+'))
-            {
-                additions++;
-            }
-            else if (line.StartsWith('-'))
-            {
-                deletions++;
-            }
-        }
-
-        return additions > 0 || deletions > 0;
     }
 
     private static string GetToolStatusIconMarkup(ToolCallDisplayStatus status)

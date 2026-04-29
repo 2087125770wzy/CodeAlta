@@ -99,6 +99,23 @@ internal static class ChatTimelineVisualFactory
         string? headerSecondary = null,
         int maxCodeBlockHeight = 14,
         string? localFileRootPath = null)
+        => CreateCollapsibleMarkdownItem(
+            markdown,
+            [new ChatCollapsibleMarkdownSection(collapsibleHeader, collapsibleMarkdown)],
+            tone,
+            headerOverride,
+            headerSecondary,
+            maxCodeBlockHeight,
+            localFileRootPath);
+
+    public static ChatMarkdownEntry CreateCollapsibleMarkdownItem(
+        string markdown,
+        IReadOnlyList<ChatCollapsibleMarkdownSection> collapsibleSections,
+        ChatTimelineTone tone,
+        string? headerOverride = null,
+        string? headerSecondary = null,
+        int maxCodeBlockHeight = 14,
+        string? localFileRootPath = null)
         => UiDispatch.InvokeCurrent(
             static state => CreateChatMarkdownItemCore(
                 state.markdown,
@@ -107,9 +124,8 @@ internal static class ChatTimelineVisualFactory
                 state.headerSecondary,
                 state.maxCodeBlockHeight,
                 state.localFileRootPath,
-                state.collapsibleHeader,
-                state.collapsibleMarkdown),
-            (markdown, tone, headerOverride, headerSecondary, maxCodeBlockHeight, localFileRootPath, collapsibleHeader, collapsibleMarkdown));
+                state.collapsibleSections),
+            (markdown, tone, headerOverride, headerSecondary, maxCodeBlockHeight, localFileRootPath, collapsibleSections));
 
     public static MarkdownRenderOptions CreateThreadMarkdownOptions(int maxCodeBlockHeight, string? localFileRootPath = null)
         => MarkdownRenderOptions.Default with
@@ -235,8 +251,7 @@ internal static class ChatTimelineVisualFactory
         string? headerSecondary,
         int maxCodeBlockHeight,
         string? localFileRootPath,
-        string? collapsibleHeader = null,
-        string? collapsibleMarkdown = null,
+        IReadOnlyList<ChatCollapsibleMarkdownSection>? collapsibleSections = null,
         IReadOnlyList<PromptImageAttachmentReference>? imageAttachments = null,
         Func<Rectangle?>? getDialogBounds = null)
     {
@@ -260,18 +275,26 @@ internal static class ChatTimelineVisualFactory
             contentItems.Add(CreateImageAttachmentStrip(imageAttachments, getDialogBounds));
         }
 
-        if (!string.IsNullOrWhiteSpace(collapsibleHeader) && !string.IsNullOrWhiteSpace(collapsibleMarkdown))
+        if (collapsibleSections is { Count: > 0 })
         {
-            var detailsMarkdown = new MarkdownControl(collapsibleMarkdown.Trim())
+            foreach (var section in collapsibleSections)
             {
-                HorizontalAlignment = Align.Stretch,
-                VerticalAlignment = Align.Start,
-                Options = CreateThreadMarkdownOptions(maxCodeBlockHeight, localFileRootPath),
-            };
-            contentItems.Add(new Collapsible()
-                .Header(collapsibleHeader)
-                .Content(detailsMarkdown)
-                .IsExpanded(false));
+                if (string.IsNullOrWhiteSpace(section.Header) || string.IsNullOrWhiteSpace(section.Markdown))
+                {
+                    continue;
+                }
+
+                var detailsMarkdown = new MarkdownControl(section.Markdown.Trim())
+                {
+                    HorizontalAlignment = Align.Stretch,
+                    VerticalAlignment = Align.Start,
+                    Options = CreateThreadMarkdownOptions(maxCodeBlockHeight, localFileRootPath),
+                };
+                contentItems.Add(new Collapsible()
+                    .Header(section.Header)
+                    .Content(detailsMarkdown)
+                    .IsExpanded(false));
+            }
         }
 
         Visual groupContent = contentItems.Count == 1

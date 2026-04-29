@@ -115,6 +115,29 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void CreateCollapsibleMarkdownItem_RendersMultipleCollapsibleSections()
+    {
+        var entry = ChatTimelineVisualFactory.CreateCollapsibleMarkdownItem(
+            "summary",
+            [
+                new ChatCollapsibleMarkdownSection("First details", "first"),
+                new ChatCollapsibleMarkdownSection("Second details", "second"),
+            ],
+            ChatTimelineTone.Notice);
+
+        var document = Assert.IsInstanceOfType<FlowDocument>(entry.Item.Content);
+        Assert.AreEqual(1, document.BlockCount);
+        var block = Assert.IsInstanceOfType<VisualDocumentFlowBlock>(document.GetBlock(0));
+        var group = Assert.IsInstanceOfType<Group>(block.CreateVisual());
+        var stack = Assert.IsInstanceOfType<VStack>(group.Content);
+
+        Assert.AreEqual(3, stack.Children.Count);
+        Assert.IsInstanceOfType<MarkdownControl>(stack.Children[0]);
+        Assert.IsInstanceOfType<Collapsible>(stack.Children[1]);
+        Assert.IsInstanceOfType<Collapsible>(stack.Children[2]);
+    }
+
+    [TestMethod]
     public async Task BuildUserPromptTimelineItems_CanBeCalledFromWorkerThread()
     {
         var pending = ChatTimelineVisualFactory.CreatePendingChatMessage("hello");
@@ -1005,6 +1028,46 @@ public sealed class CodeAltaAppTests
         StringAssert.Contains(markup, "-1");
         StringAssert.Contains(markup, "apply_patch");
         StringAssert.Contains(markdown, "- Changes: `+1 -1`");
+    }
+
+    [TestMethod]
+    public void FormatSystemPromptDiffMarkdown_BuildsFullPromptUnifiedDiff()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        var previous = CreateSystemPromptEvent(
+            timestamp,
+            "sha256:old",
+            systemMessage: "system\nold rule",
+            developerInstructions: "developer\nkeep",
+            changeKind: "initial");
+        var current = CreateSystemPromptEvent(
+            timestamp.AddSeconds(1),
+            "sha256:new",
+            systemMessage: "system\nnew rule",
+            developerInstructions: "developer\nkeep\nmore detail",
+            changeKind: "changed");
+
+        var markdown = ChatMarkdownFormatter.FormatSystemPromptDiffMarkdown(previous, current);
+
+        StringAssert.Contains(markdown, "```diff");
+        StringAssert.Contains(markdown, "--- system-prompt/sha256:old");
+        StringAssert.Contains(markdown, "+++ system-prompt/sha256:new");
+        StringAssert.Contains(markdown, "-old rule");
+        StringAssert.Contains(markdown, "+new rule");
+        StringAssert.Contains(markdown, "+more detail");
+        StringAssert.Contains(markdown, " <!-- DeveloperInstructions -->");
+    }
+
+    [TestMethod]
+    public void FormatSystemPromptDiffMarkdown_ReturnsEmptyForIdenticalPrompt()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        var previous = CreateSystemPromptEvent(timestamp, "sha256:old");
+        var current = CreateSystemPromptEvent(timestamp.AddSeconds(1), "sha256:new", changeKind: "changed");
+
+        var markdown = ChatMarkdownFormatter.FormatSystemPromptDiffMarkdown(previous, current);
+
+        Assert.AreEqual(string.Empty, markdown);
     }
 
     [TestMethod]
@@ -2574,7 +2637,12 @@ public sealed class CodeAltaAppTests
         }
     }
 
-    private static AgentSystemPromptEvent CreateSystemPromptEvent(DateTimeOffset timestamp, string hash)
+    private static AgentSystemPromptEvent CreateSystemPromptEvent(
+        DateTimeOffset timestamp,
+        string hash,
+        string systemMessage = "system",
+        string developerInstructions = "developer",
+        string changeKind = "initial")
         => new(
             AgentBackendIds.Copilot,
             "session-1",
@@ -2582,12 +2650,12 @@ public sealed class CodeAltaAppTests
             null,
             "session_start",
             hash,
-            "system",
-            "developer",
+            systemMessage,
+            developerInstructions,
             new AgentSystemPromptProviderPayloadSummary("native-system-and-developer", true, false),
             null,
             new AgentSystemPromptStatistics(1, 1, 2, 6, 9),
-            new AgentSystemPromptChangeSummary("initial", ["base/default"], [], []));
+            new AgentSystemPromptChangeSummary(changeKind, ["base/default"], [], []));
 
     private static void TickTerminalApp(TerminalApp app)
     {

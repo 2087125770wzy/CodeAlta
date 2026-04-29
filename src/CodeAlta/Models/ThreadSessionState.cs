@@ -44,4 +44,6 @@ internal sealed class ThreadSessionState
     public DateTimeOffset? ActiveRunStartedAt { get; set; }
 
     public AgentSessionUsage? Usage { get; set; }
+
+    public AgentSystemPromptEvent? LastRenderedSystemPromptEvent { get; set; }
 }

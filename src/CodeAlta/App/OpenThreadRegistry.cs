@@ -95,6 +95,7 @@ internal sealed class OpenThreadRegistry
         tab.Timeline.Reset();
         tab.PermissionRequests.Clear();
         tab.UserInputRequests.Clear();
+        tab.Session.LastRenderedSystemPromptEvent = null;
     }
 
     public OpenThreadState? FindOpenThread(string threadId)

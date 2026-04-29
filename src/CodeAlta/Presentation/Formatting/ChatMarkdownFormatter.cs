@@ -134,18 +134,41 @@ internal static class ChatMarkdownFormatter
     public static string FormatSystemPromptVerbatimMarkdown(AgentSystemPromptEvent promptEvent)
     {
         ArgumentNullException.ThrowIfNull(promptEvent);
+        return FormatSystemPromptPartsMarkdown(promptEvent.SystemMessage, promptEvent.DeveloperInstructions);
+    }
+
+    public static string FormatSystemPromptDiffMarkdown(AgentSystemPromptEvent previousPromptEvent, AgentSystemPromptEvent promptEvent)
+    {
+        ArgumentNullException.ThrowIfNull(previousPromptEvent);
+        ArgumentNullException.ThrowIfNull(promptEvent);
+
+        var previousPrompt = FormatSystemPromptVerbatimMarkdown(previousPromptEvent);
+        var currentPrompt = FormatSystemPromptVerbatimMarkdown(promptEvent);
+        var diff = DiffDisplayFormatter.CreateUnifiedDiff(
+            previousPrompt,
+            currentPrompt,
+            $"system-prompt/{previousPromptEvent.EffectivePromptHash}",
+            $"system-prompt/{promptEvent.EffectivePromptHash}");
+
+        return string.IsNullOrWhiteSpace(diff)
+            ? string.Empty
+            : DiffDisplayFormatter.CreateDiffCodeBlock(diff);
+    }
+
+    private static string FormatSystemPromptPartsMarkdown(string? systemMessage, string? developerInstructions)
+    {
         var builder = new StringBuilder();
         builder.AppendLine("<!-- SystemMessage -->");
-        if (!string.IsNullOrWhiteSpace(promptEvent.SystemMessage))
+        if (!string.IsNullOrWhiteSpace(systemMessage))
         {
-            builder.AppendLine(promptEvent.SystemMessage.Trim());
+            builder.AppendLine(systemMessage.Trim());
         }
 
         builder.AppendLine();
         builder.AppendLine("<!-- DeveloperInstructions -->");
-        if (!string.IsNullOrWhiteSpace(promptEvent.DeveloperInstructions))
+        if (!string.IsNullOrWhiteSpace(developerInstructions))
         {
-            builder.AppendLine(promptEvent.DeveloperInstructions.Trim());
+            builder.AppendLine(developerInstructions.Trim());
         }
 
         return builder.ToString();

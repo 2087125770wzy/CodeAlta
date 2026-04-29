@@ -47,6 +47,8 @@ namespace CodeAlta.Models
 
     internal sealed record ChatMarkdownEntry(DocumentFlowItem Item, MarkdownControl Markdown, Markup TimestampText, Markup HeaderText);
 
+    internal sealed record ChatCollapsibleMarkdownSection(string Header, string Markdown);
+
     internal sealed class ChatBackendState(AgentBackendId backendId, string displayName)
     {
         public AgentBackendId BackendId { get; } = backendId;

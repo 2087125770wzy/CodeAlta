@@ -8,6 +8,8 @@ using CodeAlta.Presentation.Prompting;
 using CodeAlta.Presentation.Timeline;
 using CodeAlta.Search;
 using CodeAlta.Threading;
+using XenoAtom.Terminal.UI;
+using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.Tests;
 
@@ -121,6 +123,31 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         Assert.IsFalse(tab.HasCustomStatus);
         Assert.IsFalse(tab.StatusBusy);
         Assert.IsNull(tab.StatusMessage);
+    }
+
+    [TestMethod]
+    public void RenderAgentEvent_SystemPromptChangeAddsPromptDiffSection()
+    {
+        var thread = CreateThread();
+        var tab = CreateOpenThreadState(thread);
+        var renderer = new ThreadRuntimeTimelineRenderer(static () => false);
+        var timestamp = DateTimeOffset.UtcNow;
+        var initial = CreateSystemPromptEvent(timestamp, "sha256:old", "system\nold", "developer", "initial");
+        var changed = CreateSystemPromptEvent(timestamp.AddSeconds(1), "sha256:new", "system\nnew", "developer\nmore", "changed");
+
+        renderer.RenderAgentEvent(tab, initial);
+        renderer.RenderAgentEvent(tab, changed);
+
+        Assert.AreSame(changed, tab.Session.LastRenderedSystemPromptEvent);
+        Assert.AreEqual(2, tab.Timeline.Flow.Items.Count);
+        var firstStack = GetChatCardStack(tab.Timeline.Flow.Items[0]);
+        var changedStack = GetChatCardStack(tab.Timeline.Flow.Items[1]);
+
+        Assert.AreEqual(2, firstStack.Children.Count);
+        Assert.IsInstanceOfType<Collapsible>(firstStack.Children[1]);
+        Assert.AreEqual(3, changedStack.Children.Count);
+        Assert.IsInstanceOfType<Collapsible>(changedStack.Children[1]);
+        Assert.IsInstanceOfType<Collapsible>(changedStack.Children[2]);
     }
 
     [TestMethod]
@@ -384,6 +411,35 @@ public sealed class ThreadRuntimeEventCoordinatorTests
             LastActiveAt = DateTimeOffset.UtcNow,
             StartedAt = DateTimeOffset.UtcNow
         };
+    }
+
+    private static AgentSystemPromptEvent CreateSystemPromptEvent(
+        DateTimeOffset timestamp,
+        string hash,
+        string systemMessage,
+        string developerInstructions,
+        string changeKind)
+        => new(
+            AgentBackendIds.Copilot,
+            "session-1",
+            timestamp,
+            null,
+            "session_start",
+            hash,
+            systemMessage,
+            developerInstructions,
+            new AgentSystemPromptProviderPayloadSummary("native-system-and-developer", true, false),
+            null,
+            new AgentSystemPromptStatistics(1, 1, 2, 6, 9),
+            new AgentSystemPromptChangeSummary(changeKind, ["base/default"], [], []));
+
+    private static VStack GetChatCardStack(DocumentFlowItem item)
+    {
+        var document = Assert.IsInstanceOfType<FlowDocument>(item.Content);
+        Assert.AreEqual(1, document.BlockCount);
+        var block = Assert.IsInstanceOfType<VisualDocumentFlowBlock>(document.GetBlock(0));
+        var group = Assert.IsInstanceOfType<Group>(block.CreateVisual());
+        return Assert.IsInstanceOfType<VStack>(group.Content);
     }
 
     private sealed class InlineUiDispatcher : IUiDispatcher
