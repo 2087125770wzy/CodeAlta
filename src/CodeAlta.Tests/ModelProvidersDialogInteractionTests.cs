@@ -118,6 +118,133 @@ public sealed class ModelProvidersDialogInteractionTests
     }
 
     [TestMethod]
+    public void ModelProvidersDialog_SaveIgnoresTransientFailedTestResult()
+    {
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var root = new TextBlock("Root");
+        var app = new TerminalApp(
+            root,
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        IReadOnlyList<CodeAltaProviderDocument> definitionsFromDisk =
+        [
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "provider-1",
+                Enabled = true,
+                ProviderType = "openai-chat",
+                ApiKey = "key-1",
+            },
+        ];
+        var saveCount = 0;
+
+        var dialog = new ModelProvidersDialog(
+            () => definitionsFromDisk,
+            definitions =>
+            {
+                saveCount++;
+                definitionsFromDisk = definitions.ToArray();
+                return Task.CompletedTask;
+            },
+            _ => Task.FromResult(new ProviderTestResult(false, "Endpoint temporarily rejected model discovery.", 0)),
+            () => new Rectangle(0, 0, 120, 40),
+            () => root);
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            dialog.Show();
+            WaitUntil(() => GetProviderCount(dialog) == 1, app);
+
+            var provider = GetProviders(dialog)[0];
+            provider.UseDefaultDisplayName = false;
+            provider.DisplayName = "Updated provider";
+            InvokeStartTest(dialog, provider);
+            WaitUntil(() => provider.LastTestState == ViewModels.ModelProviderLastTestState.Failed, app);
+
+            InvokeStartSave(dialog);
+            WaitUntil(() => !HasUnsavedChanges(dialog), app);
+
+            Assert.AreEqual(1, saveCount);
+            Assert.IsTrue(BuildStatusMarkup(dialog).Contains("saved", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
+    public void ModelProvidersDialog_DisabledCodexSubscriptionWithoutOptInDoesNotBlockSave()
+    {
+        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var root = new TextBlock("Root");
+        var app = new TerminalApp(
+            root,
+            session.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        IReadOnlyList<CodeAltaProviderDocument> definitionsFromDisk =
+        [
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "provider-1",
+                Enabled = true,
+                ProviderType = "openai-chat",
+                ApiKey = "key-1",
+            },
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "codex_subscription",
+                Enabled = false,
+                ProviderType = "openai-codex-subscription",
+                Experimental = false,
+            },
+        ];
+        var saveCount = 0;
+
+        var dialog = new ModelProvidersDialog(
+            () => definitionsFromDisk,
+            definitions =>
+            {
+                saveCount++;
+                definitionsFromDisk = definitions.ToArray();
+                return Task.CompletedTask;
+            },
+            definition => Task.FromResult(new ProviderTestResult(true, $"Connected successfully · {definition.ProviderKey}", 1)),
+            () => new Rectangle(0, 0, 120, 40),
+            () => root);
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            dialog.Show();
+            WaitUntil(() => GetProviderCount(dialog) == 2, app);
+
+            var provider = GetProviders(dialog)[0];
+            provider.UseDefaultDisplayName = false;
+            provider.DisplayName = "Updated provider";
+
+            InvokeStartSave(dialog);
+            WaitUntil(() => !HasUnsavedChanges(dialog), app);
+
+            Assert.AreEqual(1, saveCount);
+            Assert.IsTrue(BuildStatusMarkup(dialog).Contains("saved", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
     public void ModelProvidersDialog_ReopenUsesAlreadyLoadedDefinitions()
     {
         using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);

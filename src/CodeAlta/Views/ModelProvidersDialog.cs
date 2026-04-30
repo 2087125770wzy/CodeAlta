@@ -856,7 +856,7 @@ internal sealed class ModelProvidersDialog
     {
         var diagnostics = Analyze(item);
         var errors = diagnostics.Entries
-            .Where(static entry => entry.Severity == ValidationSeverity.Error)
+            .Where(static entry => entry.Severity == ValidationSeverity.Error && IsSaveBlockingDiagnostic(entry))
             .Select(static entry => entry.Message)
             .ToArray();
         if (errors.Length > 0)
@@ -870,6 +870,9 @@ internal sealed class ModelProvidersDialog
         errorMessage = string.Empty;
         return true;
     }
+
+    private static bool IsSaveBlockingDiagnostic(ModelProviderDiagnosticEntry entry)
+        => !entry.Message.StartsWith("Last test failed:", StringComparison.Ordinal);
 
     private void SetSelectedProviderIndex(int index)
     {

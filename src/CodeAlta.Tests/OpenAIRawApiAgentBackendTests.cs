@@ -986,6 +986,53 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesAgentBackend_CodexModelDiscoveryHttpFailureUsesStaticFallback()
+    {
+        using var temp = TestTempDirectory.Create();
+        var credentialStore = new FileOpenAICodexSubscriptionCredentialStore(temp.Path);
+        await credentialStore.SaveAsync(
+            "codex_subscription",
+            new OpenAICodexSubscriptionCredential
+            {
+                AccessToken = "access-token",
+                ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+            }).ConfigureAwait(false);
+        var handler = new StaticHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("""{"detail":"model discovery is temporarily unavailable"}"""),
+        });
+
+        await using var backend = new OpenAIResponsesAgentBackend(new OpenAIResponsesAgentBackendOptions
+        {
+            StateRootPath = temp.Path,
+            Providers =
+            {
+                new OpenAIProviderOptions
+                {
+                    ProviderKey = "codex_subscription",
+                    IsDefault = true,
+                    BaseUri = new Uri("https://chatgpt.com/backend-api/codex"),
+                    SingleModelId = "gpt-5.5",
+                    CodexSubscriptionHttpClient = new HttpClient(handler),
+                    CodexSubscription = new OpenAICodexSubscriptionOptions
+                    {
+                        Experimental = true,
+                        ModelDiscovery = "codex_endpoint_with_static_fallback",
+                    },
+                },
+            },
+        });
+
+        var models = await backend.ListModelsAsync().ConfigureAwait(false);
+
+        Assert.AreEqual(1, models.Count);
+        Assert.AreEqual("gpt-5.5", models[0].Id);
+        Assert.AreEqual("codex-static-fallback", models[0].Capabilities?["source"]);
+        Assert.AreEqual(1, handler.Requests.Count);
+        Assert.AreEqual("/backend-api/codex/models", handler.Requests[0].AbsolutePath);
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_SetsCodexToolControlFieldsWithoutTools()
     {
         var responsesClient = new RecordingOpenAIResponseClient(
@@ -2304,6 +2351,17 @@ public sealed class OpenAIRawApiAgentBackendTests
         {
             values = null;
             return false;
+        }
+    }
+
+    private sealed class StaticHttpMessageHandler(HttpResponseMessage response) : HttpMessageHandler
+    {
+        public List<Uri> Requests { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request.RequestUri ?? throw new InvalidOperationException("Request URI was not set."));
+            return Task.FromResult(response);
         }
     }
 

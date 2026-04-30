@@ -220,8 +220,8 @@ internal static class OpenAIProviderSdkFactory
             InvalidOperationException invalidOperationException
                 when invalidOperationException.Message.Contains("login is required", StringComparison.OrdinalIgnoreCase) => true,
             JsonException => true,
-            CodexSubscriptionModelDiscoveryException { StatusCode: System.Net.HttpStatusCode.NotFound } => true,
-            CodexSubscriptionModelDiscoveryException { StatusCode: null } => true,
+            CodexSubscriptionModelDiscoveryException { StatusCode: System.Net.HttpStatusCode.Unauthorized } => false,
+            CodexSubscriptionModelDiscoveryException => true,
             _ => false,
         };
     }

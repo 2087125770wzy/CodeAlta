@@ -61,7 +61,7 @@ internal static class ModelProviderEditorDiagnostics
                 "Vertex AI uses Google application-default credentials from the current environment."));
         }
 
-        if (item.ProviderType == "openai-codex-subscription")
+        if (item.ProviderType == "openai-codex-subscription" && item.Enabled)
         {
             entries.Add(new ModelProviderDiagnosticEntry(
                 item.Experimental ? ValidationSeverity.Warning : ValidationSeverity.Error,
@@ -88,7 +88,7 @@ internal static class ModelProviderEditorDiagnostics
                  !string.IsNullOrWhiteSpace(item.LastTestMessage))
         {
             entries.Insert(0, new ModelProviderDiagnosticEntry(
-                ValidationSeverity.Error,
+                IsCodexSubscription(item) ? ValidationSeverity.Warning : ValidationSeverity.Error,
                 $"Last test failed: {item.LastTestMessage!.Trim()}"));
         }
 
@@ -254,7 +254,7 @@ internal static class ModelProviderEditorDiagnostics
         bool hasErrors,
         bool hasWarnings)
     {
-        if (item.LastTestState == ModelProviderLastTestState.Failed || hasErrors)
+        if ((item.LastTestState == ModelProviderLastTestState.Failed && !IsCodexSubscription(item)) || hasErrors)
         {
             return ModelProviderUiStatusKind.Error;
         }
@@ -264,7 +264,7 @@ internal static class ModelProviderEditorDiagnostics
             return ModelProviderUiStatusKind.Disabled;
         }
 
-        if (hasWarnings)
+        if (hasWarnings || (item.LastTestState == ModelProviderLastTestState.Failed && IsCodexSubscription(item)))
         {
             return ModelProviderUiStatusKind.Warning;
         }
@@ -391,6 +391,9 @@ internal static class ModelProviderEditorDiagnostics
                 statusText = "Unsupported backend/protocol drift";
                 return true;
             }
+
+            statusText = "Last action needs review";
+            return true;
         }
 
         if (entries.Any(static entry => entry.Severity == ValidationSeverity.Error))
@@ -401,4 +404,7 @@ internal static class ModelProviderEditorDiagnostics
         statusText = "Ready";
         return true;
     }
+
+    private static bool IsCodexSubscription(ModelProviderEditorItemViewModel item)
+        => string.Equals(item.ProviderType, "openai-codex-subscription", StringComparison.Ordinal);
 }

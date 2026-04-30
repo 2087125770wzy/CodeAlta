@@ -103,9 +103,29 @@ public sealed class ModelProviderEditorDiagnosticsTests
         }
 
         var notConfigured = CreateCodexSubscriptionItem(enabled: false, experimental: false);
+        var notConfiguredSnapshot = ModelProviderEditorDiagnostics.Analyze(notConfigured, [notConfigured]);
+
+        Assert.AreEqual(ModelProviderUiStatusKind.Disabled, notConfiguredSnapshot.StatusKind);
         Assert.AreEqual(
             "Not configured",
-            ModelProviderEditorDiagnostics.Analyze(notConfigured, [notConfigured]).StatusText);
+            notConfiguredSnapshot.StatusText);
+        Assert.IsFalse(notConfiguredSnapshot.Entries.Any(static entry => entry.Severity == ValidationSeverity.Error));
+    }
+
+    [TestMethod]
+    public void Analyze_CodexSubscriptionActionFailure_IsWarningNotError()
+    {
+        var item = CreateCodexSubscriptionItem(enabled: true, experimental: true);
+        item.SetTestResult(success: false, "Codex model discovery failed with HTTP 403.");
+
+        var snapshot = ModelProviderEditorDiagnostics.Analyze(item, [item]);
+
+        Assert.AreEqual(ModelProviderUiStatusKind.Warning, snapshot.StatusKind);
+        Assert.AreEqual("Last action needs review", snapshot.StatusText);
+        Assert.IsFalse(snapshot.Entries.Any(static entry => entry.Severity == ValidationSeverity.Error));
+        Assert.IsTrue(snapshot.Entries.Any(static entry =>
+            entry.Severity == ValidationSeverity.Warning &&
+            entry.Message.Contains("Last test failed", StringComparison.Ordinal)));
     }
 
     [TestMethod]
