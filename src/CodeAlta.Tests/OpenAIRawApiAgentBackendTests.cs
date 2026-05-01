@@ -1,4 +1,4 @@
-﻿#pragma warning disable OPENAI001
+#pragma warning disable OPENAI001
 
 using System.ClientModel;
 #pragma warning disable SCME0001
@@ -929,6 +929,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
                 IncludeEncryptedReasoning = true,
                 SendInstallationId = true,
                 TextVerbosity = "low",
@@ -1017,6 +1018,7 @@ public sealed class OpenAIRawApiAgentBackendTests
                     CodexSubscription = new OpenAICodexSubscriptionOptions
                     {
                         Experimental = true,
+                        ResponseTransport = "http",
                         ModelDiscovery = "codex_endpoint_with_static_fallback",
                     },
                 },
@@ -1053,6 +1055,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
                 IncludeEncryptedReasoning = true,
             },
         });
@@ -1103,6 +1106,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
                 IncludeEncryptedReasoning = true,
             },
         });
@@ -1177,6 +1181,7 @@ public sealed class OpenAIRawApiAgentBackendTests
                     CodexSubscription = new OpenAICodexSubscriptionOptions
                     {
                         Experimental = true,
+                        ResponseTransport = "http",
                     },
                     ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
                     [
@@ -1261,20 +1266,16 @@ public sealed class OpenAIRawApiAgentBackendTests
         var responsesClient = new RecordingOpenAIResponseClient(
         [
             [
-                CreateAssistantResponseUpdate(
+                CreateTextOnlyAssistantResponseUpdate(
                     responseId: "response-before-resume",
                     modelId: "gpt-5.3-codex",
-                    text: "First answer.",
-                    reasoningText: "Reasoned before resume.",
-                    encryptedReasoning: "encrypted-before-resume"),
+                    text: "First answer."),
             ],
             [
-                CreateAssistantResponseUpdate(
+                CreateTextOnlyAssistantResponseUpdate(
                     responseId: "response-after-resume",
                     modelId: "gpt-5.3-codex",
-                    text: "Second answer.",
-                    reasoningText: "Reasoned after resume.",
-                    encryptedReasoning: "encrypted-after-resume"),
+                    text: "Second answer."),
             ],
         ]);
 
@@ -1291,6 +1292,7 @@ public sealed class OpenAIRawApiAgentBackendTests
                     CodexSubscription = new OpenAICodexSubscriptionOptions
                     {
                         Experimental = true,
+                        ResponseTransport = "http",
                     },
                     ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
                     [
@@ -1345,6 +1347,215 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesAgentBackend_CodexLiveSessionUsesPreviousResponseId()
+    {
+        using var temp = TestTempDirectory.Create();
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateTextOnlyAssistantResponseUpdate(
+                    responseId: "response-live-backend-1",
+                    modelId: "gpt-5.3-codex",
+                    text: "First live answer."),
+            ],
+            [
+                CreateTextOnlyAssistantResponseUpdate(
+                    responseId: "response-live-backend-2",
+                    modelId: "gpt-5.3-codex",
+                    text: "Second live answer."),
+            ],
+        ]);
+
+        await using var backend = new OpenAIResponsesAgentBackend(new OpenAIResponsesAgentBackendOptions
+        {
+            StateRootPath = temp.Path,
+            Providers =
+            {
+                new OpenAIProviderOptions
+                {
+                    ProviderKey = "codex_subscription",
+                    IsDefault = true,
+                    ResponsesClientFactory = _ => responsesClient,
+                    CodexSubscription = new OpenAICodexSubscriptionOptions
+                    {
+                        Experimental = true,
+                        ResponseTransport = "http",
+                    },
+                    ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
+                    [
+                        new AgentModelInfo("gpt-5.3-codex", DisplayName: "GPT Codex"),
+                    ]),
+                },
+            },
+        });
+
+        await using var session = await backend.CreateSessionAsync(new AgentSessionCreateOptions
+        {
+            Model = "gpt-5.3-codex",
+            WorkingDirectory = temp.Path,
+            OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+        }).ConfigureAwait(false);
+        _ = await session.SendAsync(new AgentSendOptions
+        {
+            Input = new AgentInput([new AgentInputItem.Text("First live prompt")]),
+        }).ConfigureAwait(false);
+        _ = await session.SendAsync(new AgentSendOptions
+        {
+            Input = new AgentInput([new AgentInputItem.Text("Second live prompt")]),
+        }).ConfigureAwait(false);
+
+        Assert.AreEqual(2, responsesClient.Requests.Count);
+        Assert.IsNull(responsesClient.Requests[0].Options.PreviousResponseId);
+        Assert.AreEqual("response-live-backend-1", responsesClient.Requests[1].Options.PreviousResponseId);
+        Assert.AreEqual(1, responsesClient.Requests[1].InputItems.Count);
+        StringAssert.Contains(responsesClient.Requests[1].SerializedOptions, "Second live prompt");
+        Assert.IsFalse(responsesClient.Requests[1].SerializedOptions.Contains("First live prompt", StringComparison.Ordinal));
+        Assert.IsFalse(responsesClient.Requests[1].SerializedOptions.Contains("First live answer.", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_CodexDefaultsToWebSocketAndFallsBackToHttpBeforeStreaming()
+    {
+        var webSocketSession = new ThrowingOpenAIResponsesWebSocketSession(
+            new HttpRequestException("WebSocket unavailable."));
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-fallback",
+                    modelId: "gpt-5.3-codex",
+                    text: "Fallback answer.",
+                    reasoningText: "Recovered over HTTP.",
+                    encryptedReasoning: null),
+            ],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            ResponsesWebSocketSessionFactory = _ => ValueTask.FromResult<IOpenAIResponsesWebSocketSession>(webSocketSession),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+
+        var response = await executor.ExecuteTurnAsync(
+                CreateCodexTurnRequest(),
+                static (_, _) => ValueTask.CompletedTask)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(1, webSocketSession.RequestCount);
+        Assert.AreEqual(1, responsesClient.Requests.Count);
+        Assert.AreEqual("Fallback answer.", response.AssistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Single().Value);
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_CodexHttpOnlyTransportSkipsWebSocket()
+    {
+        var webSocketSession = new ThrowingOpenAIResponsesWebSocketSession(
+            new InvalidOperationException("WebSocket should not be used."));
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-http-only",
+                    modelId: "gpt-5.3-codex",
+                    text: "HTTP answer.",
+                    reasoningText: "Stayed on HTTP.",
+                    encryptedReasoning: null),
+            ],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            ResponsesWebSocketSessionFactory = _ => ValueTask.FromResult<IOpenAIResponsesWebSocketSession>(webSocketSession),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+            },
+        });
+
+        _ = await executor.ExecuteTurnAsync(
+                CreateCodexTurnRequest(),
+                static (_, _) => ValueTask.CompletedTask)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(0, webSocketSession.RequestCount);
+        Assert.AreEqual(1, responsesClient.Requests.Count);
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_CodexUsesPreviousResponseIdOnlyForLiveSessionContinuation()
+    {
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateTextOnlyAssistantResponseUpdate(
+                    responseId: "response-live-1",
+                    modelId: "gpt-5.3-codex",
+                    text: "First answer."),
+            ],
+            [
+                CreateTextOnlyAssistantResponseUpdate(
+                    responseId: "response-live-2",
+                    modelId: "gpt-5.3-codex",
+                    text: "Second answer."),
+            ],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+            },
+        });
+        var firstUserMessage = new LocalAgentConversationMessage(
+            LocalAgentConversationRole.User,
+            [new LocalAgentMessagePart.Text("First prompt")]);
+        var firstRequest = CreateCodexTurnRequest() with
+        {
+            Conversation = [firstUserMessage],
+            CanUseProviderContinuation = true,
+        };
+
+        var firstResponse = await executor.ExecuteTurnAsync(
+                firstRequest,
+                static (_, _) => ValueTask.CompletedTask)
+            .ConfigureAwait(false);
+        var secondRequest = CreateCodexTurnRequest() with
+        {
+            CanUseProviderContinuation = true,
+            Conversation =
+            [
+                firstUserMessage,
+                firstResponse.AssistantMessage,
+                new LocalAgentConversationMessage(
+                    LocalAgentConversationRole.User,
+                    [new LocalAgentMessagePart.Text("Second prompt")]),
+            ],
+        };
+
+        _ = await executor.ExecuteTurnAsync(
+                secondRequest,
+                static (_, _) => ValueTask.CompletedTask)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(2, responsesClient.Requests.Count);
+        Assert.IsNull(responsesClient.Requests[0].Options.PreviousResponseId);
+        Assert.AreEqual("response-live-1", responsesClient.Requests[1].Options.PreviousResponseId);
+        Assert.AreEqual(1, responsesClient.Requests[1].InputItems.Count);
+        StringAssert.Contains(responsesClient.Requests[1].SerializedOptions, "Second prompt");
+        Assert.IsFalse(responsesClient.Requests[1].SerializedOptions.Contains("First prompt", StringComparison.Ordinal));
+        Assert.IsFalse(responsesClient.Requests[1].SerializedOptions.Contains("First answer.", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void CodexSubscriptionDiagnostics_EmitOnlySanitizedRequestShape()
     {
         var provider = new OpenAIProviderOptions
@@ -1354,6 +1565,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
             },
         };
         var request = CreateCodexTurnRequest() with
@@ -1429,6 +1641,7 @@ public sealed class OpenAIRawApiAgentBackendTests
                     CodexSubscription = new OpenAICodexSubscriptionOptions
                     {
                         Experimental = true,
+                        ResponseTransport = "http",
                     },
                     ModelListAsync = static _ => Task.FromResult<IReadOnlyList<AgentModelInfo>>(
                     [
@@ -1471,6 +1684,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
             },
         });
         var request = CreateTurnRequest() with
@@ -1503,6 +1717,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
             },
         });
         var request = CreateTurnRequest() with
@@ -1548,6 +1763,7 @@ public sealed class OpenAIRawApiAgentBackendTests
                 CodexSubscription = new OpenAICodexSubscriptionOptions
                 {
                     Experimental = true,
+                    ResponseTransport = "http",
                 },
             });
 
@@ -1571,6 +1787,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
             },
         });
 
@@ -1611,6 +1828,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
             },
         });
 
@@ -1646,6 +1864,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
             },
         });
 
@@ -1682,6 +1901,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
             },
         });
 
@@ -1707,6 +1927,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
             },
         });
 
@@ -1744,6 +1965,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
             },
         });
         var deltas = new List<LocalAgentTurnDelta>();
@@ -1785,6 +2007,7 @@ public sealed class OpenAIRawApiAgentBackendTests
             CodexSubscription = new OpenAICodexSubscriptionOptions
             {
                 Experimental = true,
+                ResponseTransport = "http",
             },
         });
         var deltas = new List<LocalAgentTurnDelta>();
@@ -1833,6 +2056,21 @@ public sealed class OpenAIRawApiAgentBackendTests
               "response": {{SerializeResponseWithUsage(response, inputTokens, outputTokens)}}
             }
             """);
+    }
+
+    private static StreamingResponseUpdate CreateTextOnlyAssistantResponseUpdate(
+        string responseId,
+        string modelId,
+        string text)
+    {
+        var response = new ResponseResult
+        {
+            Id = responseId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            Model = modelId,
+        };
+        response.OutputItems.Add(ResponseItem.CreateAssistantMessageItem(text, []));
+        return CreateCompletedUpdate(response);
     }
 
     private static StreamingResponseUpdate CreateOutputTextDeltaUpdate(string itemId, string delta)
@@ -2048,7 +2286,7 @@ public sealed class OpenAIRawApiAgentBackendTests
         };
 
     private sealed class RecordingOpenAIResponseClient(IReadOnlyList<IReadOnlyList<StreamingResponseUpdate>> responseBatches)
-        : ResponsesClient(new ApiKeyCredential("test-key"), new OpenAIClientOptions())
+        : ResponsesClient(new ApiKeyCredential("test-key"))
     {
         public List<ResponseRequestRecord> Requests { get; } = [];
 
@@ -2139,8 +2377,27 @@ public sealed class OpenAIRawApiAgentBackendTests
         }
     }
 
+    private sealed class ThrowingOpenAIResponsesWebSocketSession(Exception exception) : IOpenAIResponsesWebSocketSession
+    {
+        public int RequestCount { get; private set; }
+
+        public AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
+            CreateResponseOptions options,
+            CancellationToken cancellationToken = default)
+        {
+            _ = options;
+            _ = cancellationToken;
+            RequestCount++;
+            throw exception;
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
     private sealed class ThrowingOpenAIResponseClient(Exception exception)
-        : ResponsesClient(new ApiKeyCredential("test-key"), new OpenAIClientOptions())
+        : ResponsesClient(new ApiKeyCredential("test-key"))
     {
         public override AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
             CreateResponseOptions options,
@@ -2151,7 +2408,7 @@ public sealed class OpenAIRawApiAgentBackendTests
     private sealed class FlakyOpenAIResponseClient(
         IReadOnlyList<Exception> failures,
         IReadOnlyList<StreamingResponseUpdate> successUpdates)
-        : ResponsesClient(new ApiKeyCredential("test-key"), new OpenAIClientOptions())
+        : ResponsesClient(new ApiKeyCredential("test-key"))
     {
         public int RequestCount { get; private set; }
 
@@ -2173,7 +2430,7 @@ public sealed class OpenAIRawApiAgentBackendTests
         StreamingResponseUpdate firstUpdate,
         Exception failure,
         IReadOnlyList<StreamingResponseUpdate> successUpdates)
-        : ResponsesClient(new ApiKeyCredential("test-key"), new OpenAIClientOptions())
+        : ResponsesClient(new ApiKeyCredential("test-key"))
     {
         public int RequestCount { get; private set; }
 

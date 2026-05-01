@@ -1,7 +1,9 @@
 #pragma warning disable OPENAI001
 #pragma warning disable SCME0001
 
+using System.ClientModel;
 using System.ClientModel.Primitives;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeAlta.Agent.LocalRuntime;
@@ -12,17 +14,32 @@ using XenoAtom.Logging;
 
 namespace CodeAlta.Agent.OpenAI;
 
-internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider) : ILocalAgentTurnExecutor
+internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider) : ILocalAgentTurnExecutor, IAsyncDisposable
 {
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.Agent.OpenAI");
     private static readonly ResponseReasoningEffortLevel XHighReasoningEffortLevel = new("xhigh");
     private static readonly TimeSpan CodexBaseRetryDelay = TimeSpan.FromMilliseconds(250);
     private static readonly Random SharedRandom = Random.Shared;
 
+    private readonly ConcurrentDictionary<string, OpenAIResponsesLiveContinuation> _liveContinuations = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, IOpenAIResponsesWebSocketSession> _webSocketSessions = new(StringComparer.Ordinal);
+
     public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(
         LocalAgentProviderDescriptor providerDescriptor,
         CancellationToken cancellationToken = default)
         => OpenAIProviderSdkFactory.ListModelsAsync(provider, providerDescriptor, cancellationToken);
+
+    public ValueTask DisposeAsync()
+    {
+        foreach (var session in _webSocketSessions.Values)
+        {
+            session.Dispose();
+        }
+
+        _webSocketSessions.Clear();
+        _liveContinuations.Clear();
+        return ValueTask.CompletedTask;
+    }
 
     public async Task<LocalAgentTurnResponse> ExecuteTurnAsync(
         LocalAgentTurnRequest request,
@@ -53,85 +70,109 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                             request.SessionId,
                             request.RunId,
                             request.Provider));
-                    var options = await CreateRequestPayloadAsync(request, cancellationToken).ConfigureAwait(false);
+                    var fullOptions = await CreateRequestPayloadAsync(request, cancellationToken).ConfigureAwait(false);
+                    var options = CreateTransportRequestOptions(request, fullOptions);
                     LogCodexDiagnostic("request", request, attempt);
                     WriteCodexConsoleDiagnostic(
                         provider,
-                        $"request attempt={attempt} session={request.SessionId} run={request.RunId.Value} payload={FormatCodexConsolePayload(SerializeModel(options))}");
+                        $"request attempt={attempt} session={request.SessionId} run={request.RunId.Value} transport={ResolveInitialTransport(provider)} payload={FormatCodexConsolePayload(SerializeModel(options))}");
                     ResponseResult? completedResponse = null;
                     ResponseResult? latestResponse = null;
                     var streamedOutputItems = new SortedDictionary<int, ResponseItem>();
 
-                    await foreach (var update in client.CreateResponseStreamingAsync(options, cancellationToken).ConfigureAwait(false))
+                    async Task ProcessStreamAsync(OpenAIResponsesTransport transport)
                     {
-                        streamStarted = true;
+                        await foreach (var update in CreateResponseStreamingAsync(
+                                client,
+                                request,
+                                options,
+                                transport,
+                                cancellationToken).ConfigureAwait(false))
+                        {
+                            streamStarted = true;
+                            WriteCodexConsoleDiagnostic(
+                                provider,
+                                $"stream transport={transport} update={update.GetType().Name} payload={FormatCodexConsolePayload(SerializeModel(update))}");
+                            switch (update)
+                            {
+                                case StreamingResponseCreatedUpdate created:
+                                    latestResponse = created.Response;
+                                    break;
+                                case StreamingResponseInProgressUpdate inProgress:
+                                    latestResponse = inProgress.Response;
+                                    break;
+                                case StreamingResponseOutputTextDeltaUpdate outputTextDelta when !string.IsNullOrEmpty(outputTextDelta.Delta):
+                                    await onUpdate(
+                                        new LocalAgentTurnDelta
+                                        {
+                                            Kind = AgentContentKind.Assistant,
+                                            ContentId = outputTextDelta.ItemId,
+                                            Text = outputTextDelta.Delta,
+                                        },
+                                        cancellationToken).ConfigureAwait(false);
+                                    break;
+                                case StreamingResponseRefusalDeltaUpdate refusalDelta when !string.IsNullOrEmpty(refusalDelta.Delta):
+                                    await onUpdate(
+                                        new LocalAgentTurnDelta
+                                        {
+                                            Kind = AgentContentKind.Assistant,
+                                            ContentId = refusalDelta.ItemId,
+                                            Text = refusalDelta.Delta,
+                                        },
+                                        cancellationToken).ConfigureAwait(false);
+                                    break;
+                                case StreamingResponseReasoningSummaryTextDeltaUpdate reasoningSummaryDelta when !string.IsNullOrEmpty(reasoningSummaryDelta.Delta):
+                                    await onUpdate(
+                                        new LocalAgentTurnDelta
+                                        {
+                                            Kind = AgentContentKind.Reasoning,
+                                            ContentId = reasoningSummaryDelta.ItemId,
+                                            Text = reasoningSummaryDelta.Delta,
+                                        },
+                                        cancellationToken).ConfigureAwait(false);
+                                    break;
+                                case StreamingResponseReasoningTextDeltaUpdate reasoningTextDelta when !string.IsNullOrEmpty(reasoningTextDelta.Delta):
+                                    await onUpdate(
+                                        new LocalAgentTurnDelta
+                                        {
+                                            Kind = AgentContentKind.Reasoning,
+                                            ContentId = reasoningTextDelta.ItemId,
+                                            Text = reasoningTextDelta.Delta,
+                                        },
+                                        cancellationToken).ConfigureAwait(false);
+                                    break;
+                                case StreamingResponseOutputItemDoneUpdate outputItemDone when outputItemDone.Item is not null:
+                                    streamedOutputItems[outputItemDone.OutputIndex] = outputItemDone.Item;
+                                    break;
+                                case StreamingResponseIncompleteUpdate incomplete:
+                                    latestResponse = incomplete.Response;
+                                    completedResponse = incomplete.Response;
+                                    break;
+                                case StreamingResponseFailedUpdate failed:
+                                    throw CreateTurnExecutionException(CreateResponseFailureException(failed.Response, "failed"));
+                                case StreamingResponseErrorUpdate error:
+                                    throw CreateTurnExecutionException(CreateStreamErrorException(error));
+                                case StreamingResponseCompletedUpdate completed:
+                                    latestResponse = completed.Response;
+                                    completedResponse = completed.Response;
+                                    break;
+                            }
+                        }
+                    }
+
+                    var initialTransport = ResolveInitialTransport(provider);
+                    try
+                    {
+                        await ProcessStreamAsync(initialTransport).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (ShouldFallbackFromWebSocket(provider, initialTransport, streamStarted, ex))
+                    {
+                        ResetWebSocketSession(request.SessionId);
                         WriteCodexConsoleDiagnostic(
                             provider,
-                            $"stream update={update.GetType().Name} payload={FormatCodexConsolePayload(SerializeModel(update))}");
-                        switch (update)
-                        {
-                            case StreamingResponseCreatedUpdate created:
-                                latestResponse = created.Response;
-                                break;
-                            case StreamingResponseInProgressUpdate inProgress:
-                                latestResponse = inProgress.Response;
-                                break;
-                            case StreamingResponseOutputTextDeltaUpdate outputTextDelta when !string.IsNullOrEmpty(outputTextDelta.Delta):
-                                await onUpdate(
-                                    new LocalAgentTurnDelta
-                                    {
-                                        Kind = AgentContentKind.Assistant,
-                                        ContentId = outputTextDelta.ItemId,
-                                        Text = outputTextDelta.Delta,
-                                    },
-                                    cancellationToken).ConfigureAwait(false);
-                                break;
-                            case StreamingResponseRefusalDeltaUpdate refusalDelta when !string.IsNullOrEmpty(refusalDelta.Delta):
-                                await onUpdate(
-                                    new LocalAgentTurnDelta
-                                    {
-                                        Kind = AgentContentKind.Assistant,
-                                        ContentId = refusalDelta.ItemId,
-                                        Text = refusalDelta.Delta,
-                                    },
-                                    cancellationToken).ConfigureAwait(false);
-                                break;
-                            case StreamingResponseReasoningSummaryTextDeltaUpdate reasoningSummaryDelta when !string.IsNullOrEmpty(reasoningSummaryDelta.Delta):
-                                await onUpdate(
-                                    new LocalAgentTurnDelta
-                                    {
-                                        Kind = AgentContentKind.Reasoning,
-                                        ContentId = reasoningSummaryDelta.ItemId,
-                                        Text = reasoningSummaryDelta.Delta,
-                                    },
-                                    cancellationToken).ConfigureAwait(false);
-                                break;
-                            case StreamingResponseReasoningTextDeltaUpdate reasoningTextDelta when !string.IsNullOrEmpty(reasoningTextDelta.Delta):
-                                await onUpdate(
-                                    new LocalAgentTurnDelta
-                                    {
-                                        Kind = AgentContentKind.Reasoning,
-                                        ContentId = reasoningTextDelta.ItemId,
-                                        Text = reasoningTextDelta.Delta,
-                                    },
-                                    cancellationToken).ConfigureAwait(false);
-                                break;
-                            case StreamingResponseOutputItemDoneUpdate outputItemDone when outputItemDone.Item is not null:
-                                streamedOutputItems[outputItemDone.OutputIndex] = outputItemDone.Item;
-                                break;
-                            case StreamingResponseIncompleteUpdate incomplete:
-                                latestResponse = incomplete.Response;
-                                completedResponse = incomplete.Response;
-                                break;
-                            case StreamingResponseFailedUpdate failed:
-                                throw CreateTurnExecutionException(CreateResponseFailureException(failed.Response, "failed"));
-                            case StreamingResponseErrorUpdate error:
-                                throw CreateTurnExecutionException(CreateStreamErrorException(error));
-                            case StreamingResponseCompletedUpdate completed:
-                                latestResponse = completed.Response;
-                                completedResponse = completed.Response;
-                                break;
-                        }
+                            $"websocket fallback session={request.SessionId} run={request.RunId.Value} error={ex.GetType().Name}");
+                        streamStarted = false;
+                        await ProcessStreamAsync(OpenAIResponsesTransport.Http).ConfigureAwait(false);
                     }
 
                     WriteCodexConsoleDiagnostic(
@@ -160,6 +201,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                     }
 
                     var (assistantMessage, assistantPartContentIds) = MapAssistantMessage(completedResponse);
+                    UpdateLiveContinuation(request, fullOptions, completedResponse, assistantMessage);
                     WriteCodexConsoleDiagnostic(
                         provider,
                         $"mapped assistantParts={assistantMessage.Parts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} textParts={assistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Count().ToString(System.Globalization.CultureInfo.InvariantCulture)} reasoningParts={assistantMessage.Parts.OfType<LocalAgentMessagePart.Reasoning>().Count().ToString(System.Globalization.CultureInfo.InvariantCulture)} toolCalls={assistantMessage.Parts.OfType<LocalAgentMessagePart.ToolCall>().Count().ToString(System.Globalization.CultureInfo.InvariantCulture)} response={completedResponse.Id ?? "(none)"}");
@@ -180,6 +222,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                     streamStarted,
                     refreshedCredentialAfterUnauthorized))
                 {
+                    ClearLiveContinuation(request.SessionId);
                     refreshedCredentialAfterUnauthorized = true;
                     LogCodexDiagnostic(
                         "credential-refresh",
@@ -208,6 +251,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                     retryBudget,
                     out var delay))
                 {
+                    ClearLiveContinuation(request.SessionId);
                     LogCodexDiagnostic(
                         "retry",
                         request,
@@ -228,6 +272,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         }
         catch (Exception ex)
         {
+            ClearLiveContinuation(request.SessionId);
             LogCodexDiagnostic(
                 "error",
                 request,
@@ -236,6 +281,314 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                 errorType: ex.GetType().Name);
             throw CreateTurnExecutionException(TranslateCodexSubscriptionException(provider, ex));
         }
+    }
+
+    private static OpenAIResponsesTransport ResolveInitialTransport(OpenAIProviderOptions provider)
+    {
+        if (provider.CodexSubscription is not { } codexOptions)
+        {
+            return OpenAIResponsesTransport.Http;
+        }
+
+        return string.Equals(codexOptions.ResponseTransport, "http", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(codexOptions.ResponseTransport, "sse", StringComparison.OrdinalIgnoreCase)
+            ? OpenAIResponsesTransport.Http
+            : OpenAIResponsesTransport.WebSocket;
+    }
+
+    private static bool ShouldFallbackFromWebSocket(
+        OpenAIProviderOptions provider,
+        OpenAIResponsesTransport transport,
+        bool streamStarted,
+        Exception exception)
+        => provider.CodexSubscription is not null &&
+           transport == OpenAIResponsesTransport.WebSocket &&
+           !streamStarted &&
+           exception is not OperationCanceledException;
+
+    private async IAsyncEnumerable<StreamingResponseUpdate> CreateResponseStreamingAsync(
+        ResponsesClient client,
+        LocalAgentTurnRequest request,
+        CreateResponseOptions options,
+        OpenAIResponsesTransport transport,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var stream = transport == OpenAIResponsesTransport.WebSocket
+            ? (await GetOrCreateWebSocketSessionAsync(request, cancellationToken).ConfigureAwait(false))
+                .CreateResponseStreamingAsync(options, cancellationToken)
+            : client.CreateResponseStreamingAsync(options, cancellationToken);
+
+        await foreach (var update in stream.ConfigureAwait(false))
+        {
+            yield return update;
+        }
+    }
+
+    private async ValueTask<IOpenAIResponsesWebSocketSession> GetOrCreateWebSocketSessionAsync(
+        LocalAgentTurnRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (_webSocketSessions.TryGetValue(request.SessionId, out var existing))
+        {
+            return existing;
+        }
+
+        var created = provider.ResponsesWebSocketSessionFactory is not null
+            ? await provider.ResponsesWebSocketSessionFactory(
+                    new OpenAIResponsesWebSocketSessionFactoryContext(
+                        request.ModelId,
+                        request.SessionId,
+                        request.RunId,
+                        request.Provider))
+                .ConfigureAwait(false)
+            : await CreateDefaultWebSocketSessionAsync(request, cancellationToken).ConfigureAwait(false);
+
+        if (_webSocketSessions.TryAdd(request.SessionId, created))
+        {
+            return created;
+        }
+
+        created.Dispose();
+        return _webSocketSessions[request.SessionId];
+    }
+
+    private ValueTask<IOpenAIResponsesWebSocketSession> CreateDefaultWebSocketSessionAsync(
+        LocalAgentTurnRequest request,
+        CancellationToken cancellationToken)
+    {
+#if CODEALTA_LOCAL_OPENAI_SDK
+        if (provider.CodexSubscription is not { } codexOptions)
+        {
+            throw new InvalidOperationException("OpenAI Responses WebSocket transport is only configured for Codex subscription providers.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var authManager = OpenAIProviderSdkFactory.CreateCodexSubscriptionAuthManager(
+            provider,
+            codexOptions,
+            OpenAIProviderSdkFactory.ResolveStateRootPath(provider));
+        IOpenAIResponsesWebSocketSession session = new OpenAICodexSubscriptionWebSocketSession(
+            provider.BaseUri,
+            codexOptions,
+            authManager,
+            request.SessionId,
+            OpenAIProviderSdkFactory.CreateCodeAltaUserAgentApplicationId());
+        return ValueTask.FromResult(session);
+#else
+        _ = request;
+        _ = cancellationToken;
+        throw new InvalidOperationException(
+            "OpenAI Responses WebSocket transport requires building CodeAlta.Agent.OpenAI with the local OpenAI SDK project.");
+#endif
+    }
+
+    private void ResetWebSocketSession(string sessionId)
+    {
+        if (_webSocketSessions.TryRemove(sessionId, out var session))
+        {
+            session.Dispose();
+        }
+    }
+
+    private void ClearLiveContinuation(string sessionId)
+        => _liveContinuations.TryRemove(sessionId, out _);
+
+    private CreateResponseOptions CreateTransportRequestOptions(
+        LocalAgentTurnRequest request,
+        CreateResponseOptions fullOptions)
+    {
+        if (provider.CodexSubscription is null)
+        {
+            return fullOptions;
+        }
+
+        if (!request.CanUseProviderContinuation)
+        {
+            ClearLiveContinuation(request.SessionId);
+            return fullOptions;
+        }
+
+        if (!_liveContinuations.TryGetValue(request.SessionId, out var continuation) ||
+            !string.IsNullOrWhiteSpace(fullOptions.PreviousResponseId))
+        {
+            return fullOptions;
+        }
+
+        if (!TryCreateContinuationOptions(fullOptions, continuation, out var continuationOptions))
+        {
+            ClearLiveContinuation(request.SessionId);
+            return fullOptions;
+        }
+
+        return continuationOptions;
+    }
+
+    private static bool TryCreateContinuationOptions(
+        CreateResponseOptions fullOptions,
+        OpenAIResponsesLiveContinuation continuation,
+        out CreateResponseOptions continuationOptions)
+    {
+        continuationOptions = null!;
+
+        if (!string.Equals(
+                GetRequestWithoutInputJson(fullOptions),
+                continuation.RequestWithoutInputJson,
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var currentInputItemsJson = GetInputItemsJson(fullOptions);
+        var baselineCount = continuation.InputItemsJson.Count + continuation.OutputItemsJson.Count;
+        if (currentInputItemsJson.Count < baselineCount)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < continuation.InputItemsJson.Count; index++)
+        {
+            if (!string.Equals(currentInputItemsJson[index], continuation.InputItemsJson[index], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        for (var index = 0; index < continuation.OutputItemsJson.Count; index++)
+        {
+            if (!string.Equals(
+                    currentInputItemsJson[continuation.InputItemsJson.Count + index],
+                    continuation.OutputItemsJson[index],
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        continuationOptions = CloneResponseOptions(fullOptions);
+        continuationOptions.PreviousResponseId = continuation.ResponseId;
+        continuationOptions.InputItems.Clear();
+        foreach (var inputItem in fullOptions.InputItems.Skip(baselineCount))
+        {
+            continuationOptions.InputItems.Add(inputItem);
+        }
+
+        return true;
+    }
+
+    private void UpdateLiveContinuation(
+        LocalAgentTurnRequest request,
+        CreateResponseOptions fullOptions,
+        ResponseResult response,
+        LocalAgentConversationMessage assistantMessage)
+    {
+        if (!request.CanUseProviderContinuation ||
+            provider.CodexSubscription is null ||
+            string.IsNullOrWhiteSpace(response.Id))
+        {
+            ClearLiveContinuation(request.SessionId);
+            return;
+        }
+
+        var replayOutputItems = CreateAssistantItems(assistantMessage.Parts).ToArray();
+        if (replayOutputItems.Length != response.OutputItems.Count)
+        {
+            ClearLiveContinuation(request.SessionId);
+            return;
+        }
+
+        _liveContinuations[request.SessionId] = new OpenAIResponsesLiveContinuation(
+            GetRequestWithoutInputJson(fullOptions),
+            GetInputItemsJson(fullOptions),
+            replayOutputItems.Select(CreateResponseItemJson).ToArray(),
+            response.Id);
+    }
+
+    private static CreateResponseOptions CloneResponseOptions(CreateResponseOptions options)
+#if CODEALTA_LOCAL_OPENAI_SDK
+        => ModelReaderWriter.Read<CreateResponseOptions>(
+            BinaryData.FromString(SerializeModel(options)),
+            new ModelReaderWriterOptions("J"),
+            OpenAIResponsesContext.Default)
+            ?? throw new InvalidOperationException("Unable to clone OpenAI response options.");
+#else
+    {
+        var clone = new CreateResponseOptions
+        {
+            BackgroundModeEnabled = options.BackgroundModeEnabled,
+            ConversationOptions = options.ConversationOptions,
+            EndUserId = options.EndUserId,
+            Instructions = options.Instructions,
+            MaxOutputTokenCount = options.MaxOutputTokenCount,
+            MaxToolCallCount = options.MaxToolCallCount,
+            Model = options.Model,
+            ParallelToolCallsEnabled = options.ParallelToolCallsEnabled,
+            PreviousResponseId = options.PreviousResponseId,
+            ReasoningOptions = options.ReasoningOptions,
+            SafetyIdentifier = options.SafetyIdentifier,
+            ServiceTier = options.ServiceTier,
+            StoredOutputEnabled = options.StoredOutputEnabled,
+            StreamingEnabled = options.StreamingEnabled,
+            Temperature = options.Temperature,
+            TextOptions = options.TextOptions,
+            ToolChoice = options.ToolChoice,
+            TopLogProbabilityCount = options.TopLogProbabilityCount,
+            TopP = options.TopP,
+            TruncationMode = options.TruncationMode,
+        };
+
+        foreach (var includedProperty in options.IncludedProperties)
+        {
+            clone.IncludedProperties.Add(includedProperty);
+        }
+
+        foreach (var inputItem in options.InputItems)
+        {
+            clone.InputItems.Add(inputItem);
+        }
+
+        foreach (var metadata in options.Metadata)
+        {
+            clone.Metadata[metadata.Key] = metadata.Value;
+        }
+
+        foreach (var tool in options.Tools)
+        {
+            clone.Tools.Add(tool);
+        }
+
+        return clone;
+    }
+#endif
+
+    private static string GetRequestWithoutInputJson(CreateResponseOptions options)
+    {
+        using var document = JsonDocument.Parse(SerializeModel(options));
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!property.NameEquals("input"u8) && !property.NameEquals("previous_response_id"u8))
+                {
+                    property.WriteTo(writer);
+                }
+            }
+
+            writer.WriteEndObject();
+        }
+
+        using var normalized = JsonDocument.Parse(stream.ToArray());
+        return normalized.RootElement.GetRawText();
+    }
+
+    private static IReadOnlyList<string> GetInputItemsJson(CreateResponseOptions options)
+        => options.InputItems.Select(CreateResponseItemJson).ToArray();
+
+    private static string CreateResponseItemJson(ResponseItem item)
+    {
+        using var document = JsonDocument.Parse(SerializeModel(item));
+        return document.RootElement.GetRawText();
     }
 
     private void LogCodexDiagnostic(
@@ -1022,4 +1375,16 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             message.Contains("too many tokens", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("prompt is too long", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("context window", StringComparison.OrdinalIgnoreCase));
+
+    private enum OpenAIResponsesTransport
+    {
+        Http,
+        WebSocket,
+    }
+
+    private sealed record OpenAIResponsesLiveContinuation(
+        string RequestWithoutInputJson,
+        IReadOnlyList<string> InputItemsJson,
+        IReadOnlyList<string> OutputItemsJson,
+        string ResponseId);
 }

@@ -26,7 +26,7 @@ internal static class OpenAIProviderSdkFactory
     public static ResponsesClient CreateResponsesClient(OpenAIProviderOptions provider, string? model)
         => provider.ResponsesClientFactory is not null
             ? provider.ResponsesClientFactory(model)
-            : new ResponsesClient(CreateCredential(provider), CreateClientOptions(provider));
+            : new ResponsesClient(CreateCredential(provider), CreateResponsesClientOptions(provider));
 
     public static ResponsesClient CreateResponsesClient(
         OpenAIProviderOptions provider,
@@ -50,7 +50,7 @@ internal static class OpenAIProviderSdkFactory
             return CreateCodexSubscriptionResponsesClient(provider, context);
         }
 
-        return new ResponsesClient(CreateCredential(provider), CreateClientOptions(provider));
+        return new ResponsesClient(CreateCredential(provider), CreateResponsesClientOptions(provider));
     }
 
     public static ChatClient CreateChatClient(OpenAIProviderOptions provider, string? model)
@@ -178,6 +178,7 @@ internal static class OpenAIProviderSdkFactory
             var models = MapCodexSubscriptionDiscoveredModels(
                 discoveredModels,
                 providerDescriptor,
+                options,
                 provider.SingleModelId);
             LogInfo(
                 $"Using Codex subscription authenticated model catalog backend={providerDescriptor.BackendId.Value} provider={providerDescriptor.ProviderKey} displayName={providerDescriptor.DisplayName} models={models.Count}");
@@ -229,10 +230,12 @@ internal static class OpenAIProviderSdkFactory
     private static IReadOnlyList<AgentModelInfo> MapCodexSubscriptionDiscoveredModels(
         IReadOnlyList<CodexSubscriptionDiscoveredModel> discoveredModels,
         LocalAgentProviderDescriptor providerDescriptor,
+        OpenAICodexSubscriptionOptions options,
         string? configuredModelId)
     {
+        var includeWebSocketRequiredModels = AllowsWebSocketRequiredModels(options);
         var supportedModels = discoveredModels
-            .Where(static model => model.SupportedInApi && !model.RequiresWebSocket)
+            .Where(model => model.SupportedInApi && (includeWebSocketRequiredModels || !model.RequiresWebSocket))
             .GroupBy(static model => model.Id, StringComparer.OrdinalIgnoreCase)
             .Select(static group => group.First())
             .ToArray();
@@ -307,6 +310,18 @@ internal static class OpenAIProviderSdkFactory
             Capabilities: capabilities);
     }
 
+    private static bool AllowsWebSocketRequiredModels(OpenAICodexSubscriptionOptions? options)
+    {
+#if CODEALTA_LOCAL_OPENAI_SDK
+        return options is not null &&
+               !string.Equals(options.ResponseTransport, "http", StringComparison.OrdinalIgnoreCase) &&
+               !string.Equals(options.ResponseTransport, "sse", StringComparison.OrdinalIgnoreCase);
+#else
+        _ = options;
+        return false;
+#endif
+    }
+
     private static AgentReasoningEffort? ParseReasoningEffort(string? value)
         => value?.Trim().ToLowerInvariant() switch
         {
@@ -333,6 +348,20 @@ internal static class OpenAIProviderSdkFactory
             NetworkTimeout = provider.CodexSubscription is null ? null : CodexSubscriptionNetworkTimeout,
         };
 
+#if CODEALTA_LOCAL_OPENAI_SDK
+    private static ResponsesClientOptions CreateResponsesClientOptions(OpenAIProviderOptions provider)
+        => new()
+        {
+            Endpoint = provider.BaseUri,
+            OrganizationId = provider.OrganizationId,
+            ProjectId = provider.ProjectId,
+            NetworkTimeout = provider.CodexSubscription is null ? null : CodexSubscriptionNetworkTimeout,
+        };
+#else
+    private static OpenAIClientOptions CreateResponsesClientOptions(OpenAIProviderOptions provider)
+        => CreateClientOptions(provider);
+#endif
+
     private static ResponsesClient CreateCodexSubscriptionResponsesClient(
         OpenAIProviderOptions provider,
         OpenAIResponsesClientFactoryContext context)
@@ -343,7 +372,7 @@ internal static class OpenAIProviderSdkFactory
             provider,
             options,
             ResolveStateRootPath(provider));
-        var clientOptions = CreateClientOptions(provider);
+        var clientOptions = CreateResponsesClientOptions(provider);
         clientOptions.UserAgentApplicationId = CreateCodeAltaUserAgentApplicationId();
         clientOptions.AddPolicy(
             new CodexSubscriptionHeadersPolicy(
@@ -361,7 +390,7 @@ internal static class OpenAIProviderSdkFactory
             clientOptions);
     }
 
-    private static OpenAICodexSubscriptionAuthManager CreateCodexSubscriptionAuthManager(
+    internal static OpenAICodexSubscriptionAuthManager CreateCodexSubscriptionAuthManager(
         OpenAIProviderOptions provider,
         OpenAICodexSubscriptionOptions options,
         string stateRootPath)
@@ -376,12 +405,12 @@ internal static class OpenAIProviderSdkFactory
             CodexAuthFileReader.ResolveCodexHome());
     }
 
-    private static string ResolveStateRootPath(OpenAIProviderOptions provider)
+    internal static string ResolveStateRootPath(OpenAIProviderOptions provider)
         => string.IsNullOrWhiteSpace(provider.StateRootPath)
             ? Path.Combine(AppContext.BaseDirectory, ".codealta-state")
             : provider.StateRootPath;
 
-    private static string CreateCodeAltaUserAgentApplicationId()
+    internal static string CreateCodeAltaUserAgentApplicationId()
     {
         var version = typeof(OpenAIProviderSdkFactory).Assembly.GetName().Version?.ToString();
         return string.IsNullOrWhiteSpace(version)

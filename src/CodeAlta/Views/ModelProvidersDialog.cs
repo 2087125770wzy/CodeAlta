@@ -554,6 +554,7 @@ internal sealed class ModelProvidersDialog
             AddTextRow(form, ref row, "Auth Source", CreateDefaultTextField(bindings.AuthSource, () => item.UseDefaultAuthSource), CreateDefaultCheckBox("Default", bindings.UseDefaultAuthSource));
             AddTextRow(form, ref row, "Account/Workspace Id", CreateDefaultTextField(bindings.AccountId, () => item.UseDefaultAccountId), CreateDefaultCheckBox("Default", bindings.UseDefaultAccountId));
             AddTextRow(form, ref row, "Model Discovery", CreateDefaultTextField(bindings.ModelDiscovery, () => item.UseDefaultModelDiscovery), CreateDefaultCheckBox("Default", bindings.UseDefaultModelDiscovery));
+            AddTextRow(form, ref row, "Response Transport", CreateDefaultTextField(bindings.ResponseTransport, () => item.UseDefaultResponseTransport), CreateDefaultCheckBox("Default", bindings.UseDefaultResponseTransport));
         }
 
         var advancedNotice = new Markup("[dim]Advanced provider TOML sections such as profile, compaction, extra_body, and model_overrides are preserved unchanged when you save from this dialog.[/]")
@@ -1261,6 +1262,7 @@ internal sealed class ModelProvidersDialog
             definition.AuthSource,
             definition.AccountId,
             definition.ModelDiscovery,
+            definition.ResponseTransport,
             definition.Experimental);
     }
 
@@ -1283,5 +1285,6 @@ internal sealed class ModelProvidersDialog
         string? AuthSource,
         string? AccountId,
         string? ModelDiscovery,
+        string? ResponseTransport,
         bool? Experimental);
 }

@@ -35,6 +35,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
     private readonly ILocalAgentTurnExecutor _turnExecutor;
     private readonly LocalAgentCompactionSummarizer _compactionSummarizer;
     private readonly AgentSessionCreateOptions _options;
+    private readonly bool _allowProviderContinuation;
     private readonly Channel<AgentEvent> _eventChannel;
     private readonly ConcurrentDictionary<Guid, Action<AgentEvent>> _subscribers = new();
     private readonly SemaphoreSlim _stateGate = new(initialCount: 1, maxCount: 1);
@@ -61,6 +62,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
     /// <param name="store">The local session store.</param>
     /// <param name="turnExecutor">The provider turn executor.</param>
     /// <param name="options">The session options.</param>
+    /// <param name="allowProviderContinuation">Whether provider-native live continuation may be reused for this session.</param>
     public LocalAgentSession(
         AgentBackendId backendId,
         LocalAgentProviderDescriptor provider,
@@ -69,7 +71,8 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         IReadOnlyList<AgentEvent> history,
         ILocalAgentSessionStore store,
         ILocalAgentTurnExecutor turnExecutor,
-        AgentSessionCreateOptions options)
+        AgentSessionCreateOptions options,
+        bool allowProviderContinuation = false)
     {
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(summary);
@@ -86,6 +89,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         _turnExecutor = turnExecutor;
         _compactionSummarizer = new LocalAgentCompactionSummarizer(new LocalAgentTurnExecutorCompactionSummaryExecutor(turnExecutor));
         _options = options;
+        _allowProviderContinuation = allowProviderContinuation;
         _summary = summary;
         _state = RebuildLoadedSkillsState(state, history);
         _history = [.. history];
@@ -612,6 +616,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             ReasoningEffort = _options.ReasoningEffort,
             Conversation = conversation?.ToArray() ?? CreateProviderConversation().Messages.ToArray(),
             Tools = tools,
+            CanUseProviderContinuation = _allowProviderContinuation,
             State = _state,
         };
     }
@@ -861,7 +866,6 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             Usage = effectiveUsage ?? _state.Usage,
             UpdatedAt = DateTimeOffset.UtcNow,
         };
-
         _summary = _summary with
         {
             ModelId = _summary.ModelId ?? _options.Model,

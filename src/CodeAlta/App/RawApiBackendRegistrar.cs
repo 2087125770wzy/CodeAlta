@@ -253,6 +253,7 @@ internal static class RawApiBackendRegistrar
                 TextVerbosity = NormalizeText(definition.TextVerbosity) ?? "medium",
                 IncludeEncryptedReasoning = definition.IncludeEncryptedReasoning ?? true,
                 ModelDiscovery = NormalizeText(definition.ModelDiscovery) ?? "codex_endpoint_with_static_fallback",
+                ResponseTransport = NormalizeText(definition.ResponseTransport) ?? "websocket_with_http_fallback",
                 SendResponsesBetaHeader = definition.SendResponsesBetaHeader ?? true,
                 SendInstallationId = definition.SendInstallationId ?? false,
                 InstallationIdSource = NormalizeText(definition.InstallationIdSource) ?? "codealta_state",

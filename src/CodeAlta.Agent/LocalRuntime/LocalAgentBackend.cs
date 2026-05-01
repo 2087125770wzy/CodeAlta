@@ -222,7 +222,8 @@ public sealed class LocalAgentBackend : IAgentBackend
             [],
             _store,
             registration.TurnExecutor,
-            options);
+            options,
+            allowProviderContinuation: true);
     }
 
     /// <inheritdoc />
@@ -277,14 +278,29 @@ public sealed class LocalAgentBackend : IAgentBackend
                 history,
                 _store,
                 provider.TurnExecutor,
-                options);
+                options,
+                allowProviderContinuation: false);
         }
 
         throw new KeyNotFoundException($"The session '{sessionId}' was not found for backend '{BackendId.Value}'.");
     }
 
     /// <inheritdoc />
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var registration in _options.Providers)
+        {
+            switch (registration.TurnExecutor)
+            {
+                case IAsyncDisposable asyncDisposable:
+                    await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+                    break;
+                case IDisposable disposable:
+                    disposable.Dispose();
+                    break;
+            }
+        }
+    }
 
     private LocalAgentBackendProviderRegistration ResolveProvider(string? providerKey)
     {

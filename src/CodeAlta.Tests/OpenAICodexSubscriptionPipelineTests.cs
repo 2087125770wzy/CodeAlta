@@ -258,7 +258,7 @@ public sealed class OpenAICodexSubscriptionPipelineTests
             CreateProviderDescriptor(),
             CancellationToken.None).ConfigureAwait(false);
 
-        Assert.AreEqual(1, models.Count);
+        Assert.AreEqual(2, models.Count);
         Assert.AreEqual("gpt-5.3-codex", models[0].Id);
         Assert.AreEqual("Codex model", models[0].DisplayName);
         Assert.AreEqual("codex-endpoint", models[0].Capabilities?["source"]);
@@ -267,6 +267,8 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         Assert.AreEqual(AgentReasoningEffort.High, models[0].DefaultReasoningEffort);
         Assert.AreEqual(true, models[0].Capabilities?["supportsImageInput"]);
         Assert.AreEqual(true, models[0].Capabilities?["supportsTextVerbosity"]);
+        Assert.AreEqual("websocket-only-codex", models[1].Id);
+        Assert.AreEqual(true, models[1].Capabilities?["requiresWebSocket"]);
         var version = typeof(OpenAIProviderSdkFactory).Assembly.GetName().Version!;
         Assert.AreEqual(
             $"https://chatgpt.com/backend-api/codex/models?client_version={version.Major}.{version.Minor}.{version.Build}",
@@ -275,6 +277,33 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         Assert.AreEqual("acct_configured", handler.Requests[0]["ChatGPT-Account-Id"]);
         Assert.AreEqual("codealta", handler.Requests[0]["originator"]);
         Assert.AreEqual("responses=experimental", handler.Requests[0]["OpenAI-Beta"]);
+    }
+
+    [TestMethod]
+    public async Task ModelDiscovery_FiltersWebSocketOnlyModelsWhenTransportIsHttpOnly()
+    {
+        using var temp = TempDirectory.Create();
+        await SaveCredentialAsync(temp.Path).ConfigureAwait(false);
+        var provider = new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            BaseUri = new Uri("https://chatgpt.com/backend-api/codex"),
+            StateRootPath = temp.Path,
+            CodexSubscriptionHttpClient = new HttpClient(new RecordingHttpMessageHandler(CreateModelsResponse())),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+            },
+        };
+
+        var models = await OpenAIProviderSdkFactory.ListModelsAsync(
+            provider,
+            CreateProviderDescriptor(),
+            CancellationToken.None).ConfigureAwait(false);
+
+        Assert.AreEqual(1, models.Count);
+        Assert.AreEqual("gpt-5.3-codex", models[0].Id);
     }
 
     [TestMethod]

@@ -116,6 +116,11 @@ public sealed record LocalAgentTurnRequest
     public required IReadOnlyList<AgentToolDefinition> Tools { get; init; }
 
     /// <summary>
+    /// Gets or initializes a value indicating whether provider-native continuation state from earlier turns in this in-memory session may be reused.
+    /// </summary>
+    public bool CanUseProviderContinuation { get; init; }
+
+    /// <summary>
     /// Gets or initializes the persisted local session state.
     /// </summary>
     public required LocalAgentSessionState State { get; init; }

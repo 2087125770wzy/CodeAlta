@@ -204,6 +204,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
         Assert.AreEqual("medium", provider.TextVerbosity);
         Assert.IsTrue(provider.IncludeEncryptedReasoning);
         Assert.AreEqual("codex_endpoint_with_static_fallback", provider.ModelDiscovery);
+        Assert.AreEqual("websocket_with_http_fallback", provider.ResponseTransport);
         Assert.IsTrue(provider.SendResponsesBetaHeader);
         Assert.IsFalse(provider.SendInstallationId);
         Assert.AreEqual("codealta_state", provider.InstallationIdSource);
@@ -229,6 +230,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
             text_verbosity = " HIGH "
             include_encrypted_reasoning = false
             model_discovery = " STATIC "
+            response_transport = " HTTP "
             send_responses_beta_header = false
             send_installation_id = true
             installation_id_source = " CODEX_HOME_READONLY "
@@ -247,6 +249,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
         Assert.AreEqual("high", provider.TextVerbosity);
         Assert.IsFalse(provider.IncludeEncryptedReasoning);
         Assert.AreEqual("static", provider.ModelDiscovery);
+        Assert.AreEqual("http", provider.ResponseTransport);
         Assert.IsFalse(provider.SendResponsesBetaHeader);
         Assert.IsTrue(provider.SendInstallationId);
         Assert.AreEqual("codex_home_readonly", provider.InstallationIdSource);
@@ -362,6 +365,25 @@ public sealed class CodeAltaConfigStoreRawApiTests
         var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
         var ex = Assert.ThrowsExactly<InvalidDataException>(() => store.LoadGlobalProviderDefinitions(includeDisabled: true));
         StringAssert.Contains(ex.InnerException?.Message, "text_verbosity");
+    }
+
+    [TestMethod]
+    public void LoadGlobalProviderDefinitions_CodexSubscriptionRejectsInvalidResponseTransport()
+    {
+        using var temp = TempDirectory.Create();
+        File.WriteAllText(
+            Path.Combine(temp.Path, "config.toml"),
+            """
+            [providers.codex_subscription]
+            type = "openai-codex-subscription"
+            model = "gpt-5.3-codex"
+            response_transport = "socket"
+            experimental = true
+            """);
+
+        var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
+        var ex = Assert.ThrowsExactly<InvalidDataException>(() => store.LoadGlobalProviderDefinitions(includeDisabled: true));
+        StringAssert.Contains(ex.InnerException?.Message, "response_transport");
     }
 
     [TestMethod]

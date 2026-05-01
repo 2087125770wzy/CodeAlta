@@ -241,6 +241,8 @@ display_name = "Codex (ChatGPT subscription)"
 type = "openai-codex-subscription"
 model = "gpt-5.3-codex"
 reasoning_effort = "high"
+# Optional: set to "http" to disable the default WebSocket + HTTP fallback transport.
+# response_transport = "http"
 experimental = true
 
 [providers.minimax]
@@ -276,7 +278,8 @@ The `openai-codex-subscription` provider is experimental and intentionally disti
 
 - it requires `experimental = true` and rejects `api_key`, `api_key_env`, and arbitrary `extra_body`;
 - it uses ChatGPT/Codex OAuth credentials stored in CodeAlta-owned state and never treats ChatGPT tokens as OpenAI platform API keys;
-- requests target `https://chatgpt.com/backend-api/codex` by default and use SSE Responses transport only; WebSocket transport is not enabled in this version;
+- requests target `https://chatgpt.com/backend-api/codex` by default and use WebSocket Responses transport with HTTP/SSE fallback; set `response_transport = "http"` to force HTTP-only mode;
+- `previous_response_id` continuation is used only for active in-memory CodeAlta sessions and is not resumed from sessions reloaded from disk;
 - model discovery uses authenticated `GET /backend-api/codex/models?client_version=<semver>` and falls back to the bundled static Codex allow-list only in the configured fallback mode;
 - requests may count against the user's ChatGPT/Codex subscription limits, and CodeAlta does not rotate accounts, bypass limits, or automatically fall back to a different provider;
 - `send_installation_id` defaults to `false`; when explicitly enabled, CodeAlta sends a stable CodeAlta-owned UUID in `client_metadata.x-codex-installation-id`.

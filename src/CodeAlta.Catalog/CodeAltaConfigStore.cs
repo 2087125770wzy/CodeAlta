@@ -34,6 +34,7 @@ public sealed class CodeAltaConfigStore
     private const string CodexSubscriptionDefaultAuthSource = "codealta_oauth";
     private const string CodexSubscriptionDefaultTextVerbosity = "medium";
     private const string CodexSubscriptionDefaultModelDiscovery = "codex_endpoint_with_static_fallback";
+    private const string CodexSubscriptionDefaultResponseTransport = "websocket_with_http_fallback";
     private const string CodexSubscriptionDefaultInstallationIdSource = "codealta_state";
     private const int CodexSubscriptionDefaultMaxConcurrentRequests = 1;
 
@@ -687,6 +688,7 @@ public sealed class CodeAltaConfigStore
         definition.AccountId = NormalizeText(definition.AccountId);
         definition.TextVerbosity = NormalizeCodexSubscriptionTextVerbosity(definition.TextVerbosity);
         definition.ModelDiscovery = NormalizeCodexSubscriptionModelDiscovery(definition.ModelDiscovery);
+        definition.ResponseTransport = NormalizeCodexSubscriptionResponseTransport(definition.ResponseTransport);
         definition.InstallationIdSource = NormalizeCodexSubscriptionInstallationIdSource(definition.InstallationIdSource);
         definition.OrganizationId = NormalizeText(definition.OrganizationId);
         definition.ProjectId = NormalizeText(definition.ProjectId);
@@ -737,6 +739,15 @@ public sealed class CodeAltaConfigStore
             "codex_endpoint_with_static_fallback" => "codex_endpoint_with_static_fallback",
             "codex_endpoint" => "codex_endpoint",
             "static" => "static",
+            var normalized => normalized,
+        };
+
+    private static string? NormalizeCodexSubscriptionResponseTransport(string? value)
+        => NormalizeText(value)?.ToLowerInvariant() switch
+        {
+            null => null,
+            "auto" or "websocket" or "websocket_with_fallback" or "websocket_with_http_fallback" => "websocket_with_http_fallback",
+            "http" or "sse" => "http",
             var normalized => normalized,
         };
 
@@ -910,6 +921,7 @@ public sealed class CodeAltaConfigStore
         definition.TextVerbosity ??= CodexSubscriptionDefaultTextVerbosity;
         definition.IncludeEncryptedReasoning ??= true;
         definition.ModelDiscovery ??= CodexSubscriptionDefaultModelDiscovery;
+        definition.ResponseTransport ??= CodexSubscriptionDefaultResponseTransport;
         definition.SendResponsesBetaHeader ??= true;
         definition.SendInstallationId ??= false;
         definition.InstallationIdSource ??= CodexSubscriptionDefaultInstallationIdSource;
@@ -1013,6 +1025,7 @@ public sealed class CodeAltaConfigStore
         RejectUnsupportedField(definition, "text_verbosity", definition.TextVerbosity);
         RejectUnsupportedField(definition, "include_encrypted_reasoning", definition.IncludeEncryptedReasoning);
         RejectUnsupportedField(definition, "model_discovery", definition.ModelDiscovery);
+        RejectUnsupportedField(definition, "response_transport", definition.ResponseTransport);
         RejectUnsupportedField(definition, "send_responses_beta_header", definition.SendResponsesBetaHeader);
         RejectUnsupportedField(definition, "send_installation_id", definition.SendInstallationId);
         RejectUnsupportedField(definition, "installation_id_source", definition.InstallationIdSource);
@@ -1058,6 +1071,11 @@ public sealed class CodeAltaConfigStore
         if (definition.ModelDiscovery is not ("codex_endpoint_with_static_fallback" or "codex_endpoint" or "static"))
         {
             throw new InvalidOperationException($"providers.{definition.ProviderKey} model_discovery must be one of: codex_endpoint_with_static_fallback, codex_endpoint, static.");
+        }
+
+        if (definition.ResponseTransport is not ("websocket_with_http_fallback" or "http"))
+        {
+            throw new InvalidOperationException($"providers.{definition.ProviderKey} response_transport must be one of: websocket_with_http_fallback, http.");
         }
 
         if (definition.InstallationIdSource is not ("codealta_state" or "codex_home_import" or "codex_home_readonly"))
@@ -1294,6 +1312,11 @@ public sealed class CodeAltaConfigStore
                 definition.ModelDiscovery = null;
             }
 
+            if (string.Equals(definition.ResponseTransport, CodexSubscriptionDefaultResponseTransport, StringComparison.Ordinal))
+            {
+                definition.ResponseTransport = null;
+            }
+
             if (definition.SendResponsesBetaHeader == true)
             {
                 definition.SendResponsesBetaHeader = null;
@@ -1331,6 +1354,7 @@ public sealed class CodeAltaConfigStore
                !string.IsNullOrWhiteSpace(definition.TextVerbosity) ||
                definition.IncludeEncryptedReasoning is not null ||
                !string.IsNullOrWhiteSpace(definition.ModelDiscovery) ||
+               !string.IsNullOrWhiteSpace(definition.ResponseTransport) ||
                definition.SendResponsesBetaHeader is not null ||
                definition.SendInstallationId is not null ||
                !string.IsNullOrWhiteSpace(definition.InstallationIdSource) ||
@@ -1430,6 +1454,7 @@ public sealed class CodeAltaConfigStore
             TextVerbosity = definition.TextVerbosity,
             IncludeEncryptedReasoning = definition.IncludeEncryptedReasoning,
             ModelDiscovery = definition.ModelDiscovery,
+            ResponseTransport = definition.ResponseTransport,
             SendResponsesBetaHeader = definition.SendResponsesBetaHeader,
             SendInstallationId = definition.SendInstallationId,
             InstallationIdSource = definition.InstallationIdSource,

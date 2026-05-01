@@ -1,7 +1,7 @@
 # Codex ChatGPT Subscription API Access Specification
 
 Status: **Draft**  
-Last updated: **2026-04-24**
+Last updated: **2026-05-01**
 
 ## 1. Purpose
 
@@ -20,7 +20,6 @@ This is **not** a replacement for `src/CodeAlta.Agent.Codex`. The Codex app-serv
 
 Do not implement these in the first version:
 
-- WebSocket transport (`responses_websockets=...`). Use Responses SSE only, with the compatibility caveats in section 13.
 - Direct Chat Completions access to the ChatGPT Codex backend.
 - Files, batches, images, realtime, conversations, or any other OpenAI SDK subclient under this provider.
 - Agent identity, remote-control, Codex cloud task, or Codex app-server protocol support.
@@ -119,6 +118,7 @@ Required or defaulted fields:
 | `text_verbosity` | enum | no | `medium` | `low`, `medium`, or `high`. |
 | `include_encrypted_reasoning` | bool | no | `true` | Adds `reasoning.encrypted_content`. |
 | `model_discovery` | enum | no | `codex_endpoint_with_static_fallback` | `codex_endpoint_with_static_fallback`, `codex_endpoint`, or `static`. |
+| `response_transport` | enum | no | `websocket_with_http_fallback` | `websocket_with_http_fallback` or `http`. The default tries the Codex Responses WebSocket transport and falls back to HTTP/SSE only before any stream update is emitted. |
 | `send_responses_beta_header` | bool | no | `true` | Sends `OpenAI-Beta: responses=experimental` through a typed SDK pipeline policy. |
 | `send_installation_id` | bool | no | `false` | Adds a stable non-secret installation id to `client_metadata` only when explicitly enabled. |
 | `installation_id_source` | enum | no | `codealta_state` | `codealta_state`, `codex_home_import`, or `codex_home_readonly`. |
@@ -214,7 +214,9 @@ Then update `OpenAIProviderSdkFactory.CreateResponsesClient(...)` and `OpenAIRes
 
 Do not create an `OpenAIClient` root client for this provider unless a future Codex-specific endpoint needs it. The only SDK client needed in v1 is `ResponsesClient`.
 
-The OpenAI .NET SDK `ResponsesClient` covers the HTTP/SSE path only. Do not try to implement WebSocket transport through `ResponsesClient`; WebSocket support is a separate transport with its own handshake, message framing, connection lifecycle, and fallback rules.
+Use the local OpenAI .NET SDK source when available so CodeAlta builds against `ResponsesClientOptions` and the Responses WebSocket APIs. The NuGet fallback remains supported for HTTP/SSE-only builds.
+
+HTTP/SSE requests use `ResponsesClient`. The ChatGPT subscription WebSocket path uses a session-scoped WebSocket transport that mirrors the local SDK request/update shape while applying ChatGPT OAuth/session headers instead of platform API-key auth. If WebSocket connection or request setup fails before any stream update is emitted, retry the same turn over HTTP/SSE unless `response_transport = "http"` already forced HTTP-only mode.
 
 ## 8. Auth implementation
 
@@ -509,7 +511,7 @@ GET https://chatgpt.com/backend-api/codex/models?client_version=<semver>
 
 Use the same auth/header policies as Responses. Decode Codex's `ModelsResponse { models: Vec<ModelInfo> }` shape (including current fields such as `slug`, `visibility`, `input_modalities`, `support_verbosity`, `default_reasoning_level`, and `default_verbosity`), not the public OpenAI model-list shape. Preserve ETag for caching if returned.
 
-2. Filter dynamic results to models where Codex metadata says `supported_in_api = true`. Prefer listable models for UI pickers, but allow a configured hidden model only if it appears in the authenticated dynamic response and is `supported_in_api`.
+2. Filter dynamic results to models where Codex metadata says `supported_in_api = true`. Prefer listable models for UI pickers, include `requires_websocket` models when WebSocket transport is enabled, and allow a configured hidden model only if it appears in the authenticated dynamic response and is `supported_in_api`.
 3. If a `model` is configured, validate it against the authenticated dynamic response when available. If the endpoint is unavailable and fallback is enabled, validate against the cached/static Codex catalog.
 4. If `model_discovery = "static"` or the default endpoint mode falls back, expose the bundled static Codex catalog.
 
@@ -538,9 +540,9 @@ Model-list failures:
 - 404/shape changes from the Codex endpoint should fall back to the cached/static list only in `codex_endpoint_with_static_fallback` mode.
 - Never fall back to public OpenAI `/models`.
 
-## 13. WebSocket transport assessment
+## 13. WebSocket transport
 
-WebSocket transport is intentionally out of scope for v1, but the design must remain compatible with adding it later.
+CodeAlta now defaults the ChatGPT subscription provider to WebSocket with HTTP/SSE fallback. Set `response_transport = "http"` to force HTTP/SSE only.
 
 Observed official Codex behavior:
 
@@ -563,24 +565,15 @@ Why WebSockets exist:
 - They reduce payload size on follow-up requests through `previous_response_id` plus incremental input deltas.
 - They provide a single bidirectional transport that can carry multiple request/response streams over the connection lifecycle.
 
-SSE-only v1 compatibility assessment:
+Transport rules:
 
-- HTTP SSE uses the same `/codex/responses` model contract and the same core request body fields.
-- Official Codex has an HTTP SSE path and explicit fallback from WebSocket to HTTP SSE.
-- Official Codex tests cover providers with `supports_websockets = false`, which confirms WebSocket support is not mandatory for the general Responses path.
-- CodeAlta v1 should not advertise WebSocket support to users or model profiles.
-- CodeAlta v1 should always send full replayable input and should not use `previous_response_id` or incremental-delta WebSocket semantics.
-- CodeAlta v1 must still implement `x-codex-turn-state` capture/replay for SSE, because that routing token is shared by both transports.
-- The tradeoff is performance and payload efficiency, not correctness for standard turns. Users may see higher latency and larger request bodies than a WebSocket-enabled Codex client.
-- If dynamic model metadata later marks a specific model as requiring WebSocket transport rather than merely preferring it, CodeAlta must hide or reject that model until WebSocket support is implemented.
-
-Future WebSocket implementation requirements:
-
-- Do not implement WebSocket by bypassing CodeAlta's LocalRuntime tool/permission model.
-- Add a dedicated transport abstraction rather than overloading the SDK `ResponsesClient`.
-- Add handshake-header tests for `OpenAI-Beta: responses_websockets=2026-02-06`, auth/account headers, `session_id`, `x-client-request-id`, and `x-codex-turn-state`.
-- Add message-shape tests for `response.create`, warmup `generate = false`, `client_metadata`, and `previous_response_id` delta requests.
-- Add connection reuse, reconnection, connection-limit, `426` fallback, and sticky HTTP fallback tests.
+- HTTP/SSE remains the correctness fallback and uses the same `/codex/responses` model contract and core request body fields.
+- Do not bypass CodeAlta's LocalRuntime tool/permission model for either transport.
+- Fall back from WebSocket to HTTP/SSE only before any stream update is emitted; after the stream starts, surface the stream failure so CodeAlta does not duplicate partial output or tool calls.
+- Reuse one WebSocket session per active CodeAlta agent session and serialize requests on that session.
+- `previous_response_id` and input-delta continuation may be used only for in-memory CodeAlta sessions created in the current process. Sessions reloaded from disk must send full replayable input and must not resume a stored provider response id.
+- When request fields change or the transcript is not a strict extension of the previous request plus assistant/tool output, send full input and clear continuation state.
+- The local OpenAI SDK WebSocket implementation requires platform API-key auth; the ChatGPT subscription transport applies the equivalent Responses WebSocket message shape with ChatGPT OAuth/account headers.
 
 ## 14. Concurrency, retry, and rate-limit behavior
 
@@ -780,9 +773,10 @@ Implement in small, reviewable steps:
 8. Add Codex `/models?client_version=...` discovery as the default path, plus cache/static fallback.
 9. Add static fallback model catalog and model validation from Codex-provided model metadata.
 10. Add retry/concurrency guardrails and error translation.
-11. Add UI/CLI configure/login/logout/status flows and warnings.
-12. Run targeted tests, then `dotnet build -c Release` and `dotnet test -c Release` from `src`.
-13. Update `readme.md`, relevant `doc/**/*.md`, and `doc/development-guide.md` if development rules or config shape changed.
+11. Add WebSocket transport with HTTP/SSE fallback and live-session-only `previous_response_id` continuation.
+12. Add UI/CLI configure/login/logout/status flows and warnings.
+13. Run targeted tests, then `dotnet build -c Release` and `dotnet test -c Release` from `src`.
+14. Update `readme.md`, relevant `doc/**/*.md`, and `doc/development-guide.md` if development rules or config shape changed.
 
 ## 20. Acceptance criteria
 
@@ -790,11 +784,12 @@ The feature is complete when:
 
 - A user can configure `openai-codex-subscription` distinctly from public OpenAI providers.
 - A user can authenticate with ChatGPT browser OAuth or device-code OAuth into CodeAlta-owned secure storage.
-- A LocalRuntime turn reaches `https://chatgpt.com/backend-api/codex/responses` through `ResponsesClient` with OAuth auth and Codex headers.
+- A LocalRuntime turn reaches `https://chatgpt.com/backend-api/codex/responses` through WebSocket by default or through `ResponsesClient` HTTP/SSE when configured or after safe fallback, with OAuth auth and Codex headers.
 - The request body contains Codex-required defaults and no arbitrary user `extra_body`.
 - Model listing/validation defaults to authenticated Codex `/codex/models` and never calls public OpenAI `/models`.
 - `x-codex-turn-state` response headers are replayed only inside the same turn/request chain.
-- WebSocket absence is explicit: the provider uses HTTP SSE only, does not advertise WebSocket support, and rejects any model that requires WebSocket-only transport.
+- WebSocket fallback is explicit: `response_transport = "websocket_with_http_fallback"` is the default, and `response_transport = "http"` forces HTTP/SSE only.
+- `previous_response_id` continuation is used only inside live in-memory CodeAlta sessions and is disabled for sessions reloaded from disk.
 - Installation metadata is omitted by default, while an explicit compatibility option can send a stable CodeAlta-owned or imported Codex installation id.
 - Rate-limit/account/auth failures are clear and do not trigger account rotation or unsafe fallback.
 - CodeAlta tool execution and permissions remain fully local and unchanged.
@@ -813,4 +808,4 @@ The previous open questions are resolved as implementation guidance:
 - `OpenAI-Beta: responses=experimental`: keep enabled by default and set it with a typed SDK pipeline policy. The SDK supports this through arbitrary request-header policies even if the generated Responses types do not expose the header.
 - `x-codex-turn-state`: implement header capture/replay with a custom `PipelinePolicy`. The OpenAI SDK's typed streaming enumeration does not expose headers directly, but the pipeline response headers are available to policies before the SSE body is consumed.
 - Dynamic models: enable authenticated `/codex/models?client_version=...` by default with cache/static fallback. This avoids stale local model names while preserving offline/test behavior.
-- WebSockets: defer v1 WebSocket transport. HTTP SSE remains compatible for normal Responses turns because the backend supports SSE and official clients fall back to it, but WebSocket-only model requirements must be treated as unsupported until a dedicated transport is implemented.
+- WebSockets: default to WebSocket with HTTP/SSE fallback for ChatGPT subscription turns. Keep HTTP/SSE compatible and configurable because official clients fall back to it and some builds may use the NuGet OpenAI SDK without local WebSocket support.

@@ -49,6 +49,8 @@ internal sealed partial class ModelProviderEditorItemViewModel
         UseDefaultAccountId = source.AccountId is null;
         ModelDiscovery = source.ModelDiscovery ?? "codex_endpoint_with_static_fallback";
         UseDefaultModelDiscovery = source.ModelDiscovery is null;
+        ResponseTransport = source.ResponseTransport ?? "websocket_with_http_fallback";
+        UseDefaultResponseTransport = source.ResponseTransport is null;
         Experimental = source.Experimental == true;
         _isInitialized = true;
     }
@@ -161,6 +163,12 @@ internal sealed partial class ModelProviderEditorItemViewModel
     public partial bool UseDefaultModelDiscovery { get; set; }
 
     [Bindable]
+    public partial string? ResponseTransport { get; set; }
+
+    [Bindable]
+    public partial bool UseDefaultResponseTransport { get; set; }
+
+    [Bindable]
     public partial bool Experimental { get; set; }
 
     public string Label => string.IsNullOrWhiteSpace(DisplayName) ? ProviderKey ?? string.Empty : DisplayName.Trim();
@@ -200,6 +208,7 @@ internal sealed partial class ModelProviderEditorItemViewModel
         definition.AuthSource = ProviderType == "openai-codex-subscription" && !UseDefaultAuthSource ? NormalizeText(AuthSource) : null;
         definition.AccountId = ProviderType == "openai-codex-subscription" && !UseDefaultAccountId ? NormalizeText(AccountId) : null;
         definition.ModelDiscovery = ProviderType == "openai-codex-subscription" && !UseDefaultModelDiscovery ? NormalizeText(ModelDiscovery) : null;
+        definition.ResponseTransport = ProviderType == "openai-codex-subscription" && !UseDefaultResponseTransport ? NormalizeText(ResponseTransport) : null;
         definition.Experimental = ProviderType == "openai-codex-subscription" ? Experimental : null;
         return definition;
     }
@@ -255,6 +264,8 @@ internal sealed partial class ModelProviderEditorItemViewModel
     partial void OnUseDefaultAccountIdChanged(bool value) => ClearTestResultOnEdit();
     partial void OnModelDiscoveryChanged(string? value) => ClearTestResultOnEdit();
     partial void OnUseDefaultModelDiscoveryChanged(bool value) => ClearTestResultOnEdit();
+    partial void OnResponseTransportChanged(string? value) => ClearTestResultOnEdit();
+    partial void OnUseDefaultResponseTransportChanged(bool value) => ClearTestResultOnEdit();
     partial void OnExperimentalChanged(bool value) => ClearTestResultOnEdit();
 
     private static CodeAltaProviderDocument Clone(CodeAltaProviderDocument definition)
@@ -286,6 +297,7 @@ internal sealed partial class ModelProviderEditorItemViewModel
             TextVerbosity = definition.TextVerbosity,
             IncludeEncryptedReasoning = definition.IncludeEncryptedReasoning,
             ModelDiscovery = definition.ModelDiscovery,
+            ResponseTransport = definition.ResponseTransport,
             SendResponsesBetaHeader = definition.SendResponsesBetaHeader,
             SendInstallationId = definition.SendInstallationId,
             InstallationIdSource = definition.InstallationIdSource,

@@ -266,6 +266,12 @@ public sealed class CodeAltaProviderDocument
     public string? ModelDiscovery { get; set; }
 
     /// <summary>
+    /// Gets or sets the Responses transport mode for the Codex subscription provider.
+    /// </summary>
+    [JsonPropertyName("response_transport")]
+    public string? ResponseTransport { get; set; }
+
+    /// <summary>
     /// Gets or sets whether to send the Responses experimental beta header for the Codex subscription provider.
     /// </summary>
     [JsonPropertyName("send_responses_beta_header")]

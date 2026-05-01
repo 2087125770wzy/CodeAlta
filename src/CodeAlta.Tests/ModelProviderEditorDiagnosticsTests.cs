@@ -175,6 +175,8 @@ public sealed class ModelProviderEditorDiagnosticsTests
         item.AccountId = "acct_123";
         item.UseDefaultModelDiscovery = false;
         item.ModelDiscovery = "static";
+        item.UseDefaultResponseTransport = false;
+        item.ResponseTransport = "http";
         item.SetTestResult(success: false, "account selection required");
 
         var definition = item.ToDocument();
@@ -182,6 +184,7 @@ public sealed class ModelProviderEditorDiagnosticsTests
         Assert.AreEqual("codex_auth_import", definition.AuthSource);
         Assert.AreEqual("acct_123", definition.AccountId);
         Assert.AreEqual("static", definition.ModelDiscovery);
+        Assert.AreEqual("http", definition.ResponseTransport);
         Assert.AreEqual(true, definition.Experimental);
 
         item.AccountId = "acct_456";

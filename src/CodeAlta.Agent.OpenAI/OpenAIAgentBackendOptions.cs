@@ -1,5 +1,6 @@
 #pragma warning disable OPENAI001
 
+using System.ClientModel;
 using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Agent.LocalRuntime.Compaction;
 using CodeAlta.Agent.ModelCatalog;
@@ -128,6 +129,8 @@ public sealed class OpenAIProviderOptions
 
     internal Func<OpenAIResponsesClientFactoryContext, ResponsesClient>? ResponsesClientContextFactory { get; set; }
 
+    internal Func<OpenAIResponsesWebSocketSessionFactoryContext, ValueTask<IOpenAIResponsesWebSocketSession>>? ResponsesWebSocketSessionFactory { get; set; }
+
     internal string? StateRootPath { get; set; }
 
     internal Action<OpenAIResponsesRequestCustomizationContext>? ResponsesRequestCustomizer { get; set; }
@@ -177,6 +180,11 @@ public sealed class OpenAICodexSubscriptionOptions
     public string ModelDiscovery { get; set; } = "codex_endpoint_with_static_fallback";
 
     /// <summary>
+    /// Gets or sets the Responses transport mode. Use <c>websocket_with_http_fallback</c> for the default WebSocket path or <c>http</c> to force SSE.
+    /// </summary>
+    public string ResponseTransport { get; set; } = "websocket_with_http_fallback";
+
+    /// <summary>
     /// Gets or sets whether to send the Responses experimental beta header.
     /// </summary>
     public bool SendResponsesBetaHeader { get; set; } = true;
@@ -203,6 +211,19 @@ internal sealed record OpenAIResponsesClientFactoryContext(
     AgentRunId RunId,
     LocalAgentProviderDescriptor Provider);
 
+internal sealed record OpenAIResponsesWebSocketSessionFactoryContext(
+    string? ModelId,
+    string SessionId,
+    AgentRunId RunId,
+    LocalAgentProviderDescriptor Provider);
+
 internal sealed record OpenAIResponsesRequestCustomizationContext(
     LocalAgentTurnRequest Request,
     CreateResponseOptions Options);
+
+internal interface IOpenAIResponsesWebSocketSession : IDisposable
+{
+    AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
+        CreateResponseOptions options,
+        CancellationToken cancellationToken = default);
+}
