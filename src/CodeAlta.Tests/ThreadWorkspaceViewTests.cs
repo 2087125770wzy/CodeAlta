@@ -395,6 +395,75 @@ public sealed class ThreadWorkspaceViewTests
         }
     }
 
+    [TestMethod]
+    public void ExpandedPromptEditor_CtrlEnterClosesDialogAndPreservesDraft()
+    {
+        var promptText = new State<string?>("draft prompt");
+        var view = new ThreadWorkspaceView(
+            new CodeAltaShellViewModel(),
+            new ThreadWorkspaceViewModel(),
+            new PromptComposerViewModel(),
+            [],
+            static () => new TextBlock(string.Empty),
+            static () => { },
+            static _ => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static _ => { },
+            static _ => { },
+            static (_, _) => { },
+            static (_, _) => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static _ => { },
+            static _ => { },
+            static _ => { },
+            promptText,
+            new State<float>(0),
+            static () => { });
+
+        using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var app = new TerminalApp(
+            view.Root,
+            terminalSession.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            view.OpenExpandedPromptDialog();
+            var editor = GetExpandedPromptEditor(view);
+            app.Focus(editor);
+            TickTerminalApp(app);
+
+            var backend = (InMemoryTerminalBackend)terminalSession.Instance.Backend;
+            backend.PushEvent(new TerminalKeyEvent
+            {
+                Key = TerminalKey.Enter,
+                Modifiers = TerminalModifiers.Ctrl,
+            });
+            TickTerminalApp(app);
+
+            Assert.IsNull(GetPrivateMemberValue(view, "_expandedPromptDialog"));
+            Assert.AreEqual("draft prompt", promptText.Value);
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
     private static T GetPrivateField<T>(object instance, string fieldName)
         where T : class
     {
@@ -407,6 +476,19 @@ public sealed class ThreadWorkspaceViewTests
         var field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.IsNotNull(field);
         return Assert.IsInstanceOfType<T>(field.GetValue(instance));
+    }
+
+    private static object? GetPrivateMemberValue(object instance, string fieldName)
+    {
+        var property = instance.GetType().GetProperty(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        if (property is not null)
+        {
+            return property.GetValue(instance);
+        }
+
+        var field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(field);
+        return field.GetValue(instance);
     }
 
     private static ChatPromptEditor GetExpandedPromptEditor(ThreadWorkspaceView view)

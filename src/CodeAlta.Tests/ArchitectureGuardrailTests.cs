@@ -376,12 +376,12 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
-    public void ThreadWorkspaceView_ExpandedPromptDialog_UsesEscapeCommandWithoutDirectKeyHandler()
+    public void ThreadWorkspaceView_ExpandedPromptDialog_UsesCloseCommandsWithoutDirectKeyHandler()
     {
         var workspaceSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "ThreadWorkspaceView.cs"));
 
-        Assert.IsTrue(workspaceSource.Contains("editor.AddCommand(CreateExpandedPromptDialogCloseCommand());", StringComparison.Ordinal));
-        Assert.IsTrue(workspaceSource.Contains("dialog.AddCommand(CreateExpandedPromptDialogCloseCommand());", StringComparison.Ordinal));
+        Assert.IsTrue(workspaceSource.Contains("editor.AddCommand(CreateExpandedPromptDialogCloseCommand(\"CodeAlta.Thread.ExpandPrompt.Close\", new KeyGesture(TerminalKey.Escape)))", StringComparison.Ordinal));
+        Assert.IsTrue(workspaceSource.Contains("dialog.AddCommand(CreateExpandedPromptDialogCloseCommand(\"CodeAlta.Thread.ExpandPrompt.CloseWithCtrlEnter\", new KeyGesture(TerminalKey.Enter, TerminalModifiers.Ctrl), CommandPresentation.None))", StringComparison.Ordinal));
         Assert.IsFalse(workspaceSource.Contains("dialog.KeyDown(", StringComparison.Ordinal));
     }
 

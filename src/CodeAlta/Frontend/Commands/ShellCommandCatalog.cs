@@ -203,7 +203,7 @@ internal static class ShellCommandCatalog
         new(
             "CodeAlta.Thread.ExpandPrompt",
             "Full Prompt",
-            "Open the current prompt in a large editor window. Escape closes the window and keeps the draft.",
+            "Open the current prompt in a large editor window. Escape or Ctrl+Enter closes the window and keeps the draft.",
             ShellCommandHelpCategory.Prompt,
             ShellCommandScope.DraftOrThread,
             ShellCommandAvailability.PromptEnabled,

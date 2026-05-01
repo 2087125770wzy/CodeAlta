@@ -964,13 +964,14 @@ internal sealed class ThreadWorkspaceView
             return;
         }
 
-        var editor = CreateStyledPromptEditor(_ => { }, _openHelp, _openCommandPalette, _projectFileSearchService, _getPromptReferenceProjectRoot, placeholder: null)
+        var editor = CreateStyledPromptEditor(_ => CloseExpandedPromptDialog(), _openHelp, _openCommandPalette, _projectFileSearchService, _getPromptReferenceProjectRoot, placeholder: null)
             .Placeholder(promptComposerViewModel.Bind.Placeholder)
             .Text(promptText)
             .MinHeight(12)
             .IsEnabled(promptComposerViewModel.Bind.IsEnabled);
         ConfigurePromptImagePasteHandler(editor);
-        editor.AddCommand(CreateExpandedPromptDialogCloseCommand());
+        editor.AddCommand(CreateExpandedPromptDialogCloseCommand("CodeAlta.Thread.ExpandPrompt.Close", new KeyGesture(TerminalKey.Escape)));
+        editor.AddCommand(CreateExpandedPromptDialogCloseCommand("CodeAlta.Thread.ExpandPrompt.CloseWithCtrlEnter", new KeyGesture(TerminalKey.Enter, TerminalModifiers.Ctrl), CommandPresentation.None));
 
         var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"))
         {
@@ -983,25 +984,27 @@ internal sealed class ThreadWorkspaceView
         var dialog = new Dialog()
             .Title("Edit Prompt")
             .TopRightText(closeButton)
-            .BottomRightText(new Markup("[dim]Esc Close · draft preserved[/]"))
+            .BottomRightText(new Markup("[dim]Esc/Ctrl+Enter Close · draft preserved[/]"))
             .IsModal(true)
             .Padding(1)
             .Content(editor.Scrollable());
         ResponsiveDialogSize.Apply(dialog, ThreadPaneLayout.GetAbsoluteBounds(), minWidth: 60, minHeight: 18);
-        dialog.AddCommand(CreateExpandedPromptDialogCloseCommand());
+        dialog.AddCommand(CreateExpandedPromptDialogCloseCommand("CodeAlta.Thread.ExpandPrompt.Close", new KeyGesture(TerminalKey.Escape)));
+        dialog.AddCommand(CreateExpandedPromptDialogCloseCommand("CodeAlta.Thread.ExpandPrompt.CloseWithCtrlEnter", new KeyGesture(TerminalKey.Enter, TerminalModifiers.Ctrl), CommandPresentation.None));
 
         _expandedPromptDialog = dialog;
         dialog.Show();
         dialog.App?.Focus(editor);
 
-        Command CreateExpandedPromptDialogCloseCommand()
+        Command CreateExpandedPromptDialogCloseCommand(string id, KeyGesture gesture, CommandPresentation presentation = CommandPresentation.CommandBar)
             => new()
             {
-                Id = "CodeAlta.Thread.ExpandPrompt.Close",
+                Id = id,
                 LabelMarkup = "Close",
                 DescriptionMarkup = "Close the large prompt editor and keep the current draft.",
-                Gesture = new KeyGesture(TerminalKey.Escape),
+                Gesture = gesture,
                 Importance = CommandImportance.Primary,
+                Presentation = presentation,
                 Execute = _ => CloseExpandedPromptDialog(),
             };
     }
