@@ -118,7 +118,7 @@ Required or defaulted fields:
 | `text_verbosity` | enum | no | `medium` | `low`, `medium`, or `high`. |
 | `include_encrypted_reasoning` | bool | no | `true` | Adds `reasoning.encrypted_content`. |
 | `model_discovery` | enum | no | `codex_endpoint_with_static_fallback` | `codex_endpoint_with_static_fallback`, `codex_endpoint`, or `static`. |
-| `response_transport` | enum | no | `websocket_with_http_fallback` | `websocket_with_http_fallback` or `http`. The default tries the Codex Responses WebSocket transport and falls back to HTTP/SSE only before any stream update is emitted. |
+| `response_transport` | enum | no | `websocket_with_http_fallback` | `websocket_with_http_fallback` or `http`. The default tries the Codex Responses WebSocket transport and falls back to HTTP/SSE only before any user-visible stream delta is emitted. |
 | `send_responses_beta_header` | bool | no | `true` | Sends `OpenAI-Beta: responses=experimental` through a typed SDK pipeline policy. |
 | `send_installation_id` | bool | no | `false` | Adds a stable non-secret installation id to `client_metadata` only when explicitly enabled. |
 | `installation_id_source` | enum | no | `codealta_state` | `codealta_state`, `codex_home_import`, or `codex_home_readonly`. |
@@ -216,7 +216,7 @@ Do not create an `OpenAIClient` root client for this provider unless a future Co
 
 Use the OpenAI .NET SDK NuGet package for `ResponsesClient` and generated Responses protocol models. CodeAlta owns the ChatGPT subscription WebSocket transport in `CodeAlta.Agent.OpenAI` so builds do not require a local `C:\code\openai-dotnet` checkout.
 
-HTTP/SSE requests use `ResponsesClient`. The ChatGPT subscription WebSocket path uses a session-scoped WebSocket transport that mirrors the local SDK request/update shape while applying ChatGPT OAuth/session headers instead of platform API-key auth. If WebSocket connection or request setup fails before any stream update is emitted, retry the same turn over HTTP/SSE unless `response_transport = "http"` already forced HTTP-only mode; after such fallback, keep that live CodeAlta session on HTTP/SSE to avoid repeated failed WebSocket handshakes.
+HTTP/SSE requests use `ResponsesClient`. The ChatGPT subscription WebSocket path uses a session-scoped WebSocket transport that mirrors the local SDK request/update shape while applying ChatGPT OAuth/session headers instead of platform API-key auth. If WebSocket connection, request setup, or in-stream receive fails before any user-visible stream delta is emitted, retry the same turn over HTTP/SSE unless `response_transport = "http"` already forced HTTP-only mode; after such fallback, keep that live CodeAlta session on HTTP/SSE to avoid repeated failed WebSocket handshakes.
 
 ## 8. Auth implementation
 
@@ -413,6 +413,7 @@ Implementation requirements:
 - After transport returns, read `x-codex-turn-state` from response headers and store it only if no value has already been captured for the current turn.
 - Scope the storage to a single LocalRuntime turn or request chain, not the whole session, not the account, and not persisted session history.
 - Clear the captured value before the next user turn starts.
+- Apply the same state object to HTTP/SSE requests and WebSocket handshake headers for the active LocalRuntime run so retries and tool-call follow-ups share captured state without leaking it to the next run.
 - Do not synthesize or mutate the value.
 - Test the policy with a mock transport that returns the header and then assert that a same-turn follow-up sends it while a new turn does not.
 
@@ -553,7 +554,7 @@ Observed official Codex behavior:
 - WebSocket response headers are used for the same routing/model metadata as SSE response headers, including `x-codex-turn-state`, `x-models-etag`, `x-reasoning-included`, and `openai-model`.
 - The connection can be preconnected before a turn, and can be prewarmed with a `response.create` payload that sets `generate = false`.
 - A healthy connection is reused across requests for the same model-client session/window.
-- When the next request is a strict prefix extension of the previous request plus server-returned output items, the client can send only the input delta with `previous_response_id`.
+- When the next request is a strict prefix extension of the previous request plus server-returned output items on a live reused WebSocket, the client can send only the input delta with `previous_response_id`.
 - When request fields change or the transcript is not a strict extension, the client sends a full `response.create` payload.
 - A WebSocket connection-limit error asks the client to reconnect and retry on a new connection.
 - A `426 Upgrade Required`, failed connection attempts, or exhausted WebSocket retry budget switches the session to HTTP SSE fallback.
@@ -569,13 +570,14 @@ Transport rules:
 
 - HTTP/SSE remains the correctness fallback and uses the same `/codex/responses` model contract and core request body fields.
 - Do not bypass CodeAlta's LocalRuntime tool/permission model for either transport.
-- Fall back from WebSocket to HTTP/SSE only before any stream update is emitted; after the stream starts, surface the stream failure so CodeAlta does not duplicate partial output or tool calls.
+- Fall back from WebSocket to HTTP/SSE only before any user-visible stream delta is emitted; after visible assistant/reasoning output starts, surface the stream failure so CodeAlta does not duplicate partial output or tool calls.
 - Reuse one WebSocket session per active CodeAlta agent session and serialize requests on that session.
 - Close and remove the per-session WebSocket when the CodeAlta session is disposed, and idle-expire cached WebSocket sessions after five minutes of inactivity.
 - If a reused WebSocket is stale and fails while sending the next request, reconnect once and send the full request payload instead of a `previous_response_id` delta.
 - Parse wrapped WebSocket error frames such as `{ "type": "error", "status": ..., "error": ... }` into status-bearing request failures; treat `websocket_connection_limit_reached` as retryable on a fresh connection rather than as an HTTP fallback signal.
+- Wrap WebSocket receive waits in a per-message idle timeout so a silent socket cannot hang indefinitely.
 - Ignore known non-response side-channel frames such as `codex.rate_limits`, model verification, and server-model notifications unless CodeAlta gains an explicit UI/event surface for them.
-- `previous_response_id` and input-delta continuation may be used only for in-memory CodeAlta sessions created in the current process. Sessions reloaded from disk must send full replayable input and must not resume a stored provider response id.
+- `previous_response_id` and input-delta continuation may be used only on a currently live/reused WebSocket for in-memory CodeAlta sessions created in the current process. HTTP/SSE, HTTP fallback, new WebSocket connections, and sessions reloaded from disk must send full replayable input and must not resume a stored provider response id.
 - When request fields change or the transcript is not a strict extension of the previous request plus assistant/tool output, send full input and clear continuation state.
 - CodeAlta's ChatGPT subscription WebSocket transport applies the Responses WebSocket message shape with ChatGPT OAuth/account headers and must remain independent from platform API-key WebSocket helpers in the OpenAI SDK.
 
@@ -599,7 +601,7 @@ Do not retry:
 
 - 400 request-shape errors;
 - 401/403 auth/account/plan errors after one refresh attempt;
-- quota, usage-limit, abuse, policy, or disabled-account responses;
+- quota, usage-limit, plan-limit, abuse, policy, or disabled-account responses, including 429 payloads such as `usage_limit_reached` or `usage_not_included`;
 - streams that failed after partial content or tool calls.
 
 Error translation:
@@ -720,7 +722,7 @@ Assert:
 - `session_id` equals the LocalRuntime session id;
 - `OpenAI-Beta: responses=experimental` is present if configured;
 - `X-OpenAI-Fedramp: true` appears only for FedRAMP accounts;
-- `x-codex-turn-state` is captured from response headers and replayed only within the same turn/request chain;
+- `x-codex-turn-state` is captured from HTTP/SSE and WebSocket handshake response headers and replayed only within the same turn/request chain;
 - no API-key auth header is used.
 
 ### 18.4 Body tests
@@ -751,7 +753,8 @@ Capture serialized request body and assert:
 
 - 401 triggers refresh once, then re-auth failure if still unauthorized.
 - 403 surfaces account/plan/policy failure.
-- 429 honors `Retry-After` and stops after budget.
+- transient 429 honors `Retry-After` and stops after budget.
+- usage/quota/plan-limit 429 responses are terminal and not retried.
 - 5xx transient errors retry within budget.
 - Streaming error after partial text is not replayed.
 - Quota/rate-limit text is surfaced without generic rewriting.

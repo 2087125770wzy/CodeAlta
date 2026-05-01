@@ -4,6 +4,7 @@ using System.ClientModel;
 using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Agent.LocalRuntime.Compaction;
 using CodeAlta.Agent.ModelCatalog;
+using CodeAlta.Agent.OpenAI.CodexSubscription;
 using OpenAI.Chat;
 using OpenAI.Responses;
 
@@ -211,13 +212,15 @@ internal sealed record OpenAIResponsesClientFactoryContext(
     string? ModelId,
     string SessionId,
     AgentRunId RunId,
-    LocalAgentProviderDescriptor Provider);
+    LocalAgentProviderDescriptor Provider,
+    CodexTurnState? TurnState = null);
 
 internal sealed record OpenAIResponsesWebSocketSessionFactoryContext(
     string? ModelId,
     string SessionId,
     AgentRunId RunId,
-    LocalAgentProviderDescriptor Provider);
+    LocalAgentProviderDescriptor Provider,
+    CodexTurnState TurnState);
 
 internal sealed record OpenAIResponsesRequestCustomizationContext(
     LocalAgentTurnRequest Request,
@@ -225,6 +228,8 @@ internal sealed record OpenAIResponsesRequestCustomizationContext(
 
 internal interface IOpenAIResponsesWebSocketSession : IDisposable
 {
+    bool HasOpenConnection { get; }
+
     AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
         CreateResponseOptions options,
         CreateResponseOptions? reconnectOptions = null,

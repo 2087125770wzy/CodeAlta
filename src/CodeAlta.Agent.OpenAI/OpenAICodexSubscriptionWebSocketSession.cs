@@ -19,15 +19,19 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
     private const string ResponsesWebSocketsBetaHeader = "responses_websockets=2026-02-06";
     private const string WebSocketErrorCodeDataKey = "OpenAI.WebSocketErrorCode";
     private const string WebSocketErrorPayloadDataKey = "OpenAI.WebSocketErrorPayload";
+    private const string WebSocketErrorTypeDataKey = "OpenAI.WebSocketErrorType";
     private const string WebSocketWrappedErrorDataKey = "OpenAI.WebSocketWrappedError";
     private const string WebSocketConnectionLimitReachedCode = "websocket_connection_limit_reached";
     private const string WebSocketConnectionLimitReachedMessage = "Responses websocket connection limit reached (60 minutes). Create a new websocket connection to continue.";
+    private const string CodexTurnStateHeaderName = "x-codex-turn-state";
 
     private readonly Uri _baseUri;
     private readonly OpenAICodexSubscriptionOptions _options;
     private readonly OpenAICodexSubscriptionAuthManager _authManager;
     private readonly string _sessionId;
     private readonly string _userAgentApplicationId;
+    private readonly CodexTurnState _turnState;
+    private readonly TimeSpan _receiveIdleTimeout;
     private readonly SemaphoreSlim _streamSemaphore = new(initialCount: 1, maxCount: 1);
 
     private ClientWebSocket? _webSocket;
@@ -38,10 +42,13 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         OpenAICodexSubscriptionOptions options,
         OpenAICodexSubscriptionAuthManager authManager,
         string sessionId,
-        string userAgentApplicationId)
+        string userAgentApplicationId,
+        CodexTurnState turnState,
+        TimeSpan receiveIdleTimeout)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(authManager);
+        ArgumentNullException.ThrowIfNull(turnState);
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
         ArgumentException.ThrowIfNullOrWhiteSpace(userAgentApplicationId);
 
@@ -50,7 +57,11 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         _authManager = authManager;
         _sessionId = sessionId.Trim();
         _userAgentApplicationId = userAgentApplicationId.Trim();
+        _turnState = turnState;
+        _receiveIdleTimeout = receiveIdleTimeout;
     }
+
+    public bool HasOpenConnection => _webSocket?.State == WebSocketState.Open;
 
     public AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
         CreateResponseOptions options,
@@ -206,6 +217,7 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         try
         {
             await webSocket.ConnectAsync(ResolveWebSocketUri(_baseUri), cancellationToken).ConfigureAwait(false);
+            CaptureResponseTurnState(webSocket.HttpResponseHeaders);
             return webSocket;
         }
         catch
@@ -231,6 +243,11 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         options.SetRequestHeader("session_id", _sessionId);
         options.SetRequestHeader("x-client-request-id", _sessionId);
         options.SetRequestHeader("User-Agent", _userAgentApplicationId);
+        options.CollectHttpResponseDetails = true;
+        if (_turnState.TryGetCapturedState(out var turnState))
+        {
+            options.SetRequestHeader(CodexTurnStateHeaderName, turnState);
+        }
 
         var accountId = !string.IsNullOrWhiteSpace(_options.AccountId)
             ? _options.AccountId
@@ -289,8 +306,10 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
                 WebSocketReceiveResult result;
                 do
                 {
-                    result = await webSocket.ReceiveAsync(
+                    result = await ReceiveFrameWithIdleTimeoutAsync(
+                            webSocket,
                             new ArraySegment<byte>(buffer),
+                            _receiveIdleTimeout,
                             cancellationToken)
                         .ConfigureAwait(false);
 
@@ -315,6 +334,79 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         {
             ArrayPool<byte>.Shared.Return(buffer);
         }
+    }
+
+    internal static async Task<WebSocketReceiveResult> ReceiveFrameWithIdleTimeoutAsync(
+        WebSocket webSocket,
+        ArraySegment<byte> buffer,
+        TimeSpan idleTimeout,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(webSocket);
+
+        if (idleTimeout == Timeout.InfiniteTimeSpan)
+        {
+            return await webSocket.ReceiveAsync(buffer, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (idleTimeout <= TimeSpan.Zero)
+        {
+            throw new TimeoutException("Codex subscription WebSocket did not receive a message before the configured idle timeout elapsed.");
+        }
+
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(idleTimeout);
+        try
+        {
+            return await webSocket.ReceiveAsync(buffer, timeoutSource.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && timeoutSource.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"Codex subscription WebSocket did not receive a message within {idleTimeout}.",
+                ex);
+        }
+    }
+
+    private void CaptureResponseTurnState(IReadOnlyDictionary<string, IEnumerable<string>>? headers)
+    {
+        if (!TryGetHeaderValue(headers, CodexTurnStateHeaderName, out var turnState))
+        {
+            return;
+        }
+
+        _turnState.Capture(turnState);
+    }
+
+    internal static bool TryGetHeaderValue(
+        IReadOnlyDictionary<string, IEnumerable<string>>? headers,
+        string name,
+        out string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        if (headers is not null)
+        {
+            foreach (var header in headers)
+            {
+                if (!string.Equals(header.Key, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                foreach (var candidate in header.Value)
+                {
+                    if (!string.IsNullOrWhiteSpace(candidate))
+                    {
+                        value = candidate;
+                        return true;
+                    }
+                }
+            }
+        }
+
+        value = string.Empty;
+        return false;
     }
 
     private async Task CloseWebSocketSilentlyAsync()
@@ -451,7 +543,7 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         {
             var retryable = new HttpRequestException(
                 string.IsNullOrWhiteSpace(message) ? WebSocketConnectionLimitReachedMessage : message);
-            PopulateWebSocketErrorData(retryable, errorEvent, payload, code);
+            PopulateWebSocketErrorData(retryable, errorEvent, payload, code, errorType);
             return retryable;
         }
 
@@ -461,13 +553,13 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
                 CreateWrappedWebSocketErrorMessage(statusCode, code, errorType, message),
                 inner: null,
                 statusCode);
-            PopulateWebSocketErrorData(httpException, errorEvent, payload, code);
+            PopulateWebSocketErrorData(httpException, errorEvent, payload, code, errorType);
             return httpException;
         }
 
         var protocolException = new InvalidOperationException(
             CreateWrappedWebSocketErrorMessage(null, code, errorType, message));
-        PopulateWebSocketErrorData(protocolException, errorEvent, payload, code);
+        PopulateWebSocketErrorData(protocolException, errorEvent, payload, code, errorType);
         return protocolException;
     }
 
@@ -496,13 +588,19 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         Exception exception,
         JsonElement errorEvent,
         string payload,
-        string? code)
+        string? code,
+        string? errorType)
     {
         exception.Data[WebSocketWrappedErrorDataKey] = true;
         exception.Data[WebSocketErrorPayloadDataKey] = payload;
         if (!string.IsNullOrWhiteSpace(code))
         {
             exception.Data[WebSocketErrorCodeDataKey] = code;
+        }
+
+        if (!string.IsNullOrWhiteSpace(errorType))
+        {
+            exception.Data[WebSocketErrorTypeDataKey] = errorType;
         }
 
         if (!errorEvent.TryGetProperty("headers"u8, out var headersElement) ||

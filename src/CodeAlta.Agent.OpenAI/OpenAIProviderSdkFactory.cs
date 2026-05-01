@@ -365,7 +365,7 @@ internal static class OpenAIProviderSdkFactory
                     SessionId: context.SessionId,
                     IsFedRamp: false,
                     SendResponsesBetaHeader: options.SendResponsesBetaHeader,
-                    TurnState: new CodexTurnState(),
+                    TurnState: context.TurnState ?? new CodexTurnState(),
                     AuthManager: authManager)),
             PipelinePosition.BeforeTransport);
 

@@ -2,6 +2,7 @@
 
 using System.ClientModel.Primitives;
 using System.Net;
+using System.Net.WebSockets;
 using System.Reflection;
 using CodeAlta.Agent;
 using CodeAlta.Agent.LocalRuntime;
@@ -311,6 +312,39 @@ public sealed class OpenAICodexSubscriptionPipelineTests
         Assert.AreEqual("response.done", doneType);
         Assert.IsNull(doneException);
         StringAssert.Contains(normalizedDone.ToString(), "response.completed");
+    }
+
+    [TestMethod]
+    public void WebSocketSession_ReadsTurnStateFromHandshakeHeadersCaseInsensitively()
+    {
+        var headers = new Dictionary<string, IEnumerable<string>>(StringComparer.Ordinal)
+        {
+            ["X-Codex-Turn-State"] = ["ws-sticky-state"],
+        };
+
+        var found = OpenAICodexSubscriptionWebSocketSession.TryGetHeaderValue(
+            headers,
+            "x-codex-turn-state",
+            out var turnState);
+
+        Assert.IsTrue(found);
+        Assert.AreEqual("ws-sticky-state", turnState);
+    }
+
+    [TestMethod]
+    public async Task WebSocketSession_ReceiveFrameTimesOutWhenSocketIsSilent()
+    {
+        using var webSocket = new SilentWebSocket();
+
+        var exception = await Assert.ThrowsExactlyAsync<TimeoutException>(
+                () => OpenAICodexSubscriptionWebSocketSession.ReceiveFrameWithIdleTimeoutAsync(
+                    webSocket,
+                    new ArraySegment<byte>(new byte[16]),
+                    TimeSpan.FromMilliseconds(10),
+                    CancellationToken.None))
+            .ConfigureAwait(false);
+
+        StringAssert.Contains(exception.Message, "did not receive");
     }
 
     [TestMethod]
@@ -747,6 +781,53 @@ public sealed class OpenAICodexSubscriptionPipelineTests
 
             return headers;
         }
+    }
+
+    private sealed class SilentWebSocket : WebSocket
+    {
+        public override WebSocketCloseStatus? CloseStatus => null;
+
+        public override string? CloseStatusDescription => null;
+
+        public override WebSocketState State => WebSocketState.Open;
+
+        public override string? SubProtocol => null;
+
+        public override void Abort()
+        {
+        }
+
+        public override void Dispose()
+        {
+        }
+
+        public override Task CloseAsync(
+            WebSocketCloseStatus closeStatus,
+            string? statusDescription,
+            CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public override Task CloseOutputAsync(
+            WebSocketCloseStatus closeStatus,
+            string? statusDescription,
+            CancellationToken cancellationToken)
+            => Task.CompletedTask;
+
+        public override async Task<WebSocketReceiveResult> ReceiveAsync(
+            ArraySegment<byte> buffer,
+            CancellationToken cancellationToken)
+        {
+            _ = buffer;
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException("Silent WebSocket receive unexpectedly completed.");
+        }
+
+        public override Task SendAsync(
+            ArraySegment<byte> buffer,
+            WebSocketMessageType messageType,
+            bool endOfMessage,
+            CancellationToken cancellationToken)
+            => Task.CompletedTask;
     }
 
     private sealed class TempDirectory(string path) : IDisposable

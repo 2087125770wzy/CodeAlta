@@ -4,6 +4,7 @@ using System.ClientModel;
 #pragma warning disable SCME0001
 using System.ClientModel.Primitives;
 using System.Net;
+using System.Net.WebSockets;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -842,6 +843,60 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_ReusesCodexTurnStateOnlyWithinSameRun()
+    {
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [CreateTextOnlyAssistantResponseUpdate("response-turn-state-1", "gpt-5.3-codex", "First answer.")],
+            [CreateTextOnlyAssistantResponseUpdate("response-turn-state-2", "gpt-5.3-codex", "Second answer.")],
+            [CreateTextOnlyAssistantResponseUpdate("response-turn-state-3", "gpt-5.3-codex", "Third answer.")],
+        ]);
+        var contexts = new List<OpenAIResponsesClientFactoryContext>();
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientContextFactory = context =>
+            {
+                contexts.Add(context);
+                return responsesClient;
+            },
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+            },
+        });
+        var sameRun = CreateCodexTurnRequest() with
+        {
+            RunId = new AgentRunId("run-same-turn"),
+        };
+        var nextRun = CreateCodexTurnRequest() with
+        {
+            RunId = new AgentRunId("run-next-turn"),
+        };
+
+        _ = await executor.ExecuteTurnAsync(sameRun, static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+        Assert.IsNotNull(contexts[0].TurnState);
+        var firstTurnState = contexts[0].TurnState!;
+        Assert.IsFalse(firstTurnState.TryGetCapturedState(out _));
+        firstTurnState.Capture("sticky-state");
+
+        _ = await executor.ExecuteTurnAsync(sameRun, static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        Assert.AreEqual(2, contexts.Count);
+        Assert.AreSame(firstTurnState, contexts[1].TurnState);
+        Assert.IsTrue(contexts[1].TurnState!.TryGetCapturedState(out var replayedState));
+        Assert.AreEqual("sticky-state", replayedState);
+
+        _ = await executor.ExecuteTurnAsync(nextRun, static (_, _) => ValueTask.CompletedTask).ConfigureAwait(false);
+
+        Assert.AreEqual(3, contexts.Count);
+        Assert.AreNotSame(firstTurnState, contexts[2].TurnState);
+        Assert.IsFalse(contexts[2].TurnState!.TryGetCapturedState(out _));
+        Assert.IsFalse(firstTurnState.TryGetCapturedState(out _));
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_PreservesLegacyResponsesClientFactory()
     {
         var responsesClient = new RecordingOpenAIResponseClient(
@@ -1347,7 +1402,7 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
-    public async Task OpenAIResponsesAgentBackend_CodexLiveSessionUsesPreviousResponseId()
+    public async Task OpenAIResponsesAgentBackend_CodexHttpLiveSessionReplaysFullContextWithoutPreviousResponseId()
     {
         using var temp = TestTempDirectory.Create();
         var responsesClient = new RecordingOpenAIResponseClient(
@@ -1406,11 +1461,11 @@ public sealed class OpenAIRawApiAgentBackendTests
 
         Assert.AreEqual(2, responsesClient.Requests.Count);
         Assert.IsNull(responsesClient.Requests[0].Options.PreviousResponseId);
-        Assert.AreEqual("response-live-backend-1", responsesClient.Requests[1].Options.PreviousResponseId);
-        Assert.AreEqual(1, responsesClient.Requests[1].InputItems.Count);
+        Assert.IsNull(responsesClient.Requests[1].Options.PreviousResponseId);
+        Assert.IsTrue(responsesClient.Requests[1].InputItems.Count > 1);
+        StringAssert.Contains(responsesClient.Requests[1].SerializedOptions, "First live prompt");
+        StringAssert.Contains(responsesClient.Requests[1].SerializedOptions, "First live answer.");
         StringAssert.Contains(responsesClient.Requests[1].SerializedOptions, "Second live prompt");
-        Assert.IsFalse(responsesClient.Requests[1].SerializedOptions.Contains("First live prompt", StringComparison.Ordinal));
-        Assert.IsFalse(responsesClient.Requests[1].SerializedOptions.Contains("First live answer.", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -1461,6 +1516,53 @@ public sealed class OpenAIRawApiAgentBackendTests
         Assert.AreEqual(2, responsesClient.Requests.Count);
         Assert.AreEqual("Fallback answer.", response.AssistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Single().Value);
         Assert.AreEqual("Sticky fallback answer.", secondResponse.AssistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Single().Value);
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_CodexWebSocketAbruptCloseFallsBackBeforeVisibleOutput()
+    {
+        var webSocketSession = new PartiallyFailingOpenAIResponsesWebSocketSession(
+            CreateCreatedResponseUpdate(
+                responseId: "response-started",
+                modelId: "gpt-5.3-codex"),
+            new WebSocketException("The remote party closed the WebSocket connection without completing the close handshake."));
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateAssistantResponseUpdate(
+                    responseId: "response-fallback-abrupt-close",
+                    modelId: "gpt-5.3-codex",
+                    text: "Fallback answer.",
+                    reasoningText: "Recovered over HTTP.",
+                    encryptedReasoning: null),
+            ],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            ResponsesWebSocketSessionFactory = _ => ValueTask.FromResult<IOpenAIResponsesWebSocketSession>(webSocketSession),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+        var deltas = new List<LocalAgentTurnDelta>();
+
+        var response = await executor.ExecuteTurnAsync(
+                CreateCodexTurnRequest(),
+                (delta, _) =>
+                {
+                    deltas.Add(delta);
+                    return ValueTask.CompletedTask;
+                })
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(1, webSocketSession.RequestCount);
+        Assert.AreEqual(1, webSocketSession.DisposeCount);
+        Assert.AreEqual(1, responsesClient.Requests.Count);
+        Assert.AreEqual(0, deltas.Count);
+        Assert.AreEqual("Fallback answer.", response.AssistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Single().Value);
     }
 
     [TestMethod]
@@ -1732,7 +1834,78 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
-    public async Task OpenAIResponsesTurnExecutor_CodexUsesPreviousResponseIdOnlyForLiveSessionContinuation()
+    public async Task OpenAIResponsesTurnExecutor_CodexWebSocketFallbackUsesFullContextWithoutPreviousResponseId()
+    {
+        var webSocketSession = new SecondRequestThrowingOpenAIResponsesWebSocketSession(
+            [
+                CreateTextOnlyAssistantResponseUpdate(
+                    responseId: "response-ws-fallback-live-1",
+                    modelId: "gpt-5.3-codex",
+                    text: "First answer."),
+            ],
+            new HttpRequestException("WebSocket failed before streaming."));
+        var responsesClient = new RecordingOpenAIResponseClient(
+        [
+            [
+                CreateTextOnlyAssistantResponseUpdate(
+                    responseId: "response-http-fallback-live-2",
+                    modelId: "gpt-5.3-codex",
+                    text: "Second answer."),
+            ],
+        ]);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            ResponsesWebSocketSessionFactory = _ => ValueTask.FromResult<IOpenAIResponsesWebSocketSession>(webSocketSession),
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+            },
+        });
+        var firstUserMessage = new LocalAgentConversationMessage(
+            LocalAgentConversationRole.User,
+            [new LocalAgentMessagePart.Text("First prompt")]);
+        var firstRequest = CreateCodexTurnRequest() with
+        {
+            Conversation = [firstUserMessage],
+            CanUseProviderContinuation = true,
+        };
+
+        var firstResponse = await executor.ExecuteTurnAsync(
+                firstRequest,
+                static (_, _) => ValueTask.CompletedTask)
+            .ConfigureAwait(false);
+        var secondRequest = CreateCodexTurnRequest() with
+        {
+            CanUseProviderContinuation = true,
+            Conversation =
+            [
+                firstUserMessage,
+                firstResponse.AssistantMessage,
+                new LocalAgentConversationMessage(
+                    LocalAgentConversationRole.User,
+                    [new LocalAgentMessagePart.Text("Second prompt")]),
+            ],
+        };
+
+        _ = await executor.ExecuteTurnAsync(
+                secondRequest,
+                static (_, _) => ValueTask.CompletedTask)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(2, webSocketSession.Requests.Count);
+        Assert.AreEqual("response-ws-fallback-live-1", webSocketSession.Requests[1].PreviousResponseId);
+        Assert.AreEqual(1, responsesClient.Requests.Count);
+        Assert.IsNull(responsesClient.Requests[0].Options.PreviousResponseId);
+        Assert.IsTrue(responsesClient.Requests[0].InputItems.Count > 1);
+        StringAssert.Contains(responsesClient.Requests[0].SerializedOptions, "First prompt");
+        StringAssert.Contains(responsesClient.Requests[0].SerializedOptions, "First answer.");
+        StringAssert.Contains(responsesClient.Requests[0].SerializedOptions, "Second prompt");
+    }
+
+    [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_CodexHttpTransportReplaysFullContextWithoutPreviousResponseId()
     {
         var responsesClient = new RecordingOpenAIResponseClient(
         [
@@ -1792,11 +1965,11 @@ public sealed class OpenAIRawApiAgentBackendTests
 
         Assert.AreEqual(2, responsesClient.Requests.Count);
         Assert.IsNull(responsesClient.Requests[0].Options.PreviousResponseId);
-        Assert.AreEqual("response-live-1", responsesClient.Requests[1].Options.PreviousResponseId);
-        Assert.AreEqual(1, responsesClient.Requests[1].InputItems.Count);
+        Assert.IsNull(responsesClient.Requests[1].Options.PreviousResponseId);
+        Assert.IsTrue(responsesClient.Requests[1].InputItems.Count > 1);
+        StringAssert.Contains(responsesClient.Requests[1].SerializedOptions, "First prompt");
+        StringAssert.Contains(responsesClient.Requests[1].SerializedOptions, "First answer.");
         StringAssert.Contains(responsesClient.Requests[1].SerializedOptions, "Second prompt");
-        Assert.IsFalse(responsesClient.Requests[1].SerializedOptions.Contains("First prompt", StringComparison.Ordinal));
-        Assert.IsFalse(responsesClient.Requests[1].SerializedOptions.Contains("First answer.", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -2159,6 +2332,38 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIResponsesTurnExecutor_DoesNotRetryCodexUsageLimit429()
+    {
+        var usageLimit = new ClientResultException(
+            new TestPipelineResponse(
+                """
+                {"error":{"type":"usage_limit_reached","message":"The usage limit has been reached."}}
+                """,
+                status: 429,
+                reasonPhrase: "Too Many Requests"));
+        var responsesClient = new FlakyOpenAIResponseClient([usageLimit], []);
+        var executor = new OpenAIResponsesTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "codex_subscription",
+            ResponsesClientFactory = _ => responsesClient,
+            CodexSubscription = new OpenAICodexSubscriptionOptions
+            {
+                Experimental = true,
+                ResponseTransport = "http",
+            },
+        });
+
+        var exception = await Assert.ThrowsExactlyAsync<LocalAgentTurnExecutionException>(
+                () => executor.ExecuteTurnAsync(
+                    CreateCodexTurnRequest(),
+                    static (_, _) => ValueTask.CompletedTask))
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(1, responsesClient.RequestCount);
+        StringAssert.Contains(exception.Failure.Message, "usage limit");
+    }
+
+    [TestMethod]
     public async Task OpenAIResponsesTurnExecutor_DoesNotRetryCodexBadRequest()
     {
         var responsesClient = new FlakyOpenAIResponseClient(
@@ -2229,7 +2434,7 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
-    public async Task OpenAIResponsesTurnExecutor_RetriesCodexPrematureEndAfterVisibleOutput()
+    public async Task OpenAIResponsesTurnExecutor_DoesNotRetryCodexPrematureEndAfterVisibleOutput()
     {
         var prematureEnd = CreatePrematureResponseEndException();
         prematureEnd.Data["Retry-After"] = TimeSpan.Zero;
@@ -2256,19 +2461,19 @@ public sealed class OpenAIRawApiAgentBackendTests
         });
         var deltas = new List<LocalAgentTurnDelta>();
 
-        var response = await executor.ExecuteTurnAsync(
-                CreateCodexTurnRequest(),
-                (delta, _) =>
-                {
-                    deltas.Add(delta);
-                    return ValueTask.CompletedTask;
-                })
+        var exception = await Assert.ThrowsExactlyAsync<LocalAgentTurnExecutionException>(
+                () => executor.ExecuteTurnAsync(
+                    CreateCodexTurnRequest(),
+                    (delta, _) =>
+                    {
+                        deltas.Add(delta);
+                        return ValueTask.CompletedTask;
+                    }))
             .ConfigureAwait(false);
 
-        Assert.AreEqual(2, responsesClient.RequestCount);
+        Assert.AreEqual(1, responsesClient.RequestCount);
         Assert.AreEqual(1, deltas.Count);
-        var text = response.AssistantMessage.Parts.OfType<LocalAgentMessagePart.Text>().Single().Value;
-        Assert.AreEqual("Retried answer.", text);
+        StringAssert.Contains(exception.Failure.Message, "ended prematurely");
     }
 
     private static StreamingResponseUpdate CreateAssistantResponseUpdate(
@@ -2623,6 +2828,8 @@ public sealed class OpenAIRawApiAgentBackendTests
 
     private sealed class RecordingOpenAIResponsesWebSocketSession(IReadOnlyList<IReadOnlyList<StreamingResponseUpdate>> responseBatches) : IOpenAIResponsesWebSocketSession
     {
+        public bool HasOpenConnection => true;
+
         public int RequestCount { get; private set; }
 
         public int DisposeCount { get; private set; }
@@ -2654,10 +2861,44 @@ public sealed class OpenAIRawApiAgentBackendTests
         }
     }
 
+    private sealed class SecondRequestThrowingOpenAIResponsesWebSocketSession(
+        IReadOnlyList<StreamingResponseUpdate> firstResponseUpdates,
+        Exception secondRequestException) : IOpenAIResponsesWebSocketSession
+    {
+        public bool HasOpenConnection => true;
+
+        public List<WebSocketRequestRecord> Requests { get; } = [];
+
+        public AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
+            CreateResponseOptions options,
+            CreateResponseOptions? reconnectOptions = null,
+            CancellationToken cancellationToken = default)
+        {
+            _ = cancellationToken;
+            Requests.Add(new WebSocketRequestRecord(
+                options.PreviousResponseId,
+                options.InputItems.Count,
+                reconnectOptions?.PreviousResponseId,
+                reconnectOptions?.InputItems.Count ?? 0));
+            if (Requests.Count == 1)
+            {
+                return new TestAsyncCollectionResult<StreamingResponseUpdate>(firstResponseUpdates);
+            }
+
+            throw secondRequestException;
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
     private sealed class FlakyOpenAIResponsesWebSocketSession(
         IReadOnlyList<Exception> failures,
         IReadOnlyList<StreamingResponseUpdate> successUpdates) : IOpenAIResponsesWebSocketSession
     {
+        public bool HasOpenConnection => true;
+
         public int RequestCount { get; private set; }
 
         public AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
@@ -2682,8 +2923,38 @@ public sealed class OpenAIRawApiAgentBackendTests
         }
     }
 
+    private sealed class PartiallyFailingOpenAIResponsesWebSocketSession(
+        StreamingResponseUpdate firstUpdate,
+        Exception failure) : IOpenAIResponsesWebSocketSession
+    {
+        public bool HasOpenConnection => true;
+
+        public int RequestCount { get; private set; }
+
+        public int DisposeCount { get; private set; }
+
+        public AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
+            CreateResponseOptions options,
+            CreateResponseOptions? reconnectOptions = null,
+            CancellationToken cancellationToken = default)
+        {
+            _ = options;
+            _ = reconnectOptions;
+            _ = cancellationToken;
+            RequestCount++;
+            return new FailingAsyncCollectionResult<StreamingResponseUpdate>(firstUpdate, failure);
+        }
+
+        public void Dispose()
+        {
+            DisposeCount++;
+        }
+    }
+
     private sealed class ThrowingOpenAIResponsesWebSocketSession(Exception exception) : IOpenAIResponsesWebSocketSession
     {
+        public bool HasOpenConnection => true;
+
         public int RequestCount { get; private set; }
 
         public AsyncCollectionResult<StreamingResponseUpdate> CreateResponseStreamingAsync(
@@ -2879,14 +3150,17 @@ public sealed class OpenAIRawApiAgentBackendTests
         public override ContinuationToken GetContinuationToken(ClientResult page) => default!;
     }
 
-    private sealed class TestPipelineResponse(string content = "{}") : PipelineResponse
+    private sealed class TestPipelineResponse(
+        string content = "{}",
+        int status = 200,
+        string reasonPhrase = "OK") : PipelineResponse
     {
         private readonly PipelineResponseHeaders _headers = new TestPipelineResponseHeaders();
         private readonly BinaryData _content = BinaryData.FromString(content);
 
-        public override int Status => 200;
+        public override int Status => status;
 
-        public override string ReasonPhrase => "OK";
+        public override string ReasonPhrase => reasonPhrase;
 
         protected override PipelineResponseHeaders HeadersCore => _headers;
 

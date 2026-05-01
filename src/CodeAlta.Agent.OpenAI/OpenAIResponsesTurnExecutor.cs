@@ -5,6 +5,7 @@ using System.ClientModel;
 using System.ClientModel.Primitives;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.WebSockets;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeAlta.Agent.LocalRuntime;
@@ -23,12 +24,15 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
     private static readonly TimeSpan DefaultWebSocketIdleTimeout = TimeSpan.FromMinutes(5);
     private static readonly Random SharedRandom = Random.Shared;
     private const string WebSocketErrorCodeDataKey = "OpenAI.WebSocketErrorCode";
+    private const string WebSocketErrorPayloadDataKey = "OpenAI.WebSocketErrorPayload";
+    private const string WebSocketErrorTypeDataKey = "OpenAI.WebSocketErrorType";
     private const string WebSocketWrappedErrorDataKey = "OpenAI.WebSocketWrappedError";
     private const string WebSocketConnectionLimitReachedCode = "websocket_connection_limit_reached";
 
     private readonly ConcurrentDictionary<string, OpenAIResponsesLiveContinuation> _liveContinuations = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, OpenAIResponsesWebSocketSessionEntry> _webSocketSessions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _webSocketHttpFallbackSessions = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<OpenAIResponsesTurnStateKey, CodexTurnState> _codexTurnStates = new();
 
     public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(
         LocalAgentProviderDescriptor providerDescriptor,
@@ -45,6 +49,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         _webSocketSessions.Clear();
         _liveContinuations.Clear();
         _webSocketHttpFallbackSessions.Clear();
+        _codexTurnStates.Clear();
         return ValueTask.CompletedTask;
     }
 
@@ -54,6 +59,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         ResetWebSocketSession(sessionId);
         ClearLiveContinuation(sessionId);
         _webSocketHttpFallbackSessions.TryRemove(sessionId, out _);
+        ClearCodexTurnStates(sessionId);
         return ValueTask.CompletedTask;
     }
 
@@ -73,9 +79,10 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             var refreshedCredentialAfterUnauthorized = false;
             for (var attempt = 1; ; attempt++)
             {
-                var streamStarted = false;
+                var emittedUpdate = false;
                 try
                 {
+                    var turnState = GetCodexTurnState(request);
                     await using var concurrencyLease = await CreateCodexConcurrencyLeaseAsync(
                         request,
                         cancellationToken).ConfigureAwait(false);
@@ -85,13 +92,13 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                             request.ModelId,
                             request.SessionId,
                             request.RunId,
-                            request.Provider));
+                            request.Provider,
+                            turnState));
                     var fullOptions = await CreateRequestPayloadAsync(request, cancellationToken).ConfigureAwait(false);
-                    var options = CreateTransportRequestOptions(request, fullOptions);
                     LogCodexDiagnostic("request", request, attempt);
                     WriteCodexConsoleDiagnostic(
                         provider,
-                        $"request attempt={attempt} session={request.SessionId} run={request.RunId.Value} transport={ResolveInitialTransport(request)} payload={FormatCodexConsolePayload(SerializeModel(options))}");
+                        $"request attempt={attempt} session={request.SessionId} run={request.RunId.Value} transport={ResolveInitialTransport(request)} fullPayload={FormatCodexConsolePayload(SerializeModel(fullOptions))}");
                     ResponseResult? completedResponse = null;
                     ResponseResult? latestResponse = null;
                     var streamedOutputItems = new SortedDictionary<int, ResponseItem>();
@@ -101,12 +108,10 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                         await foreach (var update in CreateResponseStreamingAsync(
                                 client,
                                 request,
-                                options,
                                 fullOptions,
                                 transport,
                                 cancellationToken).ConfigureAwait(false))
                         {
-                            streamStarted = true;
                             WriteCodexConsoleDiagnostic(
                                 provider,
                                 $"stream transport={transport} update={update.GetType().Name} payload={FormatCodexConsolePayload(SerializeModel(update))}");
@@ -119,6 +124,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                                     latestResponse = inProgress.Response;
                                     break;
                                 case StreamingResponseOutputTextDeltaUpdate outputTextDelta when !string.IsNullOrEmpty(outputTextDelta.Delta):
+                                    emittedUpdate = true;
                                     await onUpdate(
                                         new LocalAgentTurnDelta
                                         {
@@ -129,6 +135,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                                         cancellationToken).ConfigureAwait(false);
                                     break;
                                 case StreamingResponseRefusalDeltaUpdate refusalDelta when !string.IsNullOrEmpty(refusalDelta.Delta):
+                                    emittedUpdate = true;
                                     await onUpdate(
                                         new LocalAgentTurnDelta
                                         {
@@ -139,6 +146,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                                         cancellationToken).ConfigureAwait(false);
                                     break;
                                 case StreamingResponseReasoningSummaryTextDeltaUpdate reasoningSummaryDelta when !string.IsNullOrEmpty(reasoningSummaryDelta.Delta):
+                                    emittedUpdate = true;
                                     await onUpdate(
                                         new LocalAgentTurnDelta
                                         {
@@ -149,6 +157,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                                         cancellationToken).ConfigureAwait(false);
                                     break;
                                 case StreamingResponseReasoningTextDeltaUpdate reasoningTextDelta when !string.IsNullOrEmpty(reasoningTextDelta.Delta):
+                                    emittedUpdate = true;
                                     await onUpdate(
                                         new LocalAgentTurnDelta
                                         {
@@ -182,14 +191,14 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                     {
                         await ProcessStreamAsync(initialTransport).ConfigureAwait(false);
                     }
-                    catch (Exception ex) when (ShouldFallbackFromWebSocket(provider, initialTransport, streamStarted, ex))
+                    catch (Exception ex) when (ShouldFallbackFromWebSocket(provider, initialTransport, emittedUpdate, ex))
                     {
                         MarkWebSocketHttpFallback(request.SessionId);
                         ResetWebSocketSession(request.SessionId);
                         WriteCodexConsoleDiagnostic(
                             provider,
                             $"websocket fallback session={request.SessionId} run={request.RunId.Value} error={ex.GetType().Name}");
-                        streamStarted = false;
+                        emittedUpdate = false;
                         await ProcessStreamAsync(OpenAIResponsesTransport.Http).ConfigureAwait(false);
                     }
 
@@ -237,7 +246,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                 catch (Exception ex) when (ShouldRefreshCodexSubscriptionCredential(
                     provider,
                     ex,
-                    streamStarted,
+                    emittedUpdate,
                     refreshedCredentialAfterUnauthorized))
                 {
                     ClearLiveContinuation(request.SessionId);
@@ -265,6 +274,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                 catch (Exception ex) when (ShouldRetryCodexSubscriptionRequest(
                     provider,
                     ex,
+                    emittedUpdate,
                     attempt,
                     retryBudget,
                     out var delay))
@@ -326,12 +336,12 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
     private static bool ShouldFallbackFromWebSocket(
         OpenAIProviderOptions provider,
         OpenAIResponsesTransport transport,
-        bool streamStarted,
+        bool emittedUpdate,
         Exception exception)
     {
         if (provider.CodexSubscription is null ||
             transport != OpenAIResponsesTransport.WebSocket ||
-            streamStarted ||
+            emittedUpdate ||
             exception is OperationCanceledException)
         {
             return false;
@@ -344,10 +354,10 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
 
         if (IsWrappedWebSocketError(exception))
         {
-            return exception is HttpRequestException { StatusCode: HttpStatusCode.UpgradeRequired };
+            return GetHttpStatusCode(exception) == HttpStatusCode.UpgradeRequired;
         }
 
-        if (exception is HttpRequestException { StatusCode: { } statusCode })
+        if (GetHttpStatusCode(exception) is { } statusCode)
         {
             return statusCode == HttpStatusCode.UpgradeRequired;
         }
@@ -358,7 +368,6 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
     private async IAsyncEnumerable<StreamingResponseUpdate> CreateResponseStreamingAsync(
         ResponsesClient client,
         LocalAgentTurnRequest request,
-        CreateResponseOptions options,
         CreateResponseOptions fullOptions,
         OpenAIResponsesTransport transport,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
@@ -366,6 +375,9 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         if (transport == OpenAIResponsesTransport.WebSocket)
         {
             var entry = await GetOrCreateWebSocketSessionAsync(request, cancellationToken).ConfigureAwait(false);
+            var options = entry.Session.HasOpenConnection
+                ? CreateWebSocketContinuationRequestOptions(request, fullOptions)
+                : fullOptions;
             try
             {
                 await foreach (var update in entry.Session
@@ -383,7 +395,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             yield break;
         }
 
-        await foreach (var update in client.CreateResponseStreamingAsync(options, cancellationToken).ConfigureAwait(false))
+        await foreach (var update in client.CreateResponseStreamingAsync(fullOptions, cancellationToken).ConfigureAwait(false))
         {
             yield return update;
         }
@@ -409,7 +421,8 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                         request.ModelId,
                         request.SessionId,
                         request.RunId,
-                        request.Provider))
+                        request.Provider,
+                        GetCodexTurnState(request) ?? new CodexTurnState()))
                 .ConfigureAwait(false)
             : await CreateDefaultWebSocketSessionAsync(request, cancellationToken).ConfigureAwait(false);
         var createdEntry = new OpenAIResponsesWebSocketSessionEntry(created);
@@ -447,7 +460,9 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             codexOptions,
             authManager,
             request.SessionId,
-            OpenAIProviderSdkFactory.CreateCodeAltaUserAgentApplicationId());
+            OpenAIProviderSdkFactory.CreateCodeAltaUserAgentApplicationId(),
+            GetCodexTurnState(request) ?? new CodexTurnState(),
+            provider.ResponsesWebSocketIdleTimeout ?? DefaultWebSocketIdleTimeout);
         return ValueTask.FromResult(session);
     }
 
@@ -501,7 +516,44 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
     private void ClearLiveContinuation(string sessionId)
         => _liveContinuations.TryRemove(sessionId, out _);
 
-    private CreateResponseOptions CreateTransportRequestOptions(
+    private CodexTurnState? GetCodexTurnState(LocalAgentTurnRequest request)
+    {
+        if (provider.CodexSubscription is null)
+        {
+            return null;
+        }
+
+        var currentKey = new OpenAIResponsesTurnStateKey(request.SessionId, request.RunId.Value);
+        foreach (var key in _codexTurnStates.Keys)
+        {
+            if (string.Equals(key.SessionId, request.SessionId, StringComparison.Ordinal) &&
+                !string.Equals(key.RunId, request.RunId.Value, StringComparison.Ordinal))
+            {
+                if (_codexTurnStates.TryRemove(key, out var oldState))
+                {
+                    oldState.Clear();
+                }
+            }
+        }
+
+        return _codexTurnStates.GetOrAdd(currentKey, static _ => new CodexTurnState());
+    }
+
+    private void ClearCodexTurnStates(string sessionId)
+    {
+        foreach (var key in _codexTurnStates.Keys)
+        {
+            if (string.Equals(key.SessionId, sessionId, StringComparison.Ordinal))
+            {
+                if (_codexTurnStates.TryRemove(key, out var oldState))
+                {
+                    oldState.Clear();
+                }
+            }
+        }
+    }
+
+    private CreateResponseOptions CreateWebSocketContinuationRequestOptions(
         LocalAgentTurnRequest request,
         CreateResponseOptions fullOptions)
     {
@@ -746,7 +798,19 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             2048);
 
     private static System.Net.HttpStatusCode? GetHttpStatusCode(Exception exception)
-        => exception is HttpRequestException { StatusCode: { } statusCode } ? statusCode : null;
+    {
+        if (exception is HttpRequestException { StatusCode: { } statusCode })
+        {
+            return statusCode;
+        }
+
+        if (exception is ClientResultException { Status: >= 100 and <= 599 } clientResultException)
+        {
+            return (System.Net.HttpStatusCode)clientResultException.Status;
+        }
+
+        return exception.InnerException is null ? null : GetHttpStatusCode(exception.InnerException);
+    }
 
     private ValueTask<IAsyncDisposable?> CreateCodexConcurrencyLeaseAsync(
         LocalAgentTurnRequest request,
@@ -1302,7 +1366,7 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             return exception;
         }
 
-        if (exception is HttpRequestException { StatusCode: { } statusCode })
+        if (GetHttpStatusCode(exception) is { } statusCode)
         {
             var message = statusCode switch
             {
@@ -1313,10 +1377,12 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                 System.Net.HttpStatusCode.BadRequest => "ChatGPT/Codex rejected the request shape.",
                 _ => $"ChatGPT/Codex request failed with HTTP {(int)statusCode}.",
             };
-            if (!string.IsNullOrWhiteSpace(exception.Message) &&
-                !exception.Message.StartsWith("Response status code", StringComparison.OrdinalIgnoreCase))
+            var detail = GetCodexSubscriptionErrorDetail(exception);
+            if (!string.IsNullOrWhiteSpace(detail) &&
+                !detail.StartsWith("Response status code", StringComparison.OrdinalIgnoreCase) &&
+                !detail.StartsWith("Service request failed", StringComparison.OrdinalIgnoreCase))
             {
-                message = $"{message} {exception.Message}";
+                message = $"{message} {detail}";
             }
 
             return new InvalidOperationException(message, exception);
@@ -1346,22 +1412,24 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
     private static bool ShouldRefreshCodexSubscriptionCredential(
         OpenAIProviderOptions provider,
         Exception exception,
-        bool streamStarted,
+        bool emittedUpdate,
         bool alreadyRefreshed)
         => provider.CodexSubscription is not null &&
-           !streamStarted &&
+           !emittedUpdate &&
            !alreadyRefreshed &&
-           exception is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized };
+           GetHttpStatusCode(exception) == System.Net.HttpStatusCode.Unauthorized;
 
     private static bool ShouldRetryCodexSubscriptionRequest(
         OpenAIProviderOptions provider,
         Exception exception,
+        bool emittedUpdate,
         int attempt,
         int retryBudget,
         out TimeSpan delay)
     {
         delay = TimeSpan.Zero;
         if (provider.CodexSubscription is null ||
+            emittedUpdate ||
             attempt >= retryBudget ||
             exception is OperationCanceledException or LocalAgentTurnExecutionException)
         {
@@ -1384,8 +1452,20 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             return true;
         }
 
+        if (exception is WebSocketException &&
+            (exception.Message.Contains("close handshake", StringComparison.OrdinalIgnoreCase) ||
+             exception.Message.Contains("closed", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
         if (exception.Message.Contains("response ended prematurely", StringComparison.OrdinalIgnoreCase) &&
             exception.Message.Contains("ResponseEnded", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (exception.Message.Contains("stream closed before a terminal response event", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -1405,15 +1485,207 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
             return true;
         }
 
-        if (exception is not HttpRequestException httpException)
+        if (IsWebSocketReceiveIdleTimeout(exception))
+        {
+            return true;
+        }
+
+        var statusCode = GetHttpStatusCode(exception);
+        if (statusCode is System.Net.HttpStatusCode.TooManyRequests &&
+            IsNonRetryableCodexSubscriptionLimit(exception))
         {
             return false;
         }
 
-        var statusCode = httpException.StatusCode;
-        return statusCode is null ||
+        return statusCode is null && exception is HttpRequestException ||
             statusCode is System.Net.HttpStatusCode.TooManyRequests ||
             statusCode >= System.Net.HttpStatusCode.InternalServerError;
+    }
+
+    private static bool IsWebSocketReceiveIdleTimeout(Exception exception)
+    {
+        if (exception is TimeoutException &&
+            exception.Message.Contains("Codex subscription WebSocket did not receive", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return exception.InnerException is not null && IsWebSocketReceiveIdleTimeout(exception.InnerException);
+    }
+
+    private static bool IsNonRetryableCodexSubscriptionLimit(Exception exception)
+    {
+        if (IsWebSocketConnectionLimitReached(exception))
+        {
+            return false;
+        }
+
+        var detail = GetCodexSubscriptionErrorDetail(exception);
+        return ContainsNonRetryableCodexSubscriptionLimitSignal(detail);
+    }
+
+    private static bool ContainsNonRetryableCodexSubscriptionLimitSignal(string detail)
+    {
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            return false;
+        }
+
+        var normalized = detail.ToLowerInvariant();
+        return normalized.Contains("usage_limit_reached", StringComparison.Ordinal) ||
+               normalized.Contains("usage_not_included", StringComparison.Ordinal) ||
+               normalized.Contains("insufficient_quota", StringComparison.Ordinal) ||
+               normalized.Contains("quota", StringComparison.Ordinal) ||
+               normalized.Contains("usage limit", StringComparison.Ordinal) ||
+               normalized.Contains("usage has been reached", StringComparison.Ordinal) ||
+               normalized.Contains("not included in your plan", StringComparison.Ordinal) ||
+               normalized.Contains("upgrade your plan", StringComparison.Ordinal) ||
+               normalized.Contains("plan limit", StringComparison.Ordinal) ||
+               normalized.Contains("retry limit", StringComparison.Ordinal) ||
+               normalized.Contains("billing limit", StringComparison.Ordinal) ||
+               (normalized.Contains("billing", StringComparison.Ordinal) && normalized.Contains("limit", StringComparison.Ordinal)) ||
+               (normalized.Contains("plan", StringComparison.Ordinal) && normalized.Contains("limit", StringComparison.Ordinal));
+    }
+
+    private static string GetCodexSubscriptionErrorDetail(Exception exception)
+    {
+        var details = new List<string>();
+        AppendCodexSubscriptionErrorDetails(exception, details);
+        if (details.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var combined = string.Join(
+            ' ',
+            details
+                .Where(static detail => !string.IsNullOrWhiteSpace(detail))
+                .Select(static detail => detail.Trim())
+                .Distinct(StringComparer.Ordinal));
+        return TruncateForConsole(OpenAICodexSubscriptionSecretRedactor.Redact(combined), 2048);
+    }
+
+    private static void AppendCodexSubscriptionErrorDetails(Exception exception, List<string> details)
+    {
+        var clientResultException = exception as ClientResultException;
+        if (clientResultException is not null)
+        {
+            AppendClientResultErrorDetails(clientResultException, details);
+        }
+
+        if (!string.IsNullOrWhiteSpace(exception.Message) &&
+            (clientResultException is null || !IsGenericClientResultExceptionMessage(exception.Message)))
+        {
+            details.Add(exception.Message);
+        }
+
+        foreach (var key in exception.Data.Keys)
+        {
+            if (key is null || exception.Data[key] is not { } value)
+            {
+                continue;
+            }
+
+            var valueText = value switch
+            {
+                string text => text,
+                TimeSpan timeSpan => timeSpan.ToString(),
+                DateTimeOffset dateTimeOffset => dateTimeOffset.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                IFormattable formattable => formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
+                _ => value.ToString(),
+            };
+            if (string.IsNullOrWhiteSpace(valueText))
+            {
+                continue;
+            }
+
+            details.Add($"{key}: {valueText}");
+            AppendJsonErrorDetails(valueText, details);
+        }
+
+        if (exception.InnerException is not null)
+        {
+            AppendCodexSubscriptionErrorDetails(exception.InnerException, details);
+        }
+    }
+
+    private static bool IsGenericClientResultExceptionMessage(string message)
+        => message.StartsWith("Service request failed", StringComparison.OrdinalIgnoreCase) ||
+           message.StartsWith("Response status code", StringComparison.OrdinalIgnoreCase);
+
+    private static void AppendClientResultErrorDetails(ClientResultException exception, List<string> details)
+    {
+        var response = exception.GetRawResponse();
+        if (response is null)
+        {
+            return;
+        }
+
+        foreach (var header in response.Headers)
+        {
+            if (!string.IsNullOrWhiteSpace(header.Value))
+            {
+                details.Add($"{header.Key}: {header.Value}");
+            }
+        }
+
+        string? content;
+        try
+        {
+            content = response.Content.ToString();
+        }
+        catch
+        {
+            content = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(content))
+        {
+            AppendJsonErrorDetails(content, details);
+            details.Add(content);
+        }
+    }
+
+    private static void AppendJsonErrorDetails(string? content, List<string> details)
+    {
+        if (string.IsNullOrWhiteSpace(content) ||
+            !content.TrimStart().StartsWith("{", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(content);
+            AppendJsonErrorDetails(document.RootElement, details);
+        }
+        catch (JsonException)
+        {
+        }
+    }
+
+    private static void AppendJsonErrorDetails(JsonElement element, List<string> details)
+    {
+        AppendJsonStringProperty(element, "code", details);
+        AppendJsonStringProperty(element, "type", details);
+        AppendJsonStringProperty(element, "message", details);
+        AppendJsonStringProperty(element, "detail", details);
+
+        if (element.TryGetProperty("error"u8, out var errorElement) &&
+            errorElement.ValueKind == JsonValueKind.Object)
+        {
+            AppendJsonErrorDetails(errorElement, details);
+        }
+    }
+
+    private static void AppendJsonStringProperty(JsonElement element, string propertyName, List<string> details)
+    {
+        if (element.TryGetProperty(propertyName, out var property) &&
+            property.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(property.GetString()))
+        {
+            details.Add(property.GetString()!);
+        }
     }
 
     private static bool IsWebSocketConnectionLimitReached(Exception exception)
@@ -1464,6 +1736,25 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
                 case string text when TryParseRetryAfter(text, out var delay):
                     return delay;
             }
+        }
+
+        if (exception is ClientResultException clientResultException &&
+            clientResultException.GetRawResponse() is { } response)
+        {
+            foreach (var key in new[] { "Retry-After", "retry-after", "RetryAfter" })
+            {
+                if (response.Headers.TryGetValue(key, out var retryAfter) &&
+                    retryAfter is not null &&
+                    TryParseRetryAfter(retryAfter, out var delay))
+                {
+                    return delay;
+                }
+            }
+        }
+
+        if (exception.InnerException is not null)
+        {
+            return GetRetryAfterDelay(exception.InnerException);
         }
 
         return null;
@@ -1659,4 +1950,6 @@ internal sealed class OpenAIResponsesTurnExecutor(OpenAIProviderOptions provider
         IReadOnlyList<string> InputItemsJson,
         IReadOnlyList<string> OutputItemsJson,
         string ResponseId);
+
+    private sealed record OpenAIResponsesTurnStateKey(string SessionId, string RunId);
 }
