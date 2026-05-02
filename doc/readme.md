@@ -2,6 +2,11 @@
 
 An agentic AI coding CLI assistant developed in .NET.
 
+Additional guides:
+
+- [Plugin abstractions](plugins.md)
+- [Skills](skills.md)
+
 ## Infrastructure Status
 
 Current infrastructure-first progress includes project catalog and checkout primitives:
