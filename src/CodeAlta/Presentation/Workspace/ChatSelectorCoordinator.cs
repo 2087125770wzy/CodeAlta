@@ -309,7 +309,6 @@ internal sealed class ChatSelectorCoordinator
             draftBackendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
             UpdateModelSelectorState(draftOptions, newIndex, preferredModel, draftBackendState.SelectedReasoningEffort);
             _preferences.RememberGlobalBackendPreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort);
-            RefreshForDraftScope(backendId);
             _workspaceRefresh.InvalidateSelectedSessionUsage();
             return;
         }
