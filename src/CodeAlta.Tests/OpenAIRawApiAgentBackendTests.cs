@@ -461,6 +461,11 @@ public sealed class OpenAIRawApiAgentBackendTests
         Assert.IsTrue(replayedAssistants[1].Patch.TryGetValue("$.reasoning_content"u8, out string? emptyReasoning));
         Assert.AreEqual(string.Empty, emptyReasoning);
         Assert.AreEqual(1, replayedAssistants[1].ToolCalls.Count);
+
+        foreach (var assistant in replayedAssistants)
+        {
+            _ = SerializeModel(assistant);
+        }
     }
 
     [TestMethod]

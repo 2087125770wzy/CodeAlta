@@ -123,6 +123,56 @@ public sealed class AgentHubBackendReloadTests
     }
 
     [TestMethod]
+    public async Task StopSessionAsync_WaitsForActiveRunBeforeDisposingSession()
+    {
+        using var temp = TempDirectory.Create();
+        var db = await CreateDbAsync(temp.Path).ConfigureAwait(false);
+        var repository = new AgentRepository(db);
+        var backendFactory = new AgentBackendFactory();
+        var backend = new BlockingSteerBackend();
+        backendFactory.Register("blocking-steer", () => backend);
+
+        await using var hub = new AgentHub(backendFactory, repository);
+        var agent = await hub.RegisterAgentAsync(
+                "test",
+                new AgentScope
+                {
+                    Kind = AgentScopeKind.Global,
+                    Id = "global",
+                },
+                new AgentBackendId("blocking-steer"))
+            .ConfigureAwait(false);
+        _ = await hub.StartSessionAsync(
+                agent.AgentId,
+                new AgentSessionCreateOptions
+                {
+                    WorkingDirectory = Environment.CurrentDirectory,
+                    OnPermissionRequest = static (_, _) =>
+                        Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
+                })
+            .ConfigureAwait(false);
+
+        var runTask = hub.RunAsync(
+            agent.AgentId,
+            new AgentSendOptions
+            {
+                Input = AgentInput.Text("Initial prompt"),
+            });
+        _ = await backend.Session.SendStarted.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+
+        var stopTask = hub.StopSessionAsync(agent.AgentId);
+        Assert.IsFalse(stopTask.IsCompleted);
+
+        backend.Session.ReleaseSend.TrySetResult();
+
+        var completedRunId = await runTask.ConfigureAwait(false);
+        await stopTask.ConfigureAwait(false);
+
+        Assert.AreEqual(new AgentRunId("blocking-run"), completedRunId);
+        Assert.AreEqual(1, backend.Session.DisposeCount);
+    }
+
+    [TestMethod]
     public async Task ListSessionsAsync_CachesProcessBackedBackendSessions()
     {
         using var temp = TempDirectory.Create();
@@ -361,13 +411,19 @@ public sealed class AgentHubBackendReloadTests
 
         public int SteerCallCount { get; private set; }
 
+        public int DisposeCount { get; private set; }
+
         public AgentBackendId BackendId => new("blocking-steer");
 
         public string SessionId => "blocking-steer-session";
 
         public string? WorkspacePath => null;
 
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync()
+        {
+            DisposeCount++;
+            return ValueTask.CompletedTask;
+        }
 
         public async IAsyncEnumerable<AgentEvent> StreamEventsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)

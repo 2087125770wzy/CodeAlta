@@ -422,23 +422,14 @@ public sealed class AgentHub : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        SessionEntry entry;
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (!_sessions.TryGetValue(agentId, out entry!))
-            {
-                throw new InvalidOperationException($"Agent '{agentId}' does not have an active session.");
-            }
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        var entry = await AcquireSessionEntryAsync(agentId, cancellationToken).ConfigureAwait(false);
 
-        await entry.RunGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var runGateHeld = false;
         try
         {
+            await entry.RunGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            runGateHeld = true;
+
             var runId = await entry.Session.SendAsync(options, cancellationToken).ConfigureAwait(false);
             _events.Writer.TryWrite(new RunStartedEvent(DateTimeOffset.UtcNow, agentId, runId));
             _events.Writer.TryWrite(new RunCompletedEvent(DateTimeOffset.UtcNow, agentId, runId));
@@ -463,7 +454,12 @@ public sealed class AgentHub : IAsyncDisposable
         }
         finally
         {
-            entry.RunGate.Release();
+            if (runGateHeld)
+            {
+                entry.RunGate.Release();
+            }
+
+            entry.ReleaseReference();
         }
     }
 
@@ -482,19 +478,7 @@ public sealed class AgentHub : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        SessionEntry entry;
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (!_sessions.TryGetValue(agentId, out entry!))
-            {
-                throw new InvalidOperationException($"Agent '{agentId}' does not have an active session.");
-            }
-        }
-        finally
-        {
-            _gate.Release();
-        }
+        var entry = await AcquireSessionEntryAsync(agentId, cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -507,6 +491,10 @@ public sealed class AgentHub : IAsyncDisposable
         {
             _events.Writer.TryWrite(new RunFailedEvent(DateTimeOffset.UtcNow, agentId, ex.Message));
             throw;
+        }
+        finally
+        {
+            entry.ReleaseReference();
         }
     }
 
@@ -526,21 +514,15 @@ public sealed class AgentHub : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(handler);
 
-        SessionEntry entry;
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var entry = await AcquireSessionEntryAsync(agentId, cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!_sessions.TryGetValue(agentId, out entry!))
-            {
-                throw new InvalidOperationException($"Agent '{agentId}' does not have an active session.");
-            }
+            return entry.Session.Subscribe(handler);
         }
         finally
         {
-            _gate.Release();
+            entry.ReleaseReference();
         }
-
-        return entry.Session.Subscribe(handler);
     }
 
     /// <summary>
@@ -554,21 +536,15 @@ public sealed class AgentHub : IAsyncDisposable
         AgentId agentId,
         CancellationToken cancellationToken = default)
     {
-        SessionEntry entry;
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var entry = await AcquireSessionEntryAsync(agentId, cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!_sessions.TryGetValue(agentId, out entry!))
-            {
-                throw new InvalidOperationException($"Agent '{agentId}' does not have an active session.");
-            }
+            return await entry.Session.GetHistoryAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            _gate.Release();
+            entry.ReleaseReference();
         }
-
-        return await entry.Session.GetHistoryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -579,21 +555,15 @@ public sealed class AgentHub : IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown when the agent has no active session.</exception>
     public async Task AbortAsync(AgentId agentId, CancellationToken cancellationToken = default)
     {
-        SessionEntry entry;
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var entry = await AcquireSessionEntryAsync(agentId, cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!_sessions.TryGetValue(agentId, out entry!))
-            {
-                throw new InvalidOperationException($"Agent '{agentId}' does not have an active session.");
-            }
+            await entry.Session.AbortAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            _gate.Release();
+            entry.ReleaseReference();
         }
-
-        await entry.Session.AbortAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -604,23 +574,13 @@ public sealed class AgentHub : IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown when the agent has no active session.</exception>
     public async Task<AgentCompactionOutcome?> CompactAsync(AgentId agentId, CancellationToken cancellationToken = default)
     {
-        SessionEntry entry;
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var entry = await AcquireSessionEntryAsync(agentId, cancellationToken).ConfigureAwait(false);
+        var runGateHeld = false;
         try
         {
-            if (!_sessions.TryGetValue(agentId, out entry!))
-            {
-                throw new InvalidOperationException($"Agent '{agentId}' does not have an active session.");
-            }
-        }
-        finally
-        {
-            _gate.Release();
-        }
+            await entry.RunGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            runGateHeld = true;
 
-        await entry.RunGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
             if (entry.Session is IAgentCompactionOutcomeProvider compactionOutcomeProvider)
             {
                 return await compactionOutcomeProvider.CompactWithOutcomeAsync(cancellationToken).ConfigureAwait(false);
@@ -631,7 +591,12 @@ public sealed class AgentHub : IAsyncDisposable
         }
         finally
         {
-            entry.RunGate.Release();
+            if (runGateHeld)
+            {
+                entry.RunGate.Release();
+            }
+
+            entry.ReleaseReference();
         }
     }
 
@@ -655,8 +620,6 @@ public sealed class AgentHub : IAsyncDisposable
         {
             _gate.Release();
         }
-
-        cancellationToken.ThrowIfCancellationRequested();
 
         if (entry is not null)
         {
@@ -801,6 +764,30 @@ public sealed class AgentHub : IAsyncDisposable
         }
     }
 
+    private async Task<SessionEntry> AcquireSessionEntryAsync(AgentId agentId, CancellationToken cancellationToken)
+    {
+        SessionEntry entry;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!_sessions.TryGetValue(agentId, out entry!))
+            {
+                throw new InvalidOperationException($"Agent '{agentId}' does not have an active session.");
+            }
+
+            if (!entry.TryAddReference())
+            {
+                throw new InvalidOperationException($"Agent '{agentId}' does not have an active session.");
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        return entry;
+    }
+
     private void InvalidateSessionMetadataCacheUnsafe(AgentBackendId backendId)
         => _sessionMetadataCache.Remove(backendId.Value);
 
@@ -851,6 +838,12 @@ public sealed class AgentHub : IAsyncDisposable
 
     private sealed class SessionEntry : IAsyncDisposable
     {
+        private readonly object _sync = new();
+        private readonly TaskCompletionSource _disposedCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private TaskCompletionSource? _idleCompletion;
+        private int _activeReferences;
+        private bool _disposeStarted;
+
         public SessionEntry(IAgentSession session, IAgentBackend backend)
         {
             Session = session;
@@ -863,10 +856,93 @@ public sealed class AgentHub : IAsyncDisposable
 
         public SemaphoreSlim RunGate { get; } = new(initialCount: 1, maxCount: 1);
 
+        public bool TryAddReference()
+        {
+            lock (_sync)
+            {
+                if (_disposeStarted)
+                {
+                    return false;
+                }
+
+                _activeReferences++;
+                return true;
+            }
+        }
+
+        public void ReleaseReference()
+        {
+            TaskCompletionSource? idleCompletion = null;
+            lock (_sync)
+            {
+                if (_activeReferences <= 0)
+                {
+                    throw new InvalidOperationException("Session entry reference count is already zero.");
+                }
+
+                _activeReferences--;
+                if (_activeReferences == 0 && _disposeStarted)
+                {
+                    idleCompletion = _idleCompletion;
+                }
+            }
+
+            idleCompletion?.TrySetResult();
+        }
+
         public async ValueTask DisposeAsync()
         {
-            RunGate.Dispose();
-            await Session.DisposeAsync().ConfigureAwait(false);
+            Task? disposeTask;
+            Task? idleTask = null;
+            lock (_sync)
+            {
+                if (_disposeStarted)
+                {
+                    disposeTask = _disposedCompletion.Task;
+                }
+                else
+                {
+                    _disposeStarted = true;
+                    disposeTask = null;
+                    if (_activeReferences > 0)
+                    {
+                        _idleCompletion ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                        idleTask = _idleCompletion.Task;
+                    }
+                }
+            }
+
+            if (disposeTask is not null)
+            {
+                await disposeTask.ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                if (idleTask is not null)
+                {
+                    try
+                    {
+                        await Session.AbortAsync(CancellationToken.None).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        // Ignore best-effort abort failures while the session is being disposed.
+                    }
+
+                    await idleTask.ConfigureAwait(false);
+                }
+
+                RunGate.Dispose();
+                await Session.DisposeAsync().ConfigureAwait(false);
+                _disposedCompletion.TrySetResult();
+            }
+            catch (Exception ex)
+            {
+                _disposedCompletion.TrySetException(ex);
+                throw;
+            }
         }
     }
 }

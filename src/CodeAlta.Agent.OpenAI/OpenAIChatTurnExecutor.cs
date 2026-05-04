@@ -349,10 +349,21 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
         {
             assistantMessage.Patch.Set(
                 Encoding.UTF8.GetBytes($"$.{reasoningInputFieldName}"),
-                reasoningInput?.ToString() ?? string.Empty);
+                CreateJsonStringValue(reasoningInput?.ToString() ?? string.Empty));
         }
 
         return assistantMessage;
+    }
+
+    private static BinaryData CreateJsonStringValue(string value)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStringValue(value);
+        }
+
+        return BinaryData.FromBytes(stream.ToArray());
     }
 
     private static string? NormalizeReasoningInputFieldName(string? reasoningInputFieldName)
