@@ -58,6 +58,7 @@ public sealed class CodeAltaCliOptionsTests
         Assert.IsNull(error);
         Assert.IsNotNull(options);
         Assert.IsTrue(options.PluginSafeMode);
+        Assert.IsTrue(CodeAltaCliOptions.GetPluginBootstrapOptions(["--no-plugins"]).PluginSafeMode);
     }
 
     [TestMethod]
@@ -69,6 +70,7 @@ public sealed class CodeAltaCliOptionsTests
         Assert.IsNull(error);
         Assert.IsNotNull(options);
         Assert.IsTrue(options.PluginsStatus);
+        Assert.IsTrue(CodeAltaCliOptions.GetPluginBootstrapOptions(["--plugins-status"]).PluginsStatus);
     }
 
     [TestMethod]
@@ -80,7 +82,17 @@ public sealed class CodeAltaCliOptionsTests
         Assert.IsNull(error);
         Assert.IsNotNull(options);
         Assert.IsTrue(options.KeepPluginLiveOutput);
-        Assert.IsTrue(CodeAltaCliOptions.ShouldKeepPluginLiveOutput(["--plugins-keep-live-output"]));
+        Assert.IsTrue(CodeAltaCliOptions.GetPluginBootstrapOptions(["--plugins-keep-live-output"]).KeepPluginLiveOutput);
+    }
+
+    [TestMethod]
+    public void GetPluginBootstrapOptions_IgnoresPluginContributedArguments()
+    {
+        var options = CodeAltaCliOptions.GetPluginBootstrapOptions(["plugin-command", "--plugin-test-option", "--plugins-keep-live-output"]);
+
+        Assert.IsFalse(options.PluginSafeMode);
+        Assert.IsFalse(options.PluginsStatus);
+        Assert.IsTrue(options.KeepPluginLiveOutput);
     }
 
     [TestMethod]

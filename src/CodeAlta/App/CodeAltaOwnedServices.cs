@@ -130,6 +130,8 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         var pluginRuntime = prestartedPluginRuntime ?? new PluginRuntimeManager();
         if (prestartedPluginRuntime is null)
         {
+            var rawArguments = Environment.GetCommandLineArgs();
+            var pluginBootstrapOptions = CodeAltaCliOptions.GetPluginBootstrapOptions(rawArguments);
             await pluginRuntime.StartAsync(
                     new PluginRuntimeManagerOptions
                     {
@@ -139,10 +141,10 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
                             ProjectId = currentProject.Id,
                             ProjectPath = currentProject.ProjectPath,
                         },
-                        SafeMode = PluginRuntimeConfigResolver.IsSafeModeEnabled(Environment.GetCommandLineArgs()),
+                        SafeMode = pluginBootstrapOptions.PluginSafeMode,
                         IsHeadless = false,
-                        KeepBuildLiveOutput = CodeAltaCliOptions.ShouldKeepPluginLiveOutput(Environment.GetCommandLineArgs()),
-                        RawArguments = Environment.GetCommandLineArgs(),
+                        KeepBuildLiveOutput = pluginBootstrapOptions.KeepPluginLiveOutput,
+                        RawArguments = rawArguments,
                     },
                     cancellationToken)
                 .ConfigureAwait(false);

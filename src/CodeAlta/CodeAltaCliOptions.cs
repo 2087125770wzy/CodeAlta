@@ -28,16 +28,13 @@ internal sealed class CodeAltaCliOptions
 
     public bool KeepPluginLiveOutput { get; }
 
-    public static bool IsPluginsStatusRequested(IReadOnlyList<string> args)
+    public static CodeAltaPluginBootstrapOptions GetPluginBootstrapOptions(IReadOnlyList<string> args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        return args.Any(static arg => string.Equals(arg, "--plugins-status", StringComparison.OrdinalIgnoreCase));
-    }
-
-    public static bool ShouldKeepPluginLiveOutput(IReadOnlyList<string> args)
-    {
-        ArgumentNullException.ThrowIfNull(args);
-        return args.Any(static arg => string.Equals(arg, "--plugins-keep-live-output", StringComparison.OrdinalIgnoreCase));
+        return new CodeAltaPluginBootstrapOptions(
+            PluginRuntimeConfigResolver.IsSafeModeEnabled(args),
+            args.Any(IsPluginsStatusOption),
+            args.Any(IsPluginsKeepLiveOutputOption));
     }
 
     public static bool TryParse(
@@ -162,6 +159,12 @@ internal sealed class CodeAltaCliOptions
         return true;
     }
 
+    private static bool IsPluginsStatusOption(string arg)
+        => string.Equals(arg, "--plugins-status", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPluginsKeepLiveOutputOption(string arg)
+        => string.Equals(arg, "--plugins-keep-live-output", StringComparison.OrdinalIgnoreCase);
+
     private sealed class ParseState
     {
         public bool TestMode { get; set; }
@@ -175,3 +178,8 @@ internal sealed class CodeAltaCliOptions
         public bool KeepPluginLiveOutput { get; set; }
     }
 }
+
+internal readonly record struct CodeAltaPluginBootstrapOptions(
+    bool PluginSafeMode,
+    bool PluginsStatus,
+    bool KeepPluginLiveOutput);

@@ -116,6 +116,7 @@ internal partial class Program
         Directory.CreateDirectory(homeRoot);
         CodeAltaLogging.Initialize(homeRoot);
         var currentDirectory = Environment.CurrentDirectory;
+        var pluginBootstrapOptions = CodeAltaCliOptions.GetPluginBootstrapOptions(args);
         var runtime = new PluginRuntimeManager();
         var stopwatch = Stopwatch.StartNew();
         try
@@ -129,14 +130,14 @@ internal partial class Program
                         ProjectId = "current",
                         ProjectPath = currentDirectory,
                     },
-                    SafeMode = PluginRuntimeConfigResolver.IsSafeModeEnabled(args),
+                    SafeMode = pluginBootstrapOptions.PluginSafeMode,
                     IsHeadless = false,
-                    KeepBuildLiveOutput = CodeAltaCliOptions.ShouldKeepPluginLiveOutput(args),
+                    KeepBuildLiveOutput = pluginBootstrapOptions.KeepPluginLiveOutput,
                     RawArguments = args,
                 },
                 cancellationToken);
             stopwatch.Stop();
-            ReportCommandLinePluginStartup(result, stopwatch.Elapsed, args);
+            ReportCommandLinePluginStartup(result, stopwatch.Elapsed, pluginBootstrapOptions);
             return runtime;
         }
         catch
@@ -146,10 +147,9 @@ internal partial class Program
         }
     }
 
-    internal static void ReportCommandLinePluginStartup(PluginRuntimeManagerStartResult result, TimeSpan elapsed, IReadOnlyList<string> args)
+    internal static void ReportCommandLinePluginStartup(PluginRuntimeManagerStartResult result, TimeSpan elapsed, CodeAltaPluginBootstrapOptions pluginBootstrapOptions)
     {
         ArgumentNullException.ThrowIfNull(result);
-        ArgumentNullException.ThrowIfNull(args);
         var homeRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".alta");
         var checkedPackageCount = result.BuildResults.Count;
         var builtPackageCount = result.BuildResults.Count(static build => build.Succeeded && !build.IsUpToDate);
@@ -162,7 +162,7 @@ internal partial class Program
             return;
         }
 
-        if (checkedPackageCount > 0 || failedPackageCount > 0 || CodeAltaCliOptions.IsPluginsStatusRequested(args) || CodeAltaCliOptions.ShouldKeepPluginLiveOutput(args))
+        if (checkedPackageCount > 0 || failedPackageCount > 0 || pluginBootstrapOptions.PluginsStatus || pluginBootstrapOptions.KeepPluginLiveOutput)
         {
             var buildSummary = checkedPackageCount == 0
                 ? "no source plugins checked"
