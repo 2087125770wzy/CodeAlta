@@ -1,5 +1,6 @@
 using CodeAlta.Agent;
 using CodeAlta.App;
+using CodeAlta.App.Events;
 using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
@@ -303,6 +304,29 @@ public sealed class ShellThreadStateCoordinatorTests
     }
 
     [TestMethod]
+    public void CatalogAndSelectionMutations_PublishTypedFrontendEvents()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var dispatcher = new InlineUiDispatcher();
+        var publisher = new FrontendEventPublisher(dispatcher);
+        var events = new List<ShellFrontendEvent>();
+        publisher.Subscribe(events.Add);
+        var coordinator = CreateCoordinator(
+            options,
+            stateStore: new ShellStateStore(dispatcher),
+            frontendEvents: publisher);
+        var project = CreateProject("project-1", "Project 1");
+        var thread = CreateThread("thread-1");
+
+        coordinator.ApplyRecoveredCatalogState([project], [thread]);
+        coordinator.OpenThread(thread.ThreadId);
+
+        Assert.IsTrue(events.OfType<CatalogChangedEvent>().Any());
+        Assert.IsTrue(events.OfType<SelectionChangedEvent>().Any(selection => selection.Snapshot?.Selection.SelectedThreadId == thread.ThreadId));
+    }
+
+    [TestMethod]
     public async Task RemoveDeletedThreadArtifactsAsync_RemovesPersistedThreadStateAndPendingRestore()
     {
         using var temp = TempDirectory.Create();
@@ -393,7 +417,8 @@ public sealed class ShellThreadStateCoordinatorTests
         WorkThreadCatalog? threadCatalog = null,
         Func<string, string?>? loadPromptDraft = null,
         Action<string>? deletePromptDraft = null,
-        ShellStateStore? stateStore = null)
+        ShellStateStore? stateStore = null,
+        FrontendEventPublisher? frontendEvents = null)
     {
         threadCatalog ??= new WorkThreadCatalog(options);
         return new ShellThreadStateCoordinator(
@@ -412,7 +437,8 @@ public sealed class ShellThreadStateCoordinatorTests
             static () => { },
             static () => { },
             static _ => { },
-            static (_, _, _) => { });
+            static (_, _, _) => { },
+            frontendEvents);
     }
 
     private static WorkThreadDescriptor CreateThread(string threadId)

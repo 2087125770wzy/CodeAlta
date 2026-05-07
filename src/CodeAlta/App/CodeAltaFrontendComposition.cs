@@ -1,5 +1,6 @@
 using CodeAlta.Agent;
 using CodeAlta.App.Context;
+using CodeAlta.App.Events;
 using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
@@ -38,6 +39,7 @@ internal sealed class CodeAltaFrontendComposition
     public required IModelProviderPreferencePort ModelProviderPreferencePort { get; init; }
     public required ChatSelectorStateStore ChatSelectorStateStore { get; init; }
     public required ShellStateStore ShellStateStore { get; init; }
+    public required FrontendEventPublisher FrontendEvents { get; init; }
     public required ShellWorkspaceContext ShellWorkspaceContext { get; init; }
     public required ThreadSelectionContext ThreadSelectionContext { get; init; }
     public required WorkspaceRefreshContext WorkspaceRefreshContext { get; init; }
@@ -77,6 +79,7 @@ internal sealed class CodeAltaFrontendComposition
         var chatBackendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         var uiDispatcher = frontend.GetUiDispatcher();
         var shellStateStore = new ShellStateStore(uiDispatcher);
+        var frontendEvents = new FrontendEventPublisher(uiDispatcher);
         var legacyPromptSessionId = new PromptSessionId("legacy-selected-prompt");
         var promptSessionPort = new LegacyPromptSessionPort(
             uiDispatcher,
@@ -121,7 +124,8 @@ internal sealed class CodeAltaFrontendComposition
             frontend.RefreshCatalogAndThreadWorkspace,
             frontend.ResetPendingThreadTabSelection,
             frontend.RemoveThreadTabPage,
-            frontend.SetStatus);
+            frontend.SetStatus,
+            frontendEvents);
         var threadSelectionContext = new ThreadSelectionContext(
             threadStateCoordinator,
             frontend.EnsureThreadHistoryLoadedAsync,
@@ -338,6 +342,7 @@ internal sealed class CodeAltaFrontendComposition
             ModelProviderPreferencePort = modelProviderPreferencePort,
             ChatSelectorStateStore = chatSelectorStateContext,
             ShellStateStore = shellStateStore,
+            FrontendEvents = frontendEvents,
             ShellWorkspaceContext = shellWorkspaceContext,
             ThreadSelectionContext = threadSelectionContext,
             WorkspaceRefreshContext = workspaceRefreshContext,

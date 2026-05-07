@@ -1,4 +1,5 @@
 using CodeAlta.App.State;
+using CodeAlta.App.Events;
 using CodeAlta.Threading;
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
@@ -18,6 +19,7 @@ internal sealed class ShellThreadStateCoordinator
     private readonly ShellSelectionCoordinator _selectionCoordinator = new();
     private readonly IUiDispatcher _uiDispatcher;
     private readonly ShellStateStore _stateStore;
+    private readonly FrontendEventPublisher? _frontendEvents;
     private readonly ShellCatalogStateCoordinator _catalogStateCoordinator;
     private readonly OpenThreadStateStore _OpenThreadStateStore;
     private readonly ThreadViewStateCoordinator _viewStateCoordinator;
@@ -45,7 +47,8 @@ internal sealed class ShellThreadStateCoordinator
         Action refreshCatalogAndThreadWorkspace,
         Action resetPendingThreadTabSelection,
         Action<string> removeTabPage,
-        Action<string, bool, StatusTone> setStatus)
+        Action<string, bool, StatusTone> setStatus,
+        FrontendEventPublisher? frontendEvents = null)
     {
         ArgumentNullException.ThrowIfNull(projectCatalog);
         ArgumentNullException.ThrowIfNull(threadCatalog);
@@ -66,6 +69,7 @@ internal sealed class ShellThreadStateCoordinator
 
         _uiDispatcher = uiDispatcher;
         _stateStore = stateStore;
+        _frontendEvents = frontendEvents;
         _viewStateCoordinator = new ThreadViewStateCoordinator(threadCatalog);
         _OpenThreadStateStore = new OpenThreadStateStore(
             uiDispatcher,
@@ -141,7 +145,7 @@ internal sealed class ShellThreadStateCoordinator
 
         _catalogStateCoordinator.ApplyInitialCatalogState(state);
         _selectionCoordinator.ApplyInitialSelection(state.ViewState, Projects, Threads);
-        SyncStateStore();
+        SyncStateStore(catalogChanged: true, selectionChanged: true);
     }
 
     public async Task LoadCatalogStateAsync(CancellationToken cancellationToken)
@@ -175,7 +179,7 @@ internal sealed class ShellThreadStateCoordinator
                 : PendingStartupThreadRestoreId);
 
         EnsureSelectionDefaults();
-        SyncStateStore();
+        SyncStateStore(catalogChanged: true, selectionChanged: true);
         _refreshCatalogAndThreadWorkspace();
     }
 
@@ -187,7 +191,7 @@ internal sealed class ShellThreadStateCoordinator
         ArgumentNullException.ThrowIfNull(project);
 
         _catalogStateCoordinator.UpsertProject(project);
-        SyncStateStore();
+        SyncStateStore(catalogChanged: true);
     }
 
     public void RekeyThreadIdentity(string oldThreadId, WorkThreadDescriptor thread)
@@ -198,7 +202,7 @@ internal sealed class ShellThreadStateCoordinator
         if (string.Equals(oldThreadId, thread.ThreadId, StringComparison.OrdinalIgnoreCase))
         {
             _catalogStateCoordinator.UpsertThread(thread);
-            SyncStateStore();
+            SyncStateStore(catalogChanged: true);
             return;
         }
 
@@ -247,7 +251,7 @@ internal sealed class ShellThreadStateCoordinator
 
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
         _catalogStateCoordinator.UpsertThread(thread);
-        SyncStateStore();
+        SyncStateStore(catalogChanged: true, selectionChanged: true);
     }
 
     public NavigatorSettings GetNavigatorSettingsSnapshot()
@@ -259,7 +263,7 @@ internal sealed class ShellThreadStateCoordinator
         settings.Validate();
 
         await _viewStateCoordinator.SaveNavigatorSettingsAsync(ViewState, settings);
-        SyncStateStore();
+        SyncStateStore(selectionChanged: true);
     }
 
     public void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken)
@@ -287,7 +291,7 @@ internal sealed class ShellThreadStateCoordinator
         ViewState.SelectedThreadId = null;
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
         _ = PersistViewStateAsync();
-        SyncStateStore();
+        SyncStateStore(selectionChanged: true);
         _refreshSelectionAndThreadWorkspace();
     }
 
@@ -301,7 +305,7 @@ internal sealed class ShellThreadStateCoordinator
         ViewState.SelectedThreadId = null;
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
         _ = PersistViewStateAsync();
-        SyncStateStore();
+        SyncStateStore(selectionChanged: true);
         _refreshSelectionAndThreadWorkspace();
         return Selection == previousSelection
             ? SelectionChangeResult.Unchanged
@@ -311,7 +315,7 @@ internal sealed class ShellThreadStateCoordinator
     public void EnsureSelectionDefaults()
     {
         _selectionCoordinator.EnsureSelectionDefaults(Projects, Threads);
-        SyncStateStore();
+        SyncStateStore(catalogChanged: true, selectionChanged: true);
     }
 
     public async Task RegisterCreatedThreadAsync(WorkThreadDescriptor thread)
@@ -357,7 +361,7 @@ internal sealed class ShellThreadStateCoordinator
         }
 
         _ = PersistViewStateAsync();
-        SyncStateStore();
+        SyncStateStore(selectionChanged: true);
         _refreshSelectionAndThreadWorkspace();
         _ = _ensureThreadHistoryLoadedAsync(thread, CancellationToken.None);
         return alreadyOpen
@@ -394,7 +398,7 @@ internal sealed class ShellThreadStateCoordinator
 
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
         await PersistViewStateAsync();
-        SyncStateStore();
+        SyncStateStore(selectionChanged: true);
         _refreshSelectionAndThreadWorkspace();
         return wasOpen
             ? TabCloseResult.Closed
@@ -452,7 +456,7 @@ internal sealed class ShellThreadStateCoordinator
 
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
         _ = PersistViewStateAsync();
-        SyncStateStore();
+        SyncStateStore(catalogChanged: true, selectionChanged: true);
         _refreshSelectionAndThreadWorkspace();
     }
 
@@ -490,7 +494,7 @@ internal sealed class ShellThreadStateCoordinator
 
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
         _ = PersistViewStateAsync();
-        SyncStateStore();
+        SyncStateStore(catalogChanged: true, selectionChanged: true);
         _refreshSelectionAndThreadWorkspace();
     }
 
@@ -504,10 +508,22 @@ internal sealed class ShellThreadStateCoordinator
     public void ResetThreadTab(OpenThreadState tab)
         => _OpenThreadStateStore.ResetThreadTab(tab);
 
-    private void SyncStateStore()
-        => _stateStore.Mutate(snapshot => snapshot
+    private void SyncStateStore(bool catalogChanged = false, bool selectionChanged = false)
+    {
+        _stateStore.Mutate(snapshot => snapshot
             .SetCatalog(Projects, Threads)
             .SetSelection(Selection, ViewState.OpenThreadIds, NavigatorSettings));
+
+        if (catalogChanged)
+        {
+            _frontendEvents?.Publish(new CatalogChangedEvent());
+        }
+
+        if (selectionChanged)
+        {
+            _frontendEvents?.Publish(new SelectionChangedEvent(_stateStore.Snapshot));
+        }
+    }
 
     public OpenThreadState? FindOpenThread(string threadId)
         => _OpenThreadStateStore.FindOpenThread(threadId);
