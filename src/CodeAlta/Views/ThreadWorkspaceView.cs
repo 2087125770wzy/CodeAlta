@@ -53,217 +53,9 @@ internal sealed class ThreadWorkspaceView
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
         IReadOnlyList<ThreadWorkspaceCommandBinding> commandBindings,
-        Func<Visual> buildSessionUsageIndicatorVisual,
-        Action openSessionUsagePopup,
-        Action<Visual> toggleThreadInfoPopup,
-        Action openHelp,
-        Action openCommandPalette,
-        Action<string> acceptPrompt,
-        Action sendPrompt,
-        Action steerPrompt,
-        Action clearQueuedPrompts,
-        Action<string> convertQueuedPromptToSteer,
-        Action<string> deletePendingSteer,
-        Action<string> deleteQueuedPrompt,
-        Action<string, int> updateQueuedPromptCount,
-        Action<string, string> updateQueuedPromptText,
-        Action abortThread,
-        Action compactThread,
-        Action closeTab,
-        Action<int> onChatBackendSelectionChanged,
-        Action<int> onChatModelSelectionChanged,
-        Action<int> onChatReasoningSelectionChanged,
-        Action<int> onSelectedTabChanged,
-        Binding<string?> promptText,
-        State<float> thinkingAnimationPhase01)
-        : this(
-            shellViewModel,
-            workspaceViewModel,
-            promptComposerViewModel,
-            commandBindings,
-            buildSessionUsageIndicatorVisual,
-            openSessionUsagePopup,
-            toggleThreadInfoPopup,
-            openHelp,
-            openCommandPalette,
-            static () => { },
-            acceptPrompt,
-            sendPrompt,
-            steerPrompt,
-            clearQueuedPrompts,
-            convertQueuedPromptToSteer,
-            deletePendingSteer,
-            deleteQueuedPrompt,
-            updateQueuedPromptCount,
-            updateQueuedPromptText,
-            abortThread,
-            compactThread,
-            closeTab,
-            onChatBackendSelectionChanged,
-            onChatModelSelectionChanged,
-            onChatReasoningSelectionChanged,
-            onSelectedTabChanged,
-            promptText,
-            thinkingAnimationPhase01)
-    {
-    }
-
-    public ThreadWorkspaceView(
-        CodeAltaShellViewModel shellViewModel,
-        ThreadWorkspaceViewModel workspaceViewModel,
-        PromptComposerViewModel promptComposerViewModel,
-        IReadOnlyList<ThreadWorkspaceCommandBinding> commandBindings,
-        Func<Visual> buildSessionUsageIndicatorVisual,
-        Action openSessionUsagePopup,
-        Action<Visual> toggleThreadInfoPopup,
-        Action openHelp,
-        Action openCommandPalette,
+        ThreadWorkspaceViewActions actions,
         IProjectFileSearchService projectFileSearchService,
         Func<string?> getPromptReferenceProjectRoot,
-        Action<string> acceptPrompt,
-        Action sendPrompt,
-        Action steerPrompt,
-        Action clearQueuedPrompts,
-        Action<string> convertQueuedPromptToSteer,
-        Action<string> deletePendingSteer,
-        Action<string> deleteQueuedPrompt,
-        Action<string, int> updateQueuedPromptCount,
-        Action<string, string> updateQueuedPromptText,
-        Action abortThread,
-        Action compactThread,
-        Action closeTab,
-        Action<int> onChatBackendSelectionChanged,
-        Action<int> onChatModelSelectionChanged,
-        Action<int> onChatReasoningSelectionChanged,
-        Action<int> onSelectedTabChanged,
-        Binding<string?> promptText,
-        State<float> thinkingAnimationPhase01)
-        : this(
-            shellViewModel,
-            workspaceViewModel,
-            promptComposerViewModel,
-            commandBindings,
-            buildSessionUsageIndicatorVisual,
-            openSessionUsagePopup,
-            toggleThreadInfoPopup,
-            openHelp,
-            openCommandPalette,
-            static () => { },
-            projectFileSearchService,
-            getPromptReferenceProjectRoot,
-            acceptPrompt,
-            sendPrompt,
-            steerPrompt,
-            clearQueuedPrompts,
-            convertQueuedPromptToSteer,
-            deletePendingSteer,
-            deleteQueuedPrompt,
-            updateQueuedPromptCount,
-            updateQueuedPromptText,
-            abortThread,
-            compactThread,
-            closeTab,
-            onChatBackendSelectionChanged,
-            onChatModelSelectionChanged,
-            onChatReasoningSelectionChanged,
-            onSelectedTabChanged,
-            promptText,
-            thinkingAnimationPhase01)
-    {
-    }
-
-    public ThreadWorkspaceView(
-        CodeAltaShellViewModel shellViewModel,
-        ThreadWorkspaceViewModel workspaceViewModel,
-        PromptComposerViewModel promptComposerViewModel,
-        IReadOnlyList<ThreadWorkspaceCommandBinding> commandBindings,
-        Func<Visual> buildSessionUsageIndicatorVisual,
-        Action openSessionUsagePopup,
-        Action<Visual> toggleThreadInfoPopup,
-        Action openHelp,
-        Action openCommandPalette,
-        Action openModelProviders,
-        Action<string> acceptPrompt,
-        Action sendPrompt,
-        Action steerPrompt,
-        Action clearQueuedPrompts,
-        Action<string> convertQueuedPromptToSteer,
-        Action<string> deletePendingSteer,
-        Action<string> deleteQueuedPrompt,
-        Action<string, int> updateQueuedPromptCount,
-        Action<string, string> updateQueuedPromptText,
-        Action abortThread,
-        Action compactThread,
-        Action closeTab,
-        Action<int> onChatBackendSelectionChanged,
-        Action<int> onChatModelSelectionChanged,
-        Action<int> onChatReasoningSelectionChanged,
-        Action<int> onSelectedTabChanged,
-        Binding<string?> promptText,
-        State<float> thinkingAnimationPhase01)
-        : this(
-            shellViewModel,
-            workspaceViewModel,
-            promptComposerViewModel,
-            commandBindings,
-            buildSessionUsageIndicatorVisual,
-            openSessionUsagePopup,
-            toggleThreadInfoPopup,
-            openHelp,
-            openCommandPalette,
-            openModelProviders,
-            NullProjectFileSearchService.Instance,
-            static () => null,
-            acceptPrompt,
-            sendPrompt,
-            steerPrompt,
-            clearQueuedPrompts,
-            convertQueuedPromptToSteer,
-            deletePendingSteer,
-            deleteQueuedPrompt,
-            updateQueuedPromptCount,
-            updateQueuedPromptText,
-            abortThread,
-            compactThread,
-            closeTab,
-            onChatBackendSelectionChanged,
-            onChatModelSelectionChanged,
-            onChatReasoningSelectionChanged,
-            onSelectedTabChanged,
-            promptText,
-            thinkingAnimationPhase01)
-    {
-    }
-
-    public ThreadWorkspaceView(
-        CodeAltaShellViewModel shellViewModel,
-        ThreadWorkspaceViewModel workspaceViewModel,
-        PromptComposerViewModel promptComposerViewModel,
-        IReadOnlyList<ThreadWorkspaceCommandBinding> commandBindings,
-        Func<Visual> buildSessionUsageIndicatorVisual,
-        Action openSessionUsagePopup,
-        Action<Visual> toggleThreadInfoPopup,
-        Action openHelp,
-        Action openCommandPalette,
-        Action openModelProviders,
-        IProjectFileSearchService projectFileSearchService,
-        Func<string?> getPromptReferenceProjectRoot,
-        Action<string> acceptPrompt,
-        Action sendPrompt,
-        Action steerPrompt,
-        Action clearQueuedPrompts,
-        Action<string> convertQueuedPromptToSteer,
-        Action<string> deletePendingSteer,
-        Action<string> deleteQueuedPrompt,
-        Action<string, int> updateQueuedPromptCount,
-        Action<string, string> updateQueuedPromptText,
-        Action abortThread,
-        Action compactThread,
-        Action closeTab,
-        Action<int> onChatBackendSelectionChanged,
-        Action<int> onChatModelSelectionChanged,
-        Action<int> onChatReasoningSelectionChanged,
-        Action<int> onSelectedTabChanged,
         Binding<string?> promptText,
         State<float> thinkingAnimationPhase01,
         PromptImageWorkspaceCallbacks? promptImageCallbacks = null)
@@ -272,31 +64,34 @@ internal sealed class ThreadWorkspaceView
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
         ArgumentNullException.ThrowIfNull(commandBindings);
-        ArgumentNullException.ThrowIfNull(buildSessionUsageIndicatorVisual);
-        ArgumentNullException.ThrowIfNull(openSessionUsagePopup);
-        ArgumentNullException.ThrowIfNull(toggleThreadInfoPopup);
-        ArgumentNullException.ThrowIfNull(openHelp);
-        ArgumentNullException.ThrowIfNull(openCommandPalette);
-        ArgumentNullException.ThrowIfNull(openModelProviders);
+        ArgumentNullException.ThrowIfNull(actions);
         ArgumentNullException.ThrowIfNull(projectFileSearchService);
         ArgumentNullException.ThrowIfNull(getPromptReferenceProjectRoot);
-        ArgumentNullException.ThrowIfNull(acceptPrompt);
-        ArgumentNullException.ThrowIfNull(sendPrompt);
-        ArgumentNullException.ThrowIfNull(steerPrompt);
-        ArgumentNullException.ThrowIfNull(clearQueuedPrompts);
-        ArgumentNullException.ThrowIfNull(convertQueuedPromptToSteer);
-        ArgumentNullException.ThrowIfNull(deletePendingSteer);
-        ArgumentNullException.ThrowIfNull(deleteQueuedPrompt);
-        ArgumentNullException.ThrowIfNull(updateQueuedPromptCount);
-        ArgumentNullException.ThrowIfNull(updateQueuedPromptText);
-        ArgumentNullException.ThrowIfNull(abortThread);
-        ArgumentNullException.ThrowIfNull(compactThread);
-        ArgumentNullException.ThrowIfNull(closeTab);
-        ArgumentNullException.ThrowIfNull(onChatBackendSelectionChanged);
-        ArgumentNullException.ThrowIfNull(onChatModelSelectionChanged);
-        ArgumentNullException.ThrowIfNull(onChatReasoningSelectionChanged);
-        ArgumentNullException.ThrowIfNull(onSelectedTabChanged);
         ArgumentNullException.ThrowIfNull(thinkingAnimationPhase01);
+
+        ValidateActions(actions);
+        var buildSessionUsageIndicatorVisual = actions.BuildSessionUsageIndicatorVisual;
+        var openSessionUsagePopup = actions.OpenSessionUsagePopup;
+        var toggleThreadInfoPopup = actions.ToggleThreadInfoPopup;
+        var openHelp = actions.OpenHelp;
+        var openCommandPalette = actions.OpenCommandPalette;
+        var openModelProviders = actions.OpenModelProviders;
+        var acceptPrompt = actions.AcceptPrompt;
+        var sendPrompt = actions.SendPrompt;
+        var steerPrompt = actions.SteerPrompt;
+        var clearQueuedPrompts = actions.ClearQueuedPrompts;
+        var convertQueuedPromptToSteer = actions.ConvertQueuedPromptToSteer;
+        var deletePendingSteer = actions.DeletePendingSteer;
+        var deleteQueuedPrompt = actions.DeleteQueuedPrompt;
+        var updateQueuedPromptCount = actions.UpdateQueuedPromptCount;
+        var updateQueuedPromptText = actions.UpdateQueuedPromptText;
+        var abortThread = actions.AbortThread;
+        var compactThread = actions.CompactThread;
+        var closeTab = actions.CloseTab;
+        var onChatBackendSelectionChanged = actions.OnChatBackendSelectionChanged;
+        var onChatModelSelectionChanged = actions.OnChatModelSelectionChanged;
+        var onChatReasoningSelectionChanged = actions.OnChatReasoningSelectionChanged;
+        var onSelectedTabChanged = actions.OnSelectedTabChanged;
 
         _promptComposerViewModel = promptComposerViewModel;
         _promptTextBinding = promptText;
@@ -502,6 +297,32 @@ internal sealed class ThreadWorkspaceView
                 Root.AddCommand(BuildCommand(binding));
             }
         }
+    }
+
+    private static void ValidateActions(ThreadWorkspaceViewActions actions)
+    {
+        ArgumentNullException.ThrowIfNull(actions.BuildSessionUsageIndicatorVisual);
+        ArgumentNullException.ThrowIfNull(actions.OpenSessionUsagePopup);
+        ArgumentNullException.ThrowIfNull(actions.ToggleThreadInfoPopup);
+        ArgumentNullException.ThrowIfNull(actions.OpenHelp);
+        ArgumentNullException.ThrowIfNull(actions.OpenCommandPalette);
+        ArgumentNullException.ThrowIfNull(actions.OpenModelProviders);
+        ArgumentNullException.ThrowIfNull(actions.AcceptPrompt);
+        ArgumentNullException.ThrowIfNull(actions.SendPrompt);
+        ArgumentNullException.ThrowIfNull(actions.SteerPrompt);
+        ArgumentNullException.ThrowIfNull(actions.ClearQueuedPrompts);
+        ArgumentNullException.ThrowIfNull(actions.ConvertQueuedPromptToSteer);
+        ArgumentNullException.ThrowIfNull(actions.DeletePendingSteer);
+        ArgumentNullException.ThrowIfNull(actions.DeleteQueuedPrompt);
+        ArgumentNullException.ThrowIfNull(actions.UpdateQueuedPromptCount);
+        ArgumentNullException.ThrowIfNull(actions.UpdateQueuedPromptText);
+        ArgumentNullException.ThrowIfNull(actions.AbortThread);
+        ArgumentNullException.ThrowIfNull(actions.CompactThread);
+        ArgumentNullException.ThrowIfNull(actions.CloseTab);
+        ArgumentNullException.ThrowIfNull(actions.OnChatBackendSelectionChanged);
+        ArgumentNullException.ThrowIfNull(actions.OnChatModelSelectionChanged);
+        ArgumentNullException.ThrowIfNull(actions.OnChatReasoningSelectionChanged);
+        ArgumentNullException.ThrowIfNull(actions.OnSelectedTabChanged);
     }
 
     public Visual Root { get; }

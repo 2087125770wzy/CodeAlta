@@ -3,6 +3,7 @@ using System.Reflection;
 using CodeAlta.Frontend.Commands;
 using CodeAlta.Models;
 using CodeAlta.Presentation.Chat;
+using CodeAlta.Presentation.Prompting;
 using CodeAlta.Catalog;
 using CodeAlta.ViewModels;
 using CodeAlta.Views;
@@ -103,34 +104,7 @@ public sealed class ThreadWorkspaceViewTests
             ReasoningOptions = [new ChatReasoningOption(Agent.AgentReasoningEffort.High, "High")],
         };
         var promptComposerViewModel = new PromptComposerViewModel();
-        var view = new ThreadWorkspaceView(
-            shellViewModel,
-            workspaceViewModel,
-            promptComposerViewModel,
-            [],
-            static () => new TextBlock(string.Empty),
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static (_, _) => { },
-            static (_, _) => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            new State<string?>(string.Empty),
-            new State<float>(0));
+        var view = CreateThreadWorkspaceView(shellViewModel, workspaceViewModel, promptComposerViewModel);
 
         view.SyncChatSelectorItems(workspaceViewModel);
 
@@ -173,34 +147,11 @@ public sealed class ThreadWorkspaceViewTests
         var steerBinding = new ThreadWorkspaceCommandBinding(
             ShellCommandCatalog.Get("CodeAlta.Thread.Steer"),
             static () => { });
-        var view = new ThreadWorkspaceView(
+        var view = CreateThreadWorkspaceView(
             shellViewModel,
             workspaceViewModel,
             promptComposerViewModel,
-            [closeTabBinding, steerBinding],
-            static () => new TextBlock(string.Empty),
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static (_, _) => { },
-            static (_, _) => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            new State<string?>(string.Empty),
-            new State<float>(0));
+            [closeTabBinding, steerBinding]);
 
         var closeTabCommand = Assert.IsInstanceOfType<Command>(
             view.ThreadInput.Commands.Single(command => string.Equals(command.Id, "CodeAlta.Thread.CloseTab", StringComparison.Ordinal)));
@@ -227,34 +178,7 @@ public sealed class ThreadWorkspaceViewTests
             AlwaysEnqueue = true,
             CanAlwaysEnqueue = true,
         };
-        var view = new ThreadWorkspaceView(
-            shellViewModel,
-            workspaceViewModel,
-            promptComposerViewModel,
-            [],
-            static () => new TextBlock(string.Empty),
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static (_, _) => { },
-            static (_, _) => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            new State<string?>(string.Empty),
-            new State<float>(0));
+        var view = CreateThreadWorkspaceView(shellViewModel, workspaceViewModel, promptComposerViewModel);
 
         Assert.IsTrue(view.AlwaysEnqueueCheckBox.IsChecked);
         Assert.IsTrue(view.AlwaysEnqueueCheckBox.IsEnabled);
@@ -263,34 +187,7 @@ public sealed class ThreadWorkspaceViewTests
     [TestMethod]
     public void CommandBar_DefaultsToSingleLine()
     {
-        var view = new ThreadWorkspaceView(
-            new CodeAltaShellViewModel(),
-            new ThreadWorkspaceViewModel(),
-            new PromptComposerViewModel(),
-            [],
-            static () => new TextBlock(string.Empty),
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static (_, _) => { },
-            static (_, _) => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            new State<string?>(string.Empty),
-            new State<float>(0));
+        var view = CreateThreadWorkspaceView();
 
         Assert.IsFalse(view.ThreadCommandBar.MultiLine);
     }
@@ -323,36 +220,12 @@ public sealed class ThreadWorkspaceViewTests
         var shellViewModel = new CodeAltaShellViewModel();
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        var view = new ThreadWorkspaceView(
+        var view = CreateThreadWorkspaceView(
             shellViewModel,
             workspaceViewModel,
             promptComposerViewModel,
-            [],
-            static () => new TextBlock(string.Empty),
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            searchService,
-            () => projectRoot,
-            static _ => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static (_, _) => { },
-            static (_, _) => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            new State<string?>(string.Empty),
-            new State<float>(0));
+            projectFileSearchService: searchService,
+            getPromptReferenceProjectRoot: () => projectRoot);
 
         using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
         var app = new TerminalApp(
@@ -394,34 +267,15 @@ public sealed class ThreadWorkspaceViewTests
         var shellViewModel = new CodeAltaShellViewModel();
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        var view = new ThreadWorkspaceView(
+        var view = CreateThreadWorkspaceView(
             shellViewModel,
             workspaceViewModel,
             promptComposerViewModel,
-            [],
-            static () => new TextBlock(string.Empty),
-            static () => { },
-            static _ => { },
-            () => helpCount++,
-            () => commandPaletteCount++,
-            static _ => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static (_, _) => { },
-            static (_, _) => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            new State<string?>(string.Empty),
-            new State<float>(0));
+            actions: ThreadWorkspaceViewActions.Empty with
+            {
+                OpenHelp = () => helpCount++,
+                OpenCommandPalette = () => commandPaletteCount++,
+            });
 
         using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
         var app = new TerminalApp(
@@ -455,34 +309,7 @@ public sealed class ThreadWorkspaceViewTests
     public void ExpandedPromptEditor_CtrlEnterClosesDialogAndPreservesDraft()
     {
         var promptText = new State<string?>("draft prompt");
-        var view = new ThreadWorkspaceView(
-            new CodeAltaShellViewModel(),
-            new ThreadWorkspaceViewModel(),
-            new PromptComposerViewModel(),
-            [],
-            static () => new TextBlock(string.Empty),
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static (_, _) => { },
-            static (_, _) => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            promptText,
-            new State<float>(0));
+        var view = CreateThreadWorkspaceView(promptText: promptText);
 
         using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
         var app = new TerminalApp(
@@ -532,34 +359,24 @@ public sealed class ThreadWorkspaceViewTests
         return Assert.IsInstanceOfType<T>(field.GetValue(instance));
     }
 
-    private static ThreadWorkspaceView CreateThreadWorkspaceView()
+    private static ThreadWorkspaceView CreateThreadWorkspaceView(
+        CodeAltaShellViewModel? shellViewModel = null,
+        ThreadWorkspaceViewModel? workspaceViewModel = null,
+        PromptComposerViewModel? promptComposerViewModel = null,
+        IReadOnlyList<ThreadWorkspaceCommandBinding>? commandBindings = null,
+        ThreadWorkspaceViewActions? actions = null,
+        IProjectFileSearchService? projectFileSearchService = null,
+        Func<string?>? getPromptReferenceProjectRoot = null,
+        State<string?>? promptText = null)
         => new(
-            new CodeAltaShellViewModel(),
-            new ThreadWorkspaceViewModel(),
-            new PromptComposerViewModel(),
-            [],
-            static () => new TextBlock(string.Empty),
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static (_, _) => { },
-            static (_, _) => { },
-            static () => { },
-            static () => { },
-            static () => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            static _ => { },
-            new State<string?>(string.Empty),
+            shellViewModel ?? new CodeAltaShellViewModel(),
+            workspaceViewModel ?? new ThreadWorkspaceViewModel(),
+            promptComposerViewModel ?? new PromptComposerViewModel(),
+            commandBindings ?? [],
+            actions ?? ThreadWorkspaceViewActions.Empty,
+            projectFileSearchService ?? NullProjectFileSearchService.Instance,
+            getPromptReferenceProjectRoot ?? (static () => null),
+            promptText ?? new State<string?>(string.Empty),
             new State<float>(0));
 
     private static object? GetPrivateMemberValue(object instance, string fieldName)
