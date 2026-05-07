@@ -26,7 +26,7 @@ using XenoAtom.Terminal.UI.Threading;
 
 namespace CodeAlta.Views;
 
-internal sealed class CodeAltaApp : IAsyncDisposable
+internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycle
 {
     internal static readonly Logger UiLogger = LogManager.GetLogger("CodeAlta.UI");
     internal const string DraftTabId = "__draft__";
@@ -40,6 +40,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     private readonly CodeAltaShellController _shellController;
     private readonly RuntimeEventPump _runtimeEventPump;
     private readonly TerminalLoopCoordinator _terminalLoopCoordinator;
+    private readonly ShellFrontendHost _frontendHost;
     private readonly ChatBackendInitializationCoordinator _chatBackendInitializationCoordinator;
     private readonly ShellThreadStateCoordinator _threadStateCoordinator;
     private readonly ShellWorkspaceCoordinator _workspaceCoordinator;
@@ -153,6 +154,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable
         _agentHub = agentHub;
         _knownProjectImporter = knownProjectImporter ?? new KnownProjectImporter(agentHub, backendDescriptors, projectCatalog, catalogOptions);
         _ownedServices = ownedServices;
+        _frontendHost = new ShellFrontendHost(this);
         var composition = CodeAltaFrontendComposition.Create(
             backendDescriptors,
             projectCatalog,
@@ -304,18 +306,12 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
-    {
-        PrepareForRun();
-
-        var root = EnsureShellView().Root;
-
-        await Terminal.RunAsync(
-                root,
-                () => Tick(cancellationToken),
-                cancellationToken);
-    }
+        => await _frontendHost.RunAsync(cancellationToken);
 
     public async ValueTask DisposeAsync()
+        => await _frontendHost.DisposeAsync();
+
+    async ValueTask IShellFrontendHostLifecycle.DisposeFrontendAsync()
     {
         await _fileEditorWorkspaceCoordinator.DisposeAsync();
         await _runtimeEventPump.DisposeAsync();
@@ -371,10 +367,10 @@ internal sealed class CodeAltaApp : IAsyncDisposable
     internal void ApplyPendingSidebarSelection()
         => _sidebarCoordinator.ApplyPendingSelection();
 
-    internal void PrepareForRun() => SetStatus("Connecting to available providers...", showSpinner: true);
-    internal Visual GetRoot() => EnsureShellView().Root;
+    public void PrepareForRun() => SetStatus("Connecting to available providers...", showSpinner: true);
+    public Visual GetRoot() => EnsureShellView().Root;
 
-    internal TerminalLoopResult Tick(CancellationToken cancellationToken)
+    public TerminalLoopResult Tick(CancellationToken cancellationToken)
     {
         if (_disableTerminalLoopCallback)
         {

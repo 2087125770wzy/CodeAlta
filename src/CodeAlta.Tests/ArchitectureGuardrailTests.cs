@@ -347,16 +347,16 @@ public sealed class ArchitectureGuardrailTests
         {
             "App/CodeAltaShellController.cs:71:_initializationTask = Task.Run(",
             "App/CodeAltaShellController.cs:356:var startupProviderLoadTask = Task.Run(",
-            "App/CodeAltaApp.cs:356:_ = PersistViewStateAsync();",
-            "App/CodeAltaApp.cs:437:_ = OpenModelProvidersAsync();",
+            "App/CodeAltaApp.cs:352:_ = PersistViewStateAsync();",
+            "App/CodeAltaApp.cs:433:_ = OpenModelProvidersAsync();",
             "App/RuntimeEventPump.cs:34:_pumpTask = Task.Run(",
-            "App/ShellThreadStateCoordinator.cs:281:_ = RestoreStartupThreadHistoryAsync(threadId, cancellationToken);",
-            "App/ShellThreadStateCoordinator.cs:290:_ = PersistViewStateAsync();",
-            "App/ShellThreadStateCoordinator.cs:304:_ = PersistViewStateAsync();",
-            "App/ShellThreadStateCoordinator.cs:360:_ = PersistViewStateAsync();",
-            "App/ShellThreadStateCoordinator.cs:363:_ = _ensureThreadHistoryLoadedAsync(thread, CancellationToken.None);",
-            "App/ShellThreadStateCoordinator.cs:455:_ = PersistViewStateAsync();",
-            "App/ShellThreadStateCoordinator.cs:493:_ = PersistViewStateAsync();",
+            "App/ShellThreadStateCoordinator.cs:280:_ = RestoreStartupThreadHistoryAsync(threadId, cancellationToken);",
+            "App/ShellThreadStateCoordinator.cs:289:_ = PersistViewStateAsync();",
+            "App/ShellThreadStateCoordinator.cs:303:_ = PersistViewStateAsync();",
+            "App/ShellThreadStateCoordinator.cs:359:_ = PersistViewStateAsync();",
+            "App/ShellThreadStateCoordinator.cs:362:_ = _ensureThreadHistoryLoadedAsync(thread, CancellationToken.None);",
+            "App/ShellThreadStateCoordinator.cs:454:_ = PersistViewStateAsync();",
+            "App/ShellThreadStateCoordinator.cs:492:_ = PersistViewStateAsync();",
             "App/SidebarCoordinator.cs:309:_ = CommitInlineRenameAsync(row, projectId, displayName, previousTitle);",
             "App/ThreadPromptDispatchCoordinator.cs:177:_ = RecordResolvedReferenceUsageAsync(promptInput.ResolvedReferences);",
             "App/ThreadPromptDraftPersistenceCoordinator.cs:83:_ = PersistPromptDraftAsync(threadId, normalizedPrompt, cancellationSource);",
@@ -1039,7 +1039,7 @@ public sealed class ArchitectureGuardrailTests
         var loopSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "TerminalLoopCoordinator.cs"));
         var deferredAppSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Views", "DeferredCodeAltaApp.cs"));
 
-        Assert.IsTrue(appSource.Contains("internal TerminalLoopResult Tick(CancellationToken cancellationToken)", StringComparison.Ordinal));
+        Assert.IsTrue(appSource.Contains("public TerminalLoopResult Tick(CancellationToken cancellationToken)", StringComparison.Ordinal));
         Assert.IsTrue(appSource.Contains("_terminalLoopCoordinator.OnIteration(cancellationToken)", StringComparison.Ordinal));
         Assert.IsTrue(appSource.Contains("ToggleTerminalLoopCallback()", StringComparison.Ordinal));
         Assert.IsTrue(deferredAppSource.Contains("Terminal.RunAsync(", StringComparison.Ordinal));
