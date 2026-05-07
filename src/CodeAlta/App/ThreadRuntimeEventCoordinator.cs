@@ -16,9 +16,7 @@ internal sealed class ThreadRuntimeEventCoordinator
     private readonly Func<string, OpenThreadState?> _findOpenThread;
     private readonly Func<string, bool> _isSelectedThread;
     private readonly Action _invalidateSelectedSessionUsage;
-    private readonly Action<string, bool, StatusTone> _setShellStatus;
-    private readonly Action<OpenThreadState, string, bool, StatusTone> _setThreadStatus;
-    private readonly Action<OpenThreadState> _clearThreadStatus;
+    private readonly IShellStatusPort _statusPort;
     private readonly Action _refreshQueuedPromptList;
     private readonly Func<OpenThreadState, CancellationToken, Task> _drainQueuedPromptAsync;
     private readonly IProjectFileSearchService _projectFileSearchService;
@@ -33,9 +31,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         Func<bool> getAutoApproveEnabled,
         Func<string, bool> isSelectedThread,
         Action invalidateSelectedSessionUsage,
-        Action<string, bool, StatusTone> setShellStatus,
-        Action<OpenThreadState, string, bool, StatusTone> setThreadStatus,
-        Action<OpenThreadState> clearThreadStatus,
+        IShellStatusPort statusPort,
         Action refreshQueuedPromptList,
         Func<OpenThreadState, CancellationToken, Task> drainQueuedPromptAsync,
         IProjectFileSearchService projectFileSearchService,
@@ -47,9 +43,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         ArgumentNullException.ThrowIfNull(getAutoApproveEnabled);
         ArgumentNullException.ThrowIfNull(isSelectedThread);
         ArgumentNullException.ThrowIfNull(invalidateSelectedSessionUsage);
-        ArgumentNullException.ThrowIfNull(setShellStatus);
-        ArgumentNullException.ThrowIfNull(setThreadStatus);
-        ArgumentNullException.ThrowIfNull(clearThreadStatus);
+        ArgumentNullException.ThrowIfNull(statusPort);
         ArgumentNullException.ThrowIfNull(refreshQueuedPromptList);
         ArgumentNullException.ThrowIfNull(drainQueuedPromptAsync);
         ArgumentNullException.ThrowIfNull(projectFileSearchService);
@@ -58,9 +52,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         _findOpenThread = findOpenThread;
         _isSelectedThread = isSelectedThread;
         _invalidateSelectedSessionUsage = invalidateSelectedSessionUsage;
-        _setShellStatus = setShellStatus;
-        _setThreadStatus = setThreadStatus;
-        _clearThreadStatus = clearThreadStatus;
+        _statusPort = statusPort;
         _refreshQueuedPromptList = refreshQueuedPromptList;
         _drainQueuedPromptAsync = drainQueuedPromptAsync;
         _projectFileSearchService = projectFileSearchService;
@@ -144,7 +136,7 @@ internal sealed class ThreadRuntimeEventCoordinator
                 CodeAltaApp.UiLogger.Error(ex, $"Failed to render thread {context}");
             }
 
-            _setShellStatus($"Failed to render thread {context}: {ex.Message}", false, StatusTone.Error);
+            _statusPort.SetShellStatus(new ShellStatusUpdate($"Failed to render thread {context}: {ex.Message}", false, StatusTone.Error));
             tab.Timeline.ClearPendingAssistant();
         }
     }
@@ -217,13 +209,13 @@ internal sealed class ThreadRuntimeEventCoordinator
         {
             if (reduction.ClearThreadStatus)
             {
-                _clearThreadStatus(tab);
+                _statusPort.ClearThreadStatus(tab);
                 _frontendEvents?.Publish(new ThreadStatusChangedEvent(tab.Thread.ThreadId));
             }
 
             if (reduction.ThreadStatus is { } status)
             {
-                _setThreadStatus(tab, status.Message, status.ShowSpinner, status.Tone);
+                _statusPort.SetThreadStatus(tab, new ThreadStatusUpdate(status.Message, status.ShowSpinner, status.Tone));
                 _frontendEvents?.Publish(new ThreadStatusChangedEvent(tab.Thread.ThreadId));
             }
 

@@ -253,15 +253,19 @@ internal sealed class CodeAltaFrontendComposition
             codexInstallProgress,
             frontend.SetProviderSessionLoadStatus,
             SetBackendSessionLoadingEnabled);
+        var shellStatusPort = new ShellStatusPort(
+            uiDispatcher,
+            frontend.SetStatus,
+            frontend.SetThreadStatus,
+            frontend.ClearThreadStatus,
+            frontend.SetProviderSessionLoadStatus);
         var threadRuntimeEventCoordinator = new ThreadRuntimeEventCoordinator(
             threadId => threadStateCoordinator.FindThread(threadId),
             threadId => threadStateCoordinator.FindOpenThread(threadId),
             frontend.GetAutoApproveEnabled,
             frontend.IsSelectedThread,
             frontend.InvalidateSelectedSessionUsage,
-            frontend.SetStatus,
-            frontend.SetThreadStatus,
-            frontend.ClearThreadStatus,
+            shellStatusPort,
             () => threadPromptQueueCoordinator!.RefreshSelectedThreadQueueUi(),
             (tab, cancellationToken) => threadCommandCoordinator!.DrainQueuedPromptAsync(tab, cancellationToken),
             projectFileSearchService,
@@ -303,12 +307,7 @@ internal sealed class CodeAltaFrontendComposition
                     threadRuntimeEventCoordinator.TryRenderInteraction),
                 promptSessionPort,
                 () => legacyPromptSessionId,
-                new ShellStatusPort(
-                    uiDispatcher,
-                    frontend.SetStatus,
-                    frontend.SetThreadStatus,
-                    frontend.ClearThreadStatus,
-                    frontend.SetProviderSessionLoadStatus)),
+                shellStatusPort),
             threadPromptQueueCoordinator,
             promptComposerViewModel,
             projectFileSearchService,

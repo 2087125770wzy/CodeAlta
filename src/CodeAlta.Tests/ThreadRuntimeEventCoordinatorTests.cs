@@ -416,25 +416,38 @@ public sealed class ThreadRuntimeEventCoordinatorTests
             getAutoApproveEnabled: static () => false,
             isSelectedThread: id => id == thread.ThreadId,
             invalidateSelectedSessionUsage: static () => { },
-            setShellStatus: static (_, _, _) => { },
-            setThreadStatus: static (state, message, busy, tone) =>
-            {
-                state.StatusMessage = message;
-                state.StatusBusy = busy;
-                state.StatusTone = tone;
-                state.HasCustomStatus = true;
-            },
-            clearThreadStatus: static state =>
-            {
-                state.StatusMessage = null;
-                state.StatusBusy = false;
-                state.StatusTone = StatusTone.Info;
-                state.HasCustomStatus = false;
-            },
+            statusPort: new TestShellStatusPort(),
             refreshQueuedPromptList: refreshQueuedPromptList ?? (() => { }),
             drainQueuedPromptAsync: static (_, _) => Task.CompletedTask,
             projectFileSearchService: projectFileSearchService ?? NullProjectFileSearchService.Instance,
             frontendEvents: frontendEvents);
+    }
+
+    private sealed class TestShellStatusPort : IShellStatusPort
+    {
+        public void SetShellStatus(ShellStatusUpdate update)
+        {
+        }
+
+        public void SetThreadStatus(OpenThreadState thread, ThreadStatusUpdate update)
+        {
+            thread.StatusMessage = update.Message;
+            thread.StatusBusy = update.ShowSpinner;
+            thread.StatusTone = update.Tone;
+            thread.HasCustomStatus = true;
+        }
+
+        public void ClearThreadStatus(OpenThreadState thread)
+        {
+            thread.StatusMessage = null;
+            thread.StatusBusy = false;
+            thread.StatusTone = StatusTone.Info;
+            thread.HasCustomStatus = false;
+        }
+
+        public void SetProviderSessionLoadStatus(string? message)
+        {
+        }
     }
 
     private static OpenThreadState CreateOpenThreadState(WorkThreadDescriptor thread)
