@@ -479,6 +479,7 @@ public sealed class ChatSelectorCoordinatorTests
             new ProjectCatalog(options),
             new WorkThreadCatalog(options),
             new InlineUiDispatcher(),
+            new ShellStateStore(new InlineUiDispatcher()),
             static () => null,
             static _ => true,
             static _ => null,

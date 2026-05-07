@@ -1,4 +1,6 @@
 using CodeAlta.App.State;
+using CodeAlta.Catalog;
+using CodeAlta.Models;
 using CodeAlta.Threading;
 using CodeAlta.ViewModels;
 
@@ -60,6 +62,29 @@ public sealed class ShellFrontendStateStoreTests
         var store = new ShellFrontendStateStore();
 
         Assert.IsInstanceOfType<ShellStateStore>(store);
+    }
+
+    [TestMethod]
+    public void SetCatalogAndSelection_CapturesFrontendStateSnapshots()
+    {
+        var project = new ProjectDescriptor { Id = "project-1", Name = "Project", ProjectPath = "C:\\repo" };
+        var thread = new WorkThreadDescriptor { ThreadId = "thread-1", ProjectRef = "project-1", Title = "Thread" };
+        var navigatorSettings = new NavigatorSettings
+        {
+            SortMode = NavigatorProjectSortMode.Date,
+            RecentThreadsPerProject = 7,
+        };
+
+        var updated = ShellFrontendStateSnapshot.Empty
+            .SetCatalog([project], [thread])
+            .SetSelection(ShellSelection.Thread("thread-1", "project-1"), ["thread-1", "thread-1"], navigatorSettings);
+
+        Assert.AreEqual(1, updated.Projects.Count);
+        Assert.AreEqual(1, updated.Threads.Count);
+        Assert.AreEqual("thread-1", updated.Selection.SelectedThreadId);
+        Assert.AreEqual(1, updated.OpenThreadIds.Count);
+        Assert.AreEqual(NavigatorProjectSortMode.Date, updated.NavigatorSettings.SortMode);
+        Assert.AreNotSame(navigatorSettings, updated.NavigatorSettings);
     }
 
     [TestMethod]

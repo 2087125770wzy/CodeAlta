@@ -37,6 +37,7 @@ internal sealed class CodeAltaFrontendComposition
     public required ChatSelectorCoordinator ChatSelectorCoordinator { get; init; }
     public required IModelProviderPreferencePort ModelProviderPreferencePort { get; init; }
     public required ChatSelectorStateStore ChatSelectorStateStore { get; init; }
+    public required ShellStateStore ShellStateStore { get; init; }
     public required ShellWorkspaceContext ShellWorkspaceContext { get; init; }
     public required ThreadSelectionContext ThreadSelectionContext { get; init; }
     public required WorkspaceRefreshContext WorkspaceRefreshContext { get; init; }
@@ -75,6 +76,7 @@ internal sealed class CodeAltaFrontendComposition
         var sessionUsageViewModel = new SessionUsageViewModel();
         var chatBackendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         var uiDispatcher = frontend.GetUiDispatcher();
+        var shellStateStore = new ShellStateStore(uiDispatcher);
         var legacyPromptSessionId = new PromptSessionId("legacy-selected-prompt");
         var promptSessionPort = new LegacyPromptSessionPort(
             uiDispatcher,
@@ -107,6 +109,7 @@ internal sealed class CodeAltaFrontendComposition
             projectCatalog,
             threadCatalog,
             uiDispatcher,
+            shellStateStore,
             frontend.GetThreadPaneBounds,
             thread => frontend.IsChatBackendReady(new AgentBackendId(thread.BackendId)),
             frontend.LoadPromptDraft,
@@ -334,6 +337,7 @@ internal sealed class CodeAltaFrontendComposition
             ChatSelectorCoordinator = chatSelectorCoordinator,
             ModelProviderPreferencePort = modelProviderPreferencePort,
             ChatSelectorStateStore = chatSelectorStateContext,
+            ShellStateStore = shellStateStore,
             ShellWorkspaceContext = shellWorkspaceContext,
             ThreadSelectionContext = threadSelectionContext,
             WorkspaceRefreshContext = workspaceRefreshContext,

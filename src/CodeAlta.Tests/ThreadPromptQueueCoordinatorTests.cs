@@ -95,6 +95,7 @@ public sealed class ThreadPromptQueueCoordinatorTests
             new ProjectCatalog(catalogOptions),
             new WorkThreadCatalog(catalogOptions),
             new InlineUiDispatcher(),
+            new ShellStateStore(new InlineUiDispatcher()),
             static () => null,
             static _ => true,
             static _ => null,

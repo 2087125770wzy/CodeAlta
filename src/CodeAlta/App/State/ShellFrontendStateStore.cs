@@ -1,3 +1,7 @@
+using CodeAlta.Catalog;
+using CodeAlta.Models;
+using CodeAlta.Threading;
+
 namespace CodeAlta.App.State;
 
 /// <summary>
@@ -6,7 +10,11 @@ namespace CodeAlta.App.State;
 internal class ShellStateStore
 {
     private readonly int _ownerThreadId = Environment.CurrentManagedThreadId;
+    private readonly IUiDispatcher? _uiDispatcher;
     private ShellFrontendStateSnapshot _snapshot = ShellFrontendStateSnapshot.Empty;
+
+    public ShellStateStore(IUiDispatcher? uiDispatcher = null)
+        => _uiDispatcher = uiDispatcher;
 
     /// <summary>Gets the current immutable snapshot.</summary>
     public ShellFrontendStateSnapshot Snapshot
@@ -36,6 +44,12 @@ internal class ShellStateStore
 
     private void VerifyOwnerThread()
     {
+        if (_uiDispatcher is not null)
+        {
+            _uiDispatcher.VerifyAccess();
+            return;
+        }
+
         if (Environment.CurrentManagedThreadId != _ownerThreadId)
         {
             throw new InvalidOperationException("Shell frontend state must be accessed from its owning UI thread.");
@@ -54,13 +68,31 @@ internal sealed class ShellFrontendStateStore : ShellStateStore;
 /// <param name="Tabs">The projected shell tabs.</param>
 /// <param name="ActiveTabId">The active tab identifier, when one is selected.</param>
 /// <param name="StatusText">The shell status text, when available.</param>
+/// <param name="Projects">The catalog project snapshot.</param>
+/// <param name="Threads">The catalog thread snapshot.</param>
+/// <param name="Selection">The selected shell target snapshot.</param>
+/// <param name="OpenThreadIds">The ordered open thread identifiers.</param>
+/// <param name="NavigatorSettings">The navigator settings snapshot.</param>
 internal sealed record ShellFrontendStateSnapshot(
     IReadOnlyList<ShellFrontendTabSnapshot> Tabs,
     string? ActiveTabId,
-    string? StatusText)
+    string? StatusText,
+    IReadOnlyList<ProjectDescriptor> Projects,
+    IReadOnlyList<WorkThreadDescriptor> Threads,
+    ShellSelection Selection,
+    IReadOnlyList<string> OpenThreadIds,
+    NavigatorSettings NavigatorSettings)
 {
     /// <summary>Gets an empty shell frontend snapshot.</summary>
-    public static ShellFrontendStateSnapshot Empty { get; } = new([], ActiveTabId: null, StatusText: null);
+    public static ShellFrontendStateSnapshot Empty { get; } = new(
+        [],
+        ActiveTabId: null,
+        StatusText: null,
+        Projects: [],
+        Threads: [],
+        ShellSelection.GlobalDraft(),
+        OpenThreadIds: [],
+        new NavigatorSettings());
 
     /// <summary>Returns a snapshot with the supplied tab inserted or replaced.</summary>
     public ShellFrontendStateSnapshot UpsertTab(ShellFrontendTabSnapshot tab)
@@ -108,6 +140,49 @@ internal sealed record ShellFrontendStateSnapshot(
     /// <summary>Returns a snapshot with updated status text.</summary>
     public ShellFrontendStateSnapshot SetStatus(string? statusText)
         => this with { StatusText = statusText };
+
+    /// <summary>Returns a snapshot with updated catalog projects and threads.</summary>
+    public ShellFrontendStateSnapshot SetCatalog(
+        IReadOnlyList<ProjectDescriptor> projects,
+        IReadOnlyList<WorkThreadDescriptor> threads)
+    {
+        ArgumentNullException.ThrowIfNull(projects);
+        ArgumentNullException.ThrowIfNull(threads);
+
+        return this with
+        {
+            Projects = projects.ToArray(),
+            Threads = threads.ToArray(),
+        };
+    }
+
+    /// <summary>Returns a snapshot with updated selected target, open thread ids, and navigator settings.</summary>
+    public ShellFrontendStateSnapshot SetSelection(
+        ShellSelection selection,
+        IReadOnlyList<string> openThreadIds,
+        NavigatorSettings navigatorSettings)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(openThreadIds);
+        ArgumentNullException.ThrowIfNull(navigatorSettings);
+
+        return this with
+        {
+            Selection = selection,
+            OpenThreadIds = openThreadIds
+                .Where(static id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            NavigatorSettings = CloneNavigatorSettings(navigatorSettings),
+        };
+    }
+
+    private static NavigatorSettings CloneNavigatorSettings(NavigatorSettings settings)
+        => new()
+        {
+            SortMode = settings.SortMode,
+            RecentThreadsPerProject = settings.RecentThreadsPerProject,
+        };
 }
 
 /// <summary>

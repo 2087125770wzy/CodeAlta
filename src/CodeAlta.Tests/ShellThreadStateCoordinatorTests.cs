@@ -1,5 +1,6 @@
 using CodeAlta.Agent;
 using CodeAlta.App;
+using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Threading;
@@ -225,6 +226,33 @@ public sealed class ShellThreadStateCoordinatorTests
     }
 
     [TestMethod]
+    public void CatalogSelectionAndNavigatorMutations_UpdateShellStateStore()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var stateStore = new ShellStateStore(new InlineUiDispatcher());
+        var coordinator = CreateCoordinator(options, stateStore: stateStore);
+        var project = CreateProject("project-1", "Project 1");
+        var thread = CreateThread("thread-1");
+
+        coordinator.ApplyRecoveredCatalogState([project], [thread]);
+        coordinator.OpenThread("thread-1");
+        coordinator.SaveNavigatorSettingsAsync(new NavigatorSettings
+        {
+            SortMode = NavigatorProjectSortMode.Date,
+            RecentThreadsPerProject = 5,
+        }).GetAwaiter().GetResult();
+
+        var snapshot = stateStore.Snapshot;
+        Assert.AreEqual(1, snapshot.Projects.Count);
+        Assert.AreEqual(1, snapshot.Threads.Count);
+        Assert.AreEqual("thread-1", snapshot.Selection.SelectedThreadId);
+        CollectionAssert.AreEqual(new[] { "thread-1" }, snapshot.OpenThreadIds.ToArray());
+        Assert.AreEqual(NavigatorProjectSortMode.Date, snapshot.NavigatorSettings.SortMode);
+        Assert.AreEqual(5, snapshot.NavigatorSettings.RecentThreadsPerProject);
+    }
+
+    [TestMethod]
     public async Task RemoveDeletedThreadArtifactsAsync_RemovesPersistedThreadStateAndPendingRestore()
     {
         using var temp = TempDirectory.Create();
@@ -314,13 +342,15 @@ public sealed class ShellThreadStateCoordinatorTests
         CatalogOptions options,
         WorkThreadCatalog? threadCatalog = null,
         Func<string, string?>? loadPromptDraft = null,
-        Action<string>? deletePromptDraft = null)
+        Action<string>? deletePromptDraft = null,
+        ShellStateStore? stateStore = null)
     {
         threadCatalog ??= new WorkThreadCatalog(options);
         return new ShellThreadStateCoordinator(
             new ProjectCatalog(options),
             threadCatalog,
             new InlineUiDispatcher(),
+            stateStore ?? new ShellStateStore(new InlineUiDispatcher()),
             static () => null,
             static _ => true,
             loadPromptDraft ?? (static _ => null),

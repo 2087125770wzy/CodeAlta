@@ -1,6 +1,7 @@
 using CodeAlta.Agent;
 using CodeAlta.App;
 using CodeAlta.App.Context;
+using CodeAlta.App.State;
 using CodeAlta.Catalog;
 using CodeAlta.Models;
 using CodeAlta.Threading;
@@ -178,6 +179,7 @@ public sealed class ShellWorkspaceCoordinatorTests
             new ProjectCatalog(options),
             new WorkThreadCatalog(options),
             new InlineUiDispatcher(),
+            new ShellStateStore(new InlineUiDispatcher()),
             static () => null,
             static _ => true,
             static _ => null,
