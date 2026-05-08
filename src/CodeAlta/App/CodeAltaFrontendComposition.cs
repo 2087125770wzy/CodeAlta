@@ -15,7 +15,7 @@ namespace CodeAlta.App;
 
 internal sealed class CodeAltaFrontendComposition
 {
-    public required ChatBackendPreferenceCoordinator BackendPreferences { get; init; }
+    public required ModelProviderPreferenceCoordinator ModelProviderPreferences { get; init; }
     public required CodeAltaShellController ShellController { get; init; }
     public required RuntimeEventPump RuntimeEventPump { get; init; }
     public required TerminalLoopCoordinator TerminalLoopCoordinator { get; init; }
@@ -94,7 +94,7 @@ internal sealed class CodeAltaFrontendComposition
         var sessionLoadableBackendIdsGate = new object();
         knownProjectImporter.ShouldLoadProviderSessions = ShouldLoadProviderSessions;
         var configStore = new CodeAltaConfigStore(catalogOptions);
-        var backendPreferences = new ChatBackendPreferenceCoordinator(configStore, CodeAlta.Views.CodeAltaApp.UiLogger);
+        var modelProviderPreferences = new ModelProviderPreferenceCoordinator(configStore, CodeAlta.Views.CodeAltaApp.UiLogger);
         var shellController = new CodeAltaShellController(
             shell,
             knownProjectImporter,
@@ -136,9 +136,9 @@ internal sealed class CodeAltaFrontendComposition
             frontend.UpdatePromptImageAttachmentsUi);
         var chatSelectorStateContext = new ChatSelectorStateStore(threadWorkspaceViewModel, uiDispatcher);
         var modelProviderPreferencePort = new FrontendModelProviderPreferencePort(
-            frontend.ApplyDraftBackendPreference,
+            frontend.ApplyDraftModelProviderPreference,
             frontend.ApplyThreadPreference,
-            frontend.RememberGlobalBackendPreference,
+            frontend.RememberGlobalModelProviderPreference,
             frontend.RememberThreadPreference);
         var workspaceRefreshContext = new WorkspaceRefreshContext(request =>
         {
@@ -313,7 +313,7 @@ internal sealed class CodeAltaFrontendComposition
 
         return new CodeAltaFrontendComposition
         {
-            BackendPreferences = backendPreferences,
+            ModelProviderPreferences = modelProviderPreferences,
             ShellController = shellController,
             RuntimeEventPump = runtimeEventPump,
             TerminalLoopCoordinator = terminalLoopCoordinator,

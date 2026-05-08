@@ -295,7 +295,7 @@ internal sealed class ModelProviderSelectorCoordinator
             }
 
             draftBackendState.SelectedModelId = draftOptions[newIndex].ModelId;
-            var preferredModel = ChatBackendPreferenceCoordinator.FindModel(draftBackendState.Models, draftBackendState.SelectedModelId);
+            var preferredModel = ModelProviderPreferenceCoordinator.FindModel(draftBackendState.Models, draftBackendState.SelectedModelId);
             draftBackendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(preferredModel, preferredReasoningEffort: null);
             UpdateModelSelectorState(draftOptions, newIndex, preferredModel, draftBackendState.SelectedReasoningEffort);
             _preferences.RememberGlobalPreference(CreatePreference(backendId, draftBackendState.SelectedModelId, draftBackendState.SelectedReasoningEffort));
@@ -312,7 +312,7 @@ internal sealed class ModelProviderSelectorCoordinator
         }
 
         tab.ModelId = options[newIndex].ModelId;
-        var selectedModel = ChatBackendPreferenceCoordinator.FindModel(backendState.Models, tab.ModelId);
+        var selectedModel = ModelProviderPreferenceCoordinator.FindModel(backendState.Models, tab.ModelId);
         tab.ReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(selectedModel, preferredReasoningEffort: null);
         UpdateModelSelectorState(options, newIndex, selectedModel, tab.ReasoningEffort);
         _preferences.RememberThreadPreference(tab.Thread.ThreadId, CreatePreference(tab.BackendId, tab.ModelId, tab.ReasoningEffort), true);

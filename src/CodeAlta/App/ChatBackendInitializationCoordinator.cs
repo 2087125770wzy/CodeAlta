@@ -184,7 +184,7 @@ internal sealed class ChatBackendInitializationCoordinator
                     state.Models.AddRange(models);
                     state.SelectedModelId = ChatBackendPresentation.ResolvePreferredModelId(models, state.SelectedModelId);
                     state.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
-                        ChatBackendPreferenceCoordinator.FindModel(models, state.SelectedModelId),
+                        ModelProviderPreferenceCoordinator.FindModel(models, state.SelectedModelId),
                         state.SelectedReasoningEffort);
                     state.Availability = ChatBackendAvailability.Ready;
                     state.StatusMessage = ChatBackendPresentation.BuildReadyStatusMessage(state);

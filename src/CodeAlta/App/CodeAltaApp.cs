@@ -32,7 +32,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     internal static readonly Logger UiLogger = LogManager.GetLogger("CodeAlta.UI");
     internal const string DraftTabId = "__draft__";
     private const bool DefaultAutoApproveEnabled = true;
-    private readonly ChatBackendPreferenceCoordinator _backendPreferences;
+    private readonly ModelProviderPreferenceCoordinator _modelProviderPreferences;
     private readonly WorkThreadRuntimeService _runtimeService;
     private readonly CatalogOptions _catalogOptions;
     private readonly AgentHub _agentHub;
@@ -150,7 +150,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         ArgumentNullException.ThrowIfNull(catalogOptions);
         ArgumentNullException.ThrowIfNull(agentHub);
         ArgumentNullException.ThrowIfNull(projectFileSearchService);
-        _backendPreferences = new ChatBackendPreferenceCoordinator(new CodeAltaConfigStore(catalogOptions), UiLogger);
+        _modelProviderPreferences = new ModelProviderPreferenceCoordinator(new CodeAltaConfigStore(catalogOptions), UiLogger);
         _runtimeService = runtimeService;
         _catalogOptions = catalogOptions;
         _agentHub = agentHub;
@@ -171,7 +171,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             new CodeAltaFrontendServicesAdapter(this),
             codexInstallProgress,
             ownedServices?.PluginHostBridge);
-        _backendPreferences = composition.BackendPreferences;
+        _modelProviderPreferences = composition.ModelProviderPreferences;
         _shellController = composition.ShellController;
         _runtimeEventPump = composition.RuntimeEventPump;
         _terminalLoopCoordinator = composition.TerminalLoopCoordinator;
@@ -333,17 +333,17 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private string? GetThreadProjectRoot(WorkThreadDescriptor thread)
         => GetProjectById(thread.ProjectRef)?.ProjectPath;
 
-    internal void ApplyDraftBackendPreference(ChatBackendState backendState)
-        => _backendPreferences.ApplyDraftBackendPreference(backendState, GetDraftProjectRoot());
+    internal void ApplyDraftModelProviderPreference(ChatBackendState backendState)
+        => _modelProviderPreferences.ApplyDraftModelProviderPreference(backendState, GetDraftProjectRoot());
 
     internal void ApplyThreadPreference(OpenThreadState tab)
-        => _backendPreferences.ApplyThreadPreference(tab, _viewState, GetThreadProjectRoot(tab.Thread), _chatBackendStates);
+        => _modelProviderPreferences.ApplyThreadPreference(tab, _viewState, GetThreadProjectRoot(tab.Thread), _chatBackendStates);
 
-    internal void RememberGlobalBackendPreference(
+    internal void RememberGlobalModelProviderPreference(
         AgentBackendId backendId,
         string? modelId,
         AgentReasoningEffort? reasoningEffort)
-        => _backendPreferences.RememberGlobalBackendPreference(backendId, modelId, reasoningEffort);
+        => _modelProviderPreferences.RememberGlobalModelProviderPreference(backendId, modelId, reasoningEffort);
 
     internal void RememberThreadPreference(
         string threadId,
@@ -351,7 +351,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         AgentReasoningEffort? reasoningEffort,
         bool persistNow)
     {
-        _backendPreferences.RememberThreadPreference(_viewState, threadId, modelId, reasoningEffort);
+        _modelProviderPreferences.RememberThreadPreference(_viewState, threadId, modelId, reasoningEffort);
         if (persistNow)
         {
             _ = PersistViewStateAsync();

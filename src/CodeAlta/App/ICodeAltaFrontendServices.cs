@@ -27,8 +27,8 @@ internal interface ICodeAltaFrontendServices
     void SetStatus(string message, bool showSpinner, StatusTone tone);
     void SetProviderSessionLoadStatus(string? message);
     bool IsSelectedThread(string threadId);
-    void ApplyDraftBackendPreference(ChatBackendState backendState);
-    void RememberGlobalBackendPreference(AgentBackendId backendId, string? modelId, AgentReasoningEffort? reasoningEffort);
+    void ApplyDraftModelProviderPreference(ChatBackendState backendState);
+    void RememberGlobalModelProviderPreference(AgentBackendId backendId, string? modelId, AgentReasoningEffort? reasoningEffort);
     void InvalidateSelectedSessionUsage();
     void RefreshHeaderAndThreadWorkspace();
     void RekeyThreadIdentity(string oldThreadId, WorkThreadDescriptor thread);

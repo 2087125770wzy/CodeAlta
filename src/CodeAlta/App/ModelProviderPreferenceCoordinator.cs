@@ -7,12 +7,12 @@ using XenoAtom.Logging;
 
 namespace CodeAlta.App;
 
-internal sealed class ChatBackendPreferenceCoordinator
+internal sealed class ModelProviderPreferenceCoordinator
 {
     private readonly CodeAltaConfigStore _configStore;
     private readonly Logger _logger;
 
-    public ChatBackendPreferenceCoordinator(CodeAltaConfigStore configStore, Logger logger)
+    public ModelProviderPreferenceCoordinator(CodeAltaConfigStore configStore, Logger logger)
     {
         ArgumentNullException.ThrowIfNull(configStore);
         ArgumentNullException.ThrowIfNull(logger);
@@ -21,7 +21,7 @@ internal sealed class ChatBackendPreferenceCoordinator
         _logger = logger;
     }
 
-    public void ApplyDraftBackendPreference(ChatBackendState backendState, string? draftProjectRoot)
+    public void ApplyDraftModelProviderPreference(ChatBackendState backendState, string? draftProjectRoot)
     {
         ArgumentNullException.ThrowIfNull(backendState);
 
@@ -72,7 +72,7 @@ internal sealed class ChatBackendPreferenceCoordinator
             tab.ReasoningEffort);
     }
 
-    public void RememberGlobalBackendPreference(
+    public void RememberGlobalModelProviderPreference(
         AgentBackendId backendId,
         string? modelId,
         AgentReasoningEffort? reasoningEffort)

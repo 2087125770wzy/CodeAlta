@@ -46,7 +46,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
-            ApplyDraftBackendPreference,
+            ApplyDraftModelProviderPreference,
             static _ => throw new NotSupportedException(),
             static (_, _, _) => { },
             static (_, _, _, _) => { });
@@ -75,13 +75,13 @@ public sealed class ModelProviderSelectorCoordinatorTests
         CollectionAssert.AreEqual(new[] { "GPT-4.1", "o4-mini" }, workspaceViewModel.ModelOptions.Select(static option => option.Label).ToArray());
         Assert.AreEqual(2, syncCallCount);
 
-        static void ApplyDraftBackendPreference(ChatBackendState backendState)
+        static void ApplyDraftModelProviderPreference(ChatBackendState backendState)
         {
             backendState.SelectedModelId = ChatBackendPresentation.ResolvePreferredModelId(
                 backendState.Models,
                 backendState.SelectedModelId);
             backendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
-                ChatBackendPreferenceCoordinator.FindModel(backendState.Models, backendState.SelectedModelId),
+                ModelProviderPreferenceCoordinator.FindModel(backendState.Models, backendState.SelectedModelId),
                 backendState.SelectedReasoningEffort);
         }
     }
@@ -193,7 +193,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
-            ApplyDraftBackendPreference,
+            ApplyDraftModelProviderPreference,
             static _ => { },
             static (_, _, _) => { },
             static (_, _, _, _) => { });
@@ -240,7 +240,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
-            ApplyDraftBackendPreference,
+            ApplyDraftModelProviderPreference,
             static _ => { },
             static (_, _, _) => { },
             static (_, _, _, _) => { });
@@ -295,7 +295,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
-            ApplyDraftBackendPreference,
+            ApplyDraftModelProviderPreference,
             static _ => { },
             static (_, _, _) => { },
             static (_, _, _, _) => { });
@@ -355,7 +355,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
-            ApplyDraftBackendPreference,
+            ApplyDraftModelProviderPreference,
             static _ => { },
             static (_, _, _) => { },
             static (_, _, _, _) => { });
@@ -403,7 +403,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
                 draftPreferenceApplyCount++;
                 state.SelectedModelId = "gpt-5.4";
                 state.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
-                    ChatBackendPreferenceCoordinator.FindModel(state.Models, state.SelectedModelId),
+                    ModelProviderPreferenceCoordinator.FindModel(state.Models, state.SelectedModelId),
                     preferredReasoningEffort: null);
             },
             static _ => throw new NotSupportedException(),
@@ -440,7 +440,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
     {
         var selectorState = new ChatSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
         var preferences = new FrontendModelProviderPreferencePort(
-            ApplyDraftBackendPreference,
+            ApplyDraftModelProviderPreference,
             static _ => throw new NotSupportedException(),
             static (_, _, _) => { },
             static (_, _, _, _) => { });
@@ -522,13 +522,13 @@ public sealed class ModelProviderSelectorCoordinatorTests
         return coordinator;
     }
 
-    private static void ApplyDraftBackendPreference(ChatBackendState backendState)
+    private static void ApplyDraftModelProviderPreference(ChatBackendState backendState)
     {
         backendState.SelectedModelId = ChatBackendPresentation.ResolvePreferredModelId(
             backendState.Models,
             backendState.SelectedModelId);
         backendState.SelectedReasoningEffort = ChatBackendPresentation.ResolvePreferredReasoningEffort(
-            ChatBackendPreferenceCoordinator.FindModel(backendState.Models, backendState.SelectedModelId),
+            ModelProviderPreferenceCoordinator.FindModel(backendState.Models, backendState.SelectedModelId),
             backendState.SelectedReasoningEffort);
     }
 

@@ -36,8 +36,8 @@ internal sealed class CodeAltaFrontendServicesAdapter : ICodeAltaFrontendService
     public void SetStatus(string message, bool showSpinner, StatusTone tone) => _app.SetStatus(message, showSpinner, tone);
     public void SetProviderSessionLoadStatus(string? message) => _app.SetProviderSessionLoadStatus(message);
     public bool IsSelectedThread(string threadId) => _app.IsSelectedThread(threadId);
-    public void ApplyDraftBackendPreference(ChatBackendState backendState) => _app.ApplyDraftBackendPreference(backendState);
-    public void RememberGlobalBackendPreference(AgentBackendId backendId, string? modelId, AgentReasoningEffort? reasoningEffort) => _app.RememberGlobalBackendPreference(backendId, modelId, reasoningEffort);
+    public void ApplyDraftModelProviderPreference(ChatBackendState backendState) => _app.ApplyDraftModelProviderPreference(backendState);
+    public void RememberGlobalModelProviderPreference(AgentBackendId backendId, string? modelId, AgentReasoningEffort? reasoningEffort) => _app.RememberGlobalModelProviderPreference(backendId, modelId, reasoningEffort);
     public void InvalidateSelectedSessionUsage() => _app.InvalidateSelectedSessionUsage();
     public void RefreshHeaderAndThreadWorkspace() => _app.RefreshHeaderAndThreadWorkspace();
     public void RekeyThreadIdentity(string oldThreadId, WorkThreadDescriptor thread) => _app.RekeyThreadIdentity(oldThreadId, thread);

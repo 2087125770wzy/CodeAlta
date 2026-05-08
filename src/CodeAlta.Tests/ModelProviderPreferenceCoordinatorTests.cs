@@ -10,7 +10,7 @@ using CodeAlta.Threading;
 namespace CodeAlta.Tests;
 
 [TestClass]
-public sealed class ChatBackendPreferenceCoordinatorTests
+public sealed class ModelProviderPreferenceCoordinatorTests
 {
     [TestMethod]
     public void ApplyThreadPreference_PrefersPersistedThreadPreferenceOverProviderDefaults()
@@ -28,7 +28,7 @@ public sealed class ChatBackendPreferenceCoordinatorTests
             """);
 
         var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
-        var coordinator = new ChatBackendPreferenceCoordinator(store, Views.CodeAltaApp.UiLogger);
+        var coordinator = new ModelProviderPreferenceCoordinator(store, Views.CodeAltaApp.UiLogger);
         AgentBackendDescriptor[] backendDescriptors =
         [
             new AgentBackendDescriptor(new AgentBackendId("zai"), "ZAI"),
