@@ -191,7 +191,7 @@ internal sealed class CodeAltaFrontendComposition
             frontend.SyncModelProviderSelectorItems,
             threadProviderSwitchCoordinator.CanSelectThreadProvider,
             (thread, tab, targetBackendId) => threadProviderSwitchCoordinator.SwitchThreadProviderAsync(thread, tab, targetBackendId),
-            frontend.RefreshSelectionAndThreadWorkspace,
+            () => frontendEvents.Publish(new SelectionChangedEvent()),
             () => configStore.LoadGlobalProviderDefinitions(includeDisabled: true)
                 .Where(static definition => definition.Enabled != false)
                 .Select(static definition => definition.ProviderKey)

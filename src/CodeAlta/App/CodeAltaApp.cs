@@ -670,7 +670,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _viewState.SelectedThreadId = null;
         _viewState.UpdatedAt = DateTimeOffset.UtcNow;
         await PersistViewStateAsync();
-        RefreshSelectionAndThreadWorkspace();
+        _frontendEvents.Publish(new SelectionChangedEvent());
     }
 
     private async Task CloseDraftTabAsync()
@@ -684,7 +684,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
 
         _viewState.UpdatedAt = DateTimeOffset.UtcNow;
         await PersistViewStateAsync();
-        RefreshSelectionAndThreadWorkspace();
+        _frontendEvents.Publish(new SelectionChangedEvent());
     }
 
     private Task OpenFolderAsync(string folderPath, bool includeHidden)
