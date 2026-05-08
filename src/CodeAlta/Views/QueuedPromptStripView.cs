@@ -9,33 +9,21 @@ internal sealed class QueuedPromptStripView
 {
     public QueuedPromptStripView(
         ThreadWorkspaceViewModel workspaceViewModel,
-        Action<string> copyMarkdown,
-        Action<string> convertQueuedPromptToSteer,
-        Action<string> deletePendingSteer,
-        Action<string> deleteQueuedPrompt,
-        Action<string, int> updateQueuedPromptCount,
-        Action<string, string> updateQueuedPromptText,
-        Func<Action<string>, string?, ChatPromptEditor> createPromptEditor)
+        QueuedPromptStripController controller)
     {
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
-        ArgumentNullException.ThrowIfNull(copyMarkdown);
-        ArgumentNullException.ThrowIfNull(convertQueuedPromptToSteer);
-        ArgumentNullException.ThrowIfNull(deletePendingSteer);
-        ArgumentNullException.ThrowIfNull(deleteQueuedPrompt);
-        ArgumentNullException.ThrowIfNull(updateQueuedPromptCount);
-        ArgumentNullException.ThrowIfNull(updateQueuedPromptText);
-        ArgumentNullException.ThrowIfNull(createPromptEditor);
+        ArgumentNullException.ThrowIfNull(controller);
 
         Root = new ComputedVisual(
             () => QueuedPromptListView.Build(
                 workspaceViewModel.PromptStripItems,
-                copyMarkdown,
-                convertQueuedPromptToSteer,
-                deletePendingSteer,
-                deleteQueuedPrompt,
-                updateQueuedPromptCount,
-                updateQueuedPromptText,
-                createPromptEditor));
+                controller.CopyMarkdown,
+                controller.ConvertQueuedPromptToSteer,
+                controller.DeletePendingSteer,
+                controller.DeleteQueuedPrompt,
+                controller.UpdateQueuedPromptCount,
+                controller.UpdateQueuedPromptText,
+                controller.CreatePromptEditor));
     }
 
     public Visual Root { get; }

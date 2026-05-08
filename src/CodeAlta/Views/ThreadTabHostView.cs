@@ -12,15 +12,15 @@ internal sealed class ThreadTabHostView
     private readonly Visual _threadBottomPanel;
     private string? _activeThreadTabContentId;
 
-    public ThreadTabHostView(Visual threadBottomPanel, Action<int> onSelectedTabChanged)
+    public ThreadTabHostView(Visual threadBottomPanel, ThreadTabHostController controller)
     {
         ArgumentNullException.ThrowIfNull(threadBottomPanel);
-        ArgumentNullException.ThrowIfNull(onSelectedTabChanged);
+        ArgumentNullException.ThrowIfNull(controller);
 
         _threadBottomPanel = threadBottomPanel;
         ThreadTabControl = new TabControl();
-        ThreadTabControl.KeyDown((_, _) => ThreadTabControl.Dispatcher.Post(() => onSelectedTabChanged(ThreadTabControl.SelectedIndex)));
-        ThreadTabControl.PointerReleased((_, _) => ThreadTabControl.Dispatcher.Post(() => onSelectedTabChanged(ThreadTabControl.SelectedIndex)));
+        ThreadTabControl.KeyDown((_, _) => ThreadTabControl.Dispatcher.Post(() => controller.SelectTab(ThreadTabControl.SelectedIndex)));
+        ThreadTabControl.PointerReleased((_, _) => ThreadTabControl.Dispatcher.Post(() => controller.SelectTab(ThreadTabControl.SelectedIndex)));
 
         var threadPaneLayout = new Grid
             {

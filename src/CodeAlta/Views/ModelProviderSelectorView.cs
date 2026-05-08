@@ -12,32 +12,26 @@ internal sealed class ModelProviderSelectorView
     public ModelProviderSelectorView(
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
-        Action<int> onProviderSelectionChanged,
-        Action<int> onModelSelectionChanged,
-        Action<int> onReasoningSelectionChanged,
-        Action compactThread)
+        ModelProviderSelectorController controller)
     {
         ArgumentNullException.ThrowIfNull(workspaceViewModel);
         ArgumentNullException.ThrowIfNull(promptComposerViewModel);
-        ArgumentNullException.ThrowIfNull(onProviderSelectionChanged);
-        ArgumentNullException.ThrowIfNull(onModelSelectionChanged);
-        ArgumentNullException.ThrowIfNull(onReasoningSelectionChanged);
-        ArgumentNullException.ThrowIfNull(compactThread);
+        ArgumentNullException.ThrowIfNull(controller);
 
         ChatBackendSelect = new Select<ChatBackendOption>()
-            .SelectionChanged((_, e) => onProviderSelectionChanged(e.NewIndex))
+            .SelectionChanged((_, e) => controller.SelectProvider(e.NewIndex))
             .SelectedIndex(workspaceViewModel.Bind.SelectedBackendIndex)
             .MinWidth(14)
             .MaxWidth(22)
             .IsEnabled(workspaceViewModel.Bind.CanSelectBackend);
         ChatModelSelect = new Select<ChatModelOption>()
-            .SelectionChanged((_, e) => onModelSelectionChanged(e.NewIndex))
+            .SelectionChanged((_, e) => controller.SelectModel(e.NewIndex))
             .SelectedIndex(workspaceViewModel.Bind.SelectedModelIndex)
             .MinWidth(18)
             .MaxWidth(36)
             .IsEnabled(workspaceViewModel.Bind.CanSelectModel);
         ChatReasoningSelect = new Select<ChatReasoningOption>()
-            .SelectionChanged((_, e) => onReasoningSelectionChanged(e.NewIndex))
+            .SelectionChanged((_, e) => controller.SelectReasoning(e.NewIndex))
             .SelectedIndex(workspaceViewModel.Bind.SelectedReasoningIndex)
             .MinWidth(12)
             .MaxWidth(22)
@@ -46,7 +40,7 @@ internal sealed class ModelProviderSelectorView
             .IsChecked(promptComposerViewModel.Bind.AlwaysEnqueue)
             .IsEnabled(promptComposerViewModel.Bind.CanAlwaysEnqueue);
         var compactThreadButton = new Button(new TextBlock($"{NerdFont.MdSelectCompare}"))
-            .Click(compactThread)
+            .Click(controller.CompactThread)
             .IsEnabled(promptComposerViewModel.Bind.CanCompact)
             .Tooltip(new TextBlock("Compact the selected thread session when it is idle (F11)."));
 

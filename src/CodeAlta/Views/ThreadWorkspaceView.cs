@@ -110,10 +110,11 @@ internal sealed class ThreadWorkspaceView
         _modelProviderSelectorView = new ModelProviderSelectorView(
             workspaceViewModel,
             promptComposerViewModel,
-            onChatBackendSelectionChanged,
-            onChatModelSelectionChanged,
-            onChatReasoningSelectionChanged,
-            compactThread);
+            ModelProviderSelectorController.Create(
+                onChatBackendSelectionChanged,
+                onChatModelSelectionChanged,
+                onChatReasoningSelectionChanged,
+                compactThread));
         var providerSummaryButton = new Button(
             new Markup(() => workspaceViewModel.ProviderSummaryMarkup)
             {
@@ -132,13 +133,14 @@ internal sealed class ThreadWorkspaceView
 
         var queuedPromptList = new QueuedPromptStripView(
             workspaceViewModel,
-            markdown => (ThreadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
-            convertQueuedPromptToSteer,
-            deletePendingSteer,
-            deleteQueuedPrompt,
-            updateQueuedPromptCount,
-            updateQueuedPromptText,
-            (onAccepted, placeholder) => CreateStyledPromptEditor(onAccepted, openHelp, openCommandPalette, projectFileSearchService, getPromptReferenceProjectRoot, placeholder)).Root;
+            QueuedPromptStripController.Create(
+                markdown => (ThreadPaneLayout?.App)?.Terminal.Clipboard.TrySetText(markdown),
+                convertQueuedPromptToSteer,
+                deletePendingSteer,
+                deleteQueuedPrompt,
+                updateQueuedPromptCount,
+                updateQueuedPromptText,
+                (onAccepted, placeholder) => CreateStyledPromptEditor(onAccepted, openHelp, openCommandPalette, projectFileSearchService, getPromptReferenceProjectRoot, placeholder))).Root;
 
         var promptImageStrip = _promptImageAttachmentStripView.Root;
 
@@ -167,7 +169,7 @@ internal sealed class ThreadWorkspaceView
             VerticalAlignment = Align.Stretch,
         };
 
-        _threadTabHostView = new ThreadTabHostView(ThreadBottomPanel, onSelectedTabChanged);
+        _threadTabHostView = new ThreadTabHostView(ThreadBottomPanel, ThreadTabHostController.Create(onSelectedTabChanged));
         ThreadPaneLayout = _threadTabHostView.Root;
         Root = ThreadPaneLayout;
         foreach (var binding in commandBindings)
