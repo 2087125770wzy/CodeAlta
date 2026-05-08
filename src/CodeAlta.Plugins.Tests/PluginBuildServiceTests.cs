@@ -89,6 +89,8 @@ public sealed class PluginBuildServiceTests
         Assert.IsTrue(result.TargetOutputs.Any(static output => string.Equals(output.TargetName, "CodeAltaPluginTargetPath", StringComparison.Ordinal)));
         Assert.IsFalse(File.Exists(Path.Combine(package.PackageDirectory, ".codealta.plugin.csproj")));
         Assert.IsFalse(File.Exists(Path.Combine(package.PackageDirectory, ".codealta.plugin.g.cs")));
+        var runtimeDirectory = Path.Combine(Path.GetDirectoryName(result.OutputAssemblyPath)!, "runtimes");
+        Assert.IsFalse(Directory.Exists(runtimeDirectory) && Directory.EnumerateFiles(runtimeDirectory, "*", SearchOption.AllDirectories).Any());
     }
 
     private static SourcePluginPackage CreatePackage(string rootPath, string source)
