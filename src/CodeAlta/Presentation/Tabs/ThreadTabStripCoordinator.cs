@@ -19,6 +19,7 @@ internal sealed class ThreadTabStripCoordinator
     private bool _syncingPages;
     private int _lastObservedSelectedIndex = -1;
     private string? _pendingThreadSelectionThreadId;
+    private bool _restoredThreadTabsFromViewState;
 
     public ThreadTabStripCoordinator(
         ThreadSelectionContext threadSelection,
@@ -204,7 +205,7 @@ internal sealed class ThreadTabStripCoordinator
             return;
         }
 
-        EnsureThreadSurfaceShellTabs(workspaceView);
+        EnsureSelectedThreadSurfaceShellTab(workspaceView);
         var selectedTabId = ResolveThreadSurfaceSelectedTabId();
         if (string.IsNullOrWhiteSpace(selectedTabId) ||
             !_shellTabs.TryGetTab(new ShellTabId(selectedTabId), out var selectedTab) ||
@@ -263,26 +264,63 @@ internal sealed class ThreadTabStripCoordinator
         var workspaceView = _threadTabs.GetWorkspaceView()
             ?? throw new InvalidOperationException("Thread workspace view is not initialized.");
 
-        EnsureThreadSurfaceShellTabs(workspaceView);
+        RestoreThreadTabsFromViewState(workspaceView);
+        EnsureSelectedThreadSurfaceShellTab(workspaceView);
         EnsureSelectedShellTab();
         return ThreadTabStripProjectionBuilder.Build(_shellTabs.GetTabs());
     }
 
-    private void EnsureThreadSurfaceShellTabs(ThreadWorkspaceView workspaceView)
+    private void RestoreThreadTabsFromViewState(ThreadWorkspaceView workspaceView)
     {
         ArgumentNullException.ThrowIfNull(workspaceView);
+        if (_restoredThreadTabsFromViewState)
+        {
+            return;
+        }
+
+        if (_threadSelection.OpenThreadIds.Count == 0)
+        {
+            _restoredThreadTabsFromViewState = true;
+            return;
+        }
+
+        var restoredAny = false;
 
         foreach (var threadId in _threadSelection.OpenThreadIds)
         {
             if (_threadSelection.FindThread(threadId) is { } thread)
             {
                 EnsureThreadShellTab(workspaceView, thread);
+                restoredAny = true;
             }
         }
+
+        if (!restoredAny)
+        {
+            return;
+        }
+
+        _restoredThreadTabsFromViewState = true;
 
         if (_threadSelection.Selection.Target is WorkspaceTarget.Draft)
         {
             EnsureDraftShellTab(workspaceView);
+        }
+    }
+
+    private void EnsureSelectedThreadSurfaceShellTab(ThreadWorkspaceView workspaceView)
+    {
+        ArgumentNullException.ThrowIfNull(workspaceView);
+        var selectedTabId = ResolveThreadSurfaceSelectedTabId();
+        if (string.Equals(selectedTabId, CodeAltaApp.DraftTabId, StringComparison.Ordinal))
+        {
+            EnsureDraftShellTab(workspaceView);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedTabId) && _threadSelection.FindThread(selectedTabId) is { } thread)
+        {
+            EnsureThreadShellTab(workspaceView, thread);
         }
     }
 

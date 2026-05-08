@@ -592,8 +592,18 @@ public sealed class ArchitectureGuardrailTests
         var coordinatorSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "Presentation", "Tabs", "ThreadTabStripCoordinator.cs"));
 
         StringAssert.Contains(coordinatorSource, "ThreadTabStripProjectionBuilder.Build(_shellTabs.GetTabs())");
+        StringAssert.Contains(coordinatorSource, "RestoreThreadTabsFromViewState(workspaceView);");
+        StringAssert.Contains(coordinatorSource, "_restoredThreadTabsFromViewState");
         Assert.IsFalse(coordinatorSource.Contains("_getOpenFileTabIds", StringComparison.Ordinal));
         Assert.IsFalse(coordinatorSource.Contains("_getSelectedTabIdOverride", StringComparison.Ordinal));
+        Assert.IsFalse(coordinatorSource.Contains("private void EnsureThreadSurfaceShellTabs", StringComparison.Ordinal));
+
+        var buildProjectionStart = coordinatorSource.IndexOf("private ThreadTabStripProjection BuildProjection()", StringComparison.Ordinal);
+        var restoreStart = coordinatorSource.IndexOf("private void RestoreThreadTabsFromViewState", StringComparison.Ordinal);
+        Assert.IsTrue(buildProjectionStart >= 0);
+        Assert.IsTrue(restoreStart > buildProjectionStart);
+        var buildProjectionSource = coordinatorSource[buildProjectionStart..restoreStart];
+        Assert.IsFalse(buildProjectionSource.Contains("OpenThreadIds", StringComparison.Ordinal));
     }
 
     [TestMethod]
