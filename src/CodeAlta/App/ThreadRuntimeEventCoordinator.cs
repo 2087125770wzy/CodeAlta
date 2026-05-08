@@ -12,7 +12,7 @@ namespace CodeAlta.App;
 
 internal sealed class ThreadRuntimeEventCoordinator
 {
-    private readonly Func<string, WorkThreadDescriptor?> _findThread;
+    private readonly ShellStateStore _stateStore;
     private readonly Func<string, OpenThreadState?> _findOpenThread;
     private readonly Func<string, bool> _isSelectedThread;
     private readonly IShellStatusPort _statusPort;
@@ -24,7 +24,7 @@ internal sealed class ThreadRuntimeEventCoordinator
     private readonly ThreadRuntimeTimelineRenderer _timelineRenderer;
 
     public ThreadRuntimeEventCoordinator(
-        Func<string, WorkThreadDescriptor?> findThread,
+        ShellStateStore stateStore,
         Func<string, OpenThreadState?> findOpenThread,
         Func<bool> getAutoApproveEnabled,
         Func<string, bool> isSelectedThread,
@@ -34,7 +34,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         PluginHostBridge? pluginHostBridge = null,
         FrontendEventPublisher? frontendEvents = null)
     {
-        ArgumentNullException.ThrowIfNull(findThread);
+        ArgumentNullException.ThrowIfNull(stateStore);
         ArgumentNullException.ThrowIfNull(findOpenThread);
         ArgumentNullException.ThrowIfNull(getAutoApproveEnabled);
         ArgumentNullException.ThrowIfNull(isSelectedThread);
@@ -42,7 +42,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         ArgumentNullException.ThrowIfNull(drainQueuedPromptAsync);
         ArgumentNullException.ThrowIfNull(projectFileSearchService);
 
-        _findThread = findThread;
+        _stateStore = stateStore;
         _findOpenThread = findOpenThread;
         _isSelectedThread = isSelectedThread;
         _statusPort = statusPort;
@@ -58,7 +58,7 @@ internal sealed class ThreadRuntimeEventCoordinator
     {
         ArgumentNullException.ThrowIfNull(runtimeEvent);
 
-        var thread = _findThread(runtimeEvent.ThreadId);
+        var thread = FindThread(runtimeEvent.ThreadId);
         if (thread is null)
         {
             return;
@@ -161,6 +161,12 @@ internal sealed class ThreadRuntimeEventCoordinator
 
     public static string SummarizeContent(string content)
         => ThreadRuntimeStateReducer.SummarizeContent(content);
+
+    private WorkThreadDescriptor? FindThread(string threadId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        return _stateStore.Snapshot.Threads.FirstOrDefault(thread => string.Equals(thread.ThreadId, threadId, StringComparison.OrdinalIgnoreCase));
+    }
 
     private void InvalidateProjectFileSearchIfNeeded(WorkThreadDescriptor thread, AgentEvent @event)
     {

@@ -260,7 +260,7 @@ internal sealed class CodeAltaFrontendComposition
             frontend.ClearThreadStatus,
             frontend.SetProviderSessionLoadStatus);
         var threadRuntimeEventCoordinator = new ThreadRuntimeEventCoordinator(
-            threadId => threadStateCoordinator.FindThread(threadId),
+            shellStateStore,
             threadId => threadStateCoordinator.FindOpenThread(threadId),
             frontend.GetAutoApproveEnabled,
             frontend.IsSelectedThread,

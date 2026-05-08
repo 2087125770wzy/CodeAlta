@@ -442,8 +442,10 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         IProjectFileSearchService? projectFileSearchService = null,
         FrontendEventPublisher? frontendEvents = null)
     {
+        var stateStore = new ShellStateStore(new InlineUiDispatcher());
+        stateStore.Mutate(snapshot => snapshot.SetCatalog([], [thread]));
         return new ThreadRuntimeEventCoordinator(
-            findThread: id => id == thread.ThreadId ? thread : null,
+            stateStore: stateStore,
             findOpenThread: id => id == tab.Thread.ThreadId ? tab : null,
             getAutoApproveEnabled: static () => false,
             isSelectedThread: id => id == thread.ThreadId,

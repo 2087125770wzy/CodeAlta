@@ -362,7 +362,7 @@ public sealed class ArchitectureGuardrailTests
             "App/ThreadPromptDraftPersistenceCoordinator.cs:83:_ = PersistPromptDraftAsync(threadId, normalizedPrompt, cancellationSource);",
             "App/ThreadRuntimeEventCoordinator.cs:94:_ = ObservePluginAgentEventAsync(thread, agentRuntimeEvent.Event);",
             "App/ThreadRuntimeEventCoordinator.cs:110:_ = ObservePluginAgentEventAsync(thread, @event);",
-            "App/ThreadRuntimeEventCoordinator.cs:176:_ = InvalidateProjectFileSearchAsync(thread.WorkingDirectory);",
+            "App/ThreadRuntimeEventCoordinator.cs:182:_ = InvalidateProjectFileSearchAsync(thread.WorkingDirectory);",
             "Presentation/Editing/FileEditorTab.cs:213:_ = RefreshExternalStateAsync();",
             "Presentation/Editing/ProjectFileOpenDialogController.cs:217:_ = AcceptSelectedAsync(selected);",
             "Presentation/Prompting/ProjectFileReferencePopupController.cs:153:var sessionCreateTask = Task.Run(",
