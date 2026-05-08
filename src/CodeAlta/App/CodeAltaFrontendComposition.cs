@@ -148,7 +148,7 @@ internal sealed class CodeAltaFrontendComposition
                     frontend.InvalidateSelectedSessionUsage();
                     break;
                 case WorkspaceRefreshReason.HeaderAndThreadWorkspace:
-                    frontend.RefreshHeaderAndThreadWorkspace();
+                    frontendEvents.Publish(new HeaderChangedEvent());
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(request), request.Reason, "Unknown workspace refresh reason.");
