@@ -129,6 +129,8 @@ namespace CodeAlta.Models
 
         public string? StatusMarkdown { get; set; }
 
+        public IReadOnlyList<ChatCollapsibleMarkdownSection> DetailSections { get; set; } = [];
+
         public string MarkdownValue =>
             string.IsNullOrWhiteSpace(StatusMarkdown)
                 ? BaseMarkdown

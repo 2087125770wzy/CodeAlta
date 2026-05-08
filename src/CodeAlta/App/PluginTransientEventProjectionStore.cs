@@ -37,7 +37,8 @@ internal sealed class PluginTransientEventProjectionStore
                     : derivedEvent.Markdown,
                 derivedEvent.Timestamp,
                 derivedEvent.RenderTarget,
-                derivedEvent.Payload);
+                derivedEvent.Payload,
+                derivedEvent.DetailSections);
             var changed = !_events.TryGetValue(derivedEvent.EventId, out var existing) || !Equals(existing, projection);
             _events[derivedEvent.EventId] = projection;
             return changed;
@@ -75,4 +76,5 @@ internal sealed record PluginTransientEventProjection(
     string Markdown,
     DateTimeOffset? Timestamp,
     string? RenderTarget,
-    object? Payload);
+    object? Payload,
+    IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections);

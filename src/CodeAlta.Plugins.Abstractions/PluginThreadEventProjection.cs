@@ -83,6 +83,21 @@ public sealed record PluginDerivedThreadEvent
     /// <summary>Gets an optional structured payload.</summary>
     public object? Payload { get; init; }
 
+    /// <summary>Gets optional Markdown detail sections that the frontend may render collapsed by default.</summary>
+    public IReadOnlyList<PluginDerivedThreadEventDetailSection> DetailSections { get; init; } = [];
+
     /// <summary>Gets a value indicating whether an existing transient event should be removed.</summary>
     public bool Remove { get; init; }
+}
+
+/// <summary>
+/// Describes a plugin-derived Markdown detail section for a transient thread event.
+/// </summary>
+public sealed record PluginDerivedThreadEventDetailSection
+{
+    /// <summary>Gets the section header.</summary>
+    public required string Header { get; init; }
+
+    /// <summary>Gets the section Markdown.</summary>
+    public required string Markdown { get; init; }
 }

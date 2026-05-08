@@ -36,6 +36,7 @@ internal sealed class OpenThreadStateStore
         tab.PermissionRequests.Clear();
         tab.UserInputRequests.Clear();
         tab.Session.LastRenderedSystemPromptEvent = null;
+        tab.RenderedHistoryEvents.Clear();
         tab.PluginTransientEvents.Clear();
     }
 

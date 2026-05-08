@@ -78,8 +78,9 @@ internal sealed class ThreadRuntimeEventCoordinator
                 case WorkThreadAgentEvent agentEvent:
                     tab.HistoryEvents ??= [];
                     tab.HistoryEvents.Add(agentEvent.Event);
+                    tab.RenderedHistoryEvents.Add(agentEvent.Event);
                     TryRenderInteraction(tab, () => _timelineRenderer.RenderAgentEvent(tab, agentEvent.Event), "agent event");
-                    ProjectPluginThreadEvents(thread, tab, tab.HistoryEvents, isReplay: false);
+                    ProjectPluginThreadEvents(thread, tab, tab.RenderedHistoryEvents, isReplay: false);
                     _frontendEvents?.Publish(new RuntimeTimelineChangedEvent(thread.ThreadId));
                     break;
 
@@ -106,14 +107,51 @@ internal sealed class ThreadRuntimeEventCoordinator
         ArgumentNullException.ThrowIfNull(@event);
 
         var reduction = _stateReducer.ReduceAgentEvent(thread, tab, @event, _isSelectedThread(thread.ThreadId));
+        IReadOnlyList<AgentEvent> projectionEvents;
         if (!tab.HistoryLoading)
         {
             tab.HistoryEvents ??= [];
             tab.HistoryEvents.Add(@event);
+            tab.RenderedHistoryEvents.Add(@event);
+            projectionEvents = tab.RenderedHistoryEvents;
+        }
+        else
+        {
+            tab.RenderedHistoryEvents.Add(@event);
+            projectionEvents = tab.RenderedHistoryEvents;
         }
 
         TryRenderInteraction(tab, () => _timelineRenderer.RenderAgentEvent(tab, @event), "agent event");
-        ProjectPluginThreadEvents(thread, tab, tab.HistoryEvents ?? [@event], isReplay: tab.HistoryLoading);
+        ProjectPluginThreadEvents(thread, tab, projectionEvents, isReplay: tab.HistoryLoading);
+        _frontendEvents?.Publish(new RuntimeTimelineChangedEvent(thread.ThreadId));
+        InvalidateProjectFileSearchIfNeeded(thread, @event);
+        ObservePluginAgentEvent(thread, @event);
+        ApplyReduction(tab, reduction);
+    }
+
+    public async Task HandleAgentEventAsync(WorkThreadDescriptor thread, OpenThreadState tab, AgentEvent @event)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(tab);
+        ArgumentNullException.ThrowIfNull(@event);
+
+        var reduction = _stateReducer.ReduceAgentEvent(thread, tab, @event, _isSelectedThread(thread.ThreadId));
+        IReadOnlyList<AgentEvent> projectionEvents;
+        if (!tab.HistoryLoading)
+        {
+            tab.HistoryEvents ??= [];
+            tab.HistoryEvents.Add(@event);
+            tab.RenderedHistoryEvents.Add(@event);
+            projectionEvents = tab.RenderedHistoryEvents;
+        }
+        else
+        {
+            tab.RenderedHistoryEvents.Add(@event);
+            projectionEvents = tab.RenderedHistoryEvents;
+        }
+
+        TryRenderInteraction(tab, () => _timelineRenderer.RenderAgentEvent(tab, @event), "agent event");
+        await ProjectPluginThreadEventsAsync(thread, tab, projectionEvents.ToArray(), isReplay: tab.HistoryLoading);
         _frontendEvents?.Publish(new RuntimeTimelineChangedEvent(thread.ThreadId));
         InvalidateProjectFileSearchIfNeeded(thread, @event);
         ObservePluginAgentEvent(thread, @event);
@@ -194,7 +232,10 @@ internal sealed class ThreadRuntimeEventCoordinator
                     projection.EventId,
                     projection.Timestamp ?? DateTimeOffset.UtcNow,
                     projection.Markdown,
-                    projection.RenderTarget),
+                    projection.RenderTarget,
+                    projection.DetailSections
+                        .Select(static section => new ChatCollapsibleMarkdownSection(section.Header, section.Markdown))
+                        .ToArray()),
                 "plugin projection");
         }
 

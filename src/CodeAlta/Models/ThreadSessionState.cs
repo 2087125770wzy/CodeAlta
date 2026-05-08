@@ -26,6 +26,8 @@ internal sealed class ThreadSessionState
 
     public List<AgentEvent>? HistoryEvents { get; set; }
 
+    public List<AgentEvent> RenderedHistoryEvents { get; } = [];
+
     public Dictionary<string, AgentPermissionRequest> PermissionRequests { get; } = new(StringComparer.Ordinal);
 
     public Dictionary<string, AgentUserInputRequest> UserInputRequests { get; } = new(StringComparer.Ordinal);

@@ -292,7 +292,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             (tab, message, showSpinner, tone) => SetThreadStatus(tab, message, showSpinner, tone),
             ClearThreadStatus,
             ResetThreadTab,
-            _threadRuntimeEventCoordinator.HandleAgentEvent,
+            _threadRuntimeEventCoordinator.HandleAgentEventAsync,
             thread => _threadStateCoordinator.PersistThreadLocalStateAsync(thread));
     }
 

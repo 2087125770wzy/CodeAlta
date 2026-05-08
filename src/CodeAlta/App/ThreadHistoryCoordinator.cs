@@ -22,7 +22,7 @@ internal sealed class ThreadHistoryCoordinator
     private readonly Action<OpenThreadState, string, bool, StatusTone> _setThreadStatus;
     private readonly Action<OpenThreadState> _clearThreadStatus;
     private readonly Action<OpenThreadState> _resetThreadTab;
-    private readonly Action<WorkThreadDescriptor, OpenThreadState, AgentEvent> _handleAgentEvent;
+    private readonly Func<WorkThreadDescriptor, OpenThreadState, AgentEvent, Task> _handleAgentEventAsync;
     private readonly Func<WorkThreadDescriptor, Task> _persistThreadLocalStateAsync;
 
     public ThreadHistoryCoordinator(
@@ -35,7 +35,7 @@ internal sealed class ThreadHistoryCoordinator
         Action<OpenThreadState, string, bool, StatusTone> setThreadStatus,
         Action<OpenThreadState> clearThreadStatus,
         Action<OpenThreadState> resetThreadTab,
-        Action<WorkThreadDescriptor, OpenThreadState, AgentEvent> handleAgentEvent,
+        Func<WorkThreadDescriptor, OpenThreadState, AgentEvent, Task> handleAgentEventAsync,
         Func<WorkThreadDescriptor, Task> persistThreadLocalStateAsync)
     {
         ArgumentNullException.ThrowIfNull(runtimeService);
@@ -47,7 +47,7 @@ internal sealed class ThreadHistoryCoordinator
         ArgumentNullException.ThrowIfNull(setThreadStatus);
         ArgumentNullException.ThrowIfNull(clearThreadStatus);
         ArgumentNullException.ThrowIfNull(resetThreadTab);
-        ArgumentNullException.ThrowIfNull(handleAgentEvent);
+        ArgumentNullException.ThrowIfNull(handleAgentEventAsync);
         ArgumentNullException.ThrowIfNull(persistThreadLocalStateAsync);
 
         _runtimeService = runtimeService;
@@ -59,7 +59,7 @@ internal sealed class ThreadHistoryCoordinator
         _setThreadStatus = setThreadStatus;
         _clearThreadStatus = clearThreadStatus;
         _resetThreadTab = resetThreadTab;
-        _handleAgentEvent = handleAgentEvent;
+        _handleAgentEventAsync = handleAgentEventAsync;
         _persistThreadLocalStateAsync = persistThreadLocalStateAsync;
     }
 
@@ -401,7 +401,7 @@ internal sealed class ThreadHistoryCoordinator
             tab.Timeline.BeginBufferedHistoryLoad();
             foreach (var @event in plan.EventsToRender)
             {
-                _handleAgentEvent(thread, tab, @event);
+                await _handleAgentEventAsync(thread, tab, @event);
             }
 
             tab.Timeline.CompleteInitialBufferedHistory(truncatedHistoryItem);

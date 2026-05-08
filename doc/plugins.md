@@ -89,7 +89,7 @@ The abstraction package includes contracts for:
 - resource roots such as skills, system prompts, templates, themes, MCP manifests, and agent definitions;
 - compaction hooks for before/instruction/reducer/after participation;
 - normalized agent event observation;
-- transient thread event projections through `GetThreadEventProjections()`, used for plugin-owned timeline cards that are replayed from canonical history but are not persisted into conversation history;
+- transient thread event projections through `GetThreadEventProjections()`, used for plugin-owned timeline cards (with optional collapsed Markdown detail sections) that are replayed from canonical history but are not persisted into conversation history;
 - diagnostics, lifecycle states, context invalidation, and no-op/headless service implementations.
 
 Low-ceremony factories are available for common authoring tasks: `Command`, `Startup`, `Prompt`, `Attachments`, `PluginUi`, `Resources`, `Tool`, and `PluginBackend`.

@@ -346,8 +346,34 @@ internal sealed class ThreadTimelinePresenter
         string key,
         DateTimeOffset timestamp,
         string markdown,
-        string? headerSecondary = null)
-        => UpsertStatus(_pluginProjectionStates, key, timestamp, markdown, ChatTimelineTone.Notice, "Plugin", headerSecondary);
+        string? headerSecondary = null,
+        IReadOnlyList<ChatCollapsibleMarkdownSection>? detailSections = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(markdown);
+
+        detailSections ??= [];
+        if (!_pluginProjectionStates.TryGetValue(key, out var stateEntry))
+        {
+            stateEntry = CreateChatStatusState(markdown, ChatTimelineTone.Notice, timestamp, "Plugin", headerSecondary, detailSections);
+            _pluginProjectionStates[key] = stateEntry;
+            AppendTimelineItem(stateEntry.Item);
+        }
+        else if (!stateEntry.DetailSections.SequenceEqual(detailSections))
+        {
+            RemoveTimelineItems([stateEntry.Item]);
+            stateEntry = CreateChatStatusState(markdown, ChatTimelineTone.Notice, timestamp, "Plugin", headerSecondary, detailSections);
+            _pluginProjectionStates[key] = stateEntry;
+            AppendTimelineItem(stateEntry.Item);
+        }
+
+        stateEntry.BaseMarkdown = markdown;
+        UiDispatch.Post(_uiDispatcher, () =>
+        {
+            ChatTimelineVisualFactory.ApplyTimestamp(stateEntry.TimestampText, timestamp);
+            stateEntry.Markdown.Markdown = stateEntry.MarkdownValue;
+        });
+    }
 
     public void RemovePluginProjection(string key)
     {
@@ -708,13 +734,17 @@ internal sealed class ThreadTimelinePresenter
         ChatTimelineTone tone,
         DateTimeOffset timestamp,
         string? headerOverride = null,
-        string? headerSecondary = null)
+        string? headerSecondary = null,
+        IReadOnlyList<ChatCollapsibleMarkdownSection>? detailSections = null)
     {
-        var entry = ChatTimelineVisualFactory.CreateMarkdownItem(markdown, tone, headerOverride, headerSecondary, localFileRootPath: _localFileRootPath);
+        var entry = detailSections is { Count: > 0 }
+            ? ChatTimelineVisualFactory.CreateCollapsibleMarkdownItem(markdown, detailSections, tone, headerOverride, headerSecondary, localFileRootPath: _localFileRootPath)
+            : ChatTimelineVisualFactory.CreateMarkdownItem(markdown, tone, headerOverride, headerSecondary, localFileRootPath: _localFileRootPath);
         ChatTimelineVisualFactory.ApplyTimestamp(entry.TimestampText, timestamp);
         return new ChatStatusState(entry.Item, entry.Markdown, entry.TimestampText)
         {
             BaseMarkdown = markdown,
+            DetailSections = detailSections ?? [],
         };
     }
 

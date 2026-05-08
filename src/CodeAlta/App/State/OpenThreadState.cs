@@ -84,6 +84,8 @@ internal sealed class OpenThreadState
         set => Session.HistoryEvents = value;
     }
 
+    public List<AgentEvent> RenderedHistoryEvents => Session.RenderedHistoryEvents;
+
     public Dictionary<string, AgentPermissionRequest> PermissionRequests => Session.PermissionRequests;
 
     public Dictionary<string, AgentUserInputRequest> UserInputRequests => Session.UserInputRequests;

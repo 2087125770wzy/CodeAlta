@@ -41,7 +41,6 @@ public sealed class StatisticsPlugin : PluginBase
             return ValueTask.FromResult<IReadOnlyList<PluginDerivedThreadEvent>>([]);
         }
 
-        var session = SessionStatistics.FromTurns(turns);
         var projected = new List<PluginDerivedThreadEvent>(turns.Length);
         foreach (var turn in turns.Where(static item => item.IsComplete))
         {
@@ -49,7 +48,15 @@ public sealed class StatisticsPlugin : PluginBase
             {
                 EventId = $"statistics:{EscapeEventId(context.ThreadId)}:{EscapeEventId(turn.Key)}",
                 Timestamp = turn.EndedAt ?? turn.LastEventAt ?? turn.StartedAt ?? DateTimeOffset.UtcNow,
-                Markdown = StatisticsMarkdownRenderer.RenderTurn(turn, session),
+                Markdown = StatisticsMarkdownRenderer.RenderTurnSummary(turn),
+                DetailSections =
+                [
+                    new PluginDerivedThreadEventDetailSection
+                    {
+                        Header = "Detailed statistics",
+                        Markdown = StatisticsMarkdownRenderer.RenderTurnDetails(turn),
+                    },
+                ],
                 RenderTarget = "codealta.statistics.turn.v1",
                 Payload = new
                 {
@@ -815,7 +822,7 @@ public sealed class StatisticsPlugin : PluginBase
 
     private static class StatisticsMarkdownRenderer
     {
-        public static string RenderTurn(TurnStatistics turn, SessionStatistics session)
+        public static string RenderTurnSummary(TurnStatistics turn)
         {
             var tokenSource = turn.HasReportedUsage ? "reported" : "estimated ≈ chars/4";
             var builder = new StringBuilder();
@@ -830,10 +837,15 @@ public sealed class StatisticsPlugin : PluginBase
                 .Append(") · tools ")
                 .Append(turn.Tools.Count)
                 .Append(" calls / ")
-                .Append(FormatDuration(turn.TotalToolTime))
-                .AppendLine()
-                .AppendLine()
-                .AppendLine("| Metric | Value |")
+                .Append(FormatDuration(turn.TotalToolTime));
+
+            return builder.ToString();
+        }
+
+        public static string RenderTurnDetails(TurnStatistics turn)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("| Metric | Value |")
                 .AppendLine("| --- | ---: |")
                 .Append("| Prompt | ").Append(FormatSize(turn.Prompt)).AppendLine(" |")
                 .Append("| Assistant | ").Append(FormatSize(turn.Assistant)).AppendLine(" |")
@@ -875,14 +887,6 @@ public sealed class StatisticsPlugin : PluginBase
                         .AppendLine();
                 }
             }
-
-            builder.AppendLine().AppendLine("_Session so far: ")
-                .Append(session.TurnCount).Append(" turns · ")
-                .Append(FormatDuration(session.TotalDuration)).Append(" observed · ")
-                .Append(FormatNumber(session.TotalInputTokens)).Append(" tokens in / ")
-                .Append(FormatNumber(session.TotalOutputTokens)).Append(" tokens out · ")
-                .Append(FormatNumber(session.TotalAssistantCharacters)).Append(" assistant chars · ")
-                .Append(FormatNumber(session.TotalToolOutputCharacters)).Append(" tool-output chars._");
 
             return builder.ToString();
         }

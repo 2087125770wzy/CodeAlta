@@ -32,8 +32,9 @@ public sealed class StatisticsPluginTests
         Assert.AreEqual("statistics:thread-1:run-run-1", result[0].EventId);
         StringAssert.Contains(result[0].Markdown, "**Turn statistics**");
         StringAssert.Contains(result[0].Markdown, "estimated ≈ chars/4");
-        StringAssert.Contains(result[0].Markdown, "shell");
-        StringAssert.Contains(result[0].Markdown, "Assistant | 11 chars");
+        Assert.AreEqual(1, result[0].DetailSections.Count);
+        StringAssert.Contains(result[0].DetailSections[0].Markdown, "shell");
+        StringAssert.Contains(result[0].DetailSections[0].Markdown, "Assistant | 11 chars");
     }
 
     [TestMethod]
@@ -46,8 +47,8 @@ public sealed class StatisticsPluginTests
 
         var result = await contribution.ProjectAsync(CreateContext(events), CancellationToken.None);
 
-        StringAssert.Contains(result.Single().Markdown, "Assistant | 11 chars");
-        Assert.IsFalse(result.Single().Markdown!.Contains("22 chars", StringComparison.Ordinal));
+        StringAssert.Contains(result.Single().DetailSections.Single().Markdown, "Assistant | 11 chars");
+        Assert.IsFalse(result.Single().DetailSections.Single().Markdown.Contains("22 chars", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -62,7 +63,7 @@ public sealed class StatisticsPluginTests
 
         StringAssert.Contains(result.Single().Markdown, "reported");
         StringAssert.Contains(result.Single().Markdown, "1,234 in / 567 out");
-        StringAssert.Contains(result.Single().Markdown, "Cached input");
+        StringAssert.Contains(result.Single().DetailSections.Single().Markdown, "Cached input");
     }
 
     [TestMethod]

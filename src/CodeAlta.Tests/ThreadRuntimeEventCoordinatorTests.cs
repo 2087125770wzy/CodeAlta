@@ -93,6 +93,83 @@ public sealed class ThreadRuntimeEventCoordinatorTests
     }
 
     [TestMethod]
+    public async Task HandleAgentEventAsync_ReplayProjectsOnlyRenderedHistoryEvents()
+    {
+        var thread = CreateThread();
+        var tab = CreateOpenThreadState(thread);
+        tab.HistoryLoading = true;
+        var hiddenEvent = new AgentContentCompletedEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            DateTimeOffset.UtcNow.AddMinutes(-10),
+            null,
+            AgentContentKind.Assistant,
+            "hidden-assistant",
+            null,
+            "Earlier answer");
+        var displayedEvent = new AgentContentCompletedEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            DateTimeOffset.UtcNow,
+            null,
+            AgentContentKind.Assistant,
+            "displayed-assistant",
+            null,
+            "Displayed answer");
+        tab.HistoryEvents = [hiddenEvent, displayedEvent];
+        var observer = new RecordingPluginAgentEventObserver();
+        var coordinator = CreateCoordinator(thread, tab, pluginAgentEventObserver: observer);
+
+        await coordinator.HandleAgentEventAsync(thread, tab, displayedEvent);
+
+        CollectionAssert.AreEqual(new[] { displayedEvent }, observer.ProjectedEvents?.ToArray());
+        Assert.IsTrue(observer.ProjectedIsReplay);
+    }
+
+    [TestMethod]
+    public void ApplyRuntimeEvent_AfterReplayProjectsVisibleHistoryPlusLiveEvents()
+    {
+        var thread = CreateThread();
+        var tab = CreateOpenThreadState(thread);
+        var hiddenEvent = new AgentContentCompletedEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            DateTimeOffset.UtcNow.AddMinutes(-10),
+            null,
+            AgentContentKind.Assistant,
+            "hidden-assistant",
+            null,
+            "Earlier answer");
+        var displayedEvent = new AgentContentCompletedEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            DateTimeOffset.UtcNow.AddMinutes(-1),
+            null,
+            AgentContentKind.Assistant,
+            "displayed-assistant",
+            null,
+            "Displayed answer");
+        var liveEvent = new AgentContentCompletedEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            DateTimeOffset.UtcNow,
+            null,
+            AgentContentKind.Assistant,
+            "live-assistant",
+            null,
+            "Live answer");
+        tab.HistoryEvents = [hiddenEvent, displayedEvent];
+        tab.RenderedHistoryEvents.Add(displayedEvent);
+        var observer = new RecordingPluginAgentEventObserver();
+        var coordinator = CreateCoordinator(thread, tab, pluginAgentEventObserver: observer);
+
+        coordinator.ApplyRuntimeEvent(new WorkThreadAgentEvent(thread.ThreadId, liveEvent));
+
+        CollectionAssert.AreEqual(new AgentEvent[] { displayedEvent, liveEvent }, observer.ProjectedEvents?.ToArray());
+        Assert.IsFalse(observer.ProjectedIsReplay);
+    }
+
+    [TestMethod]
     public void HandleAgentEvent_KeepsManualCompactionStatusWhileProgressEventsArrive()
     {
         var thread = CreateThread();
@@ -515,6 +592,10 @@ public sealed class ThreadRuntimeEventCoordinatorTests
 
         public AgentEvent? ObservedEvent { get; private set; }
 
+        public IReadOnlyList<AgentEvent>? ProjectedEvents { get; private set; }
+
+        public bool ProjectedIsReplay { get; private set; }
+
         public Task ObserveAgentEventAsync(WorkThreadDescriptor thread, AgentEvent agentEvent, CancellationToken cancellationToken = default)
         {
             ObservedThread = thread;
@@ -528,7 +609,11 @@ public sealed class ThreadRuntimeEventCoordinatorTests
             IReadOnlyList<AgentEvent> events,
             bool isReplay,
             CancellationToken cancellationToken = default)
-            => Task.FromResult(new WorkThreadPluginDerivedEventProjectionResult([], []));
+        {
+            ProjectedEvents = events;
+            ProjectedIsReplay = isReplay;
+            return Task.FromResult(new WorkThreadPluginDerivedEventProjectionResult([], []));
+        }
     }
 
     private sealed class TestShellStatusPort : IShellStatusPort
