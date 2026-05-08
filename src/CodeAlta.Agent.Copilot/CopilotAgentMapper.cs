@@ -472,7 +472,7 @@ internal static class CopilotAgentMapper
                 "session-abort",
                 null,
                 "abort",
-                abort.Data.Reason),
+                abort.Data.Reason.ToString()),
 
             ToolUserRequestedEvent toolRequested => CreateActivityEvent(
                 sessionId,
@@ -962,12 +962,11 @@ internal static class CopilotAgentMapper
         return CreateObjectElement(writer =>
         {
             writer.WriteString("path", data.Path);
-            writer.WriteString("operation", data.Operation switch
-            {
-                WorkspaceFileChangedOperation.Create => "create",
-                WorkspaceFileChangedOperation.Update => "update",
-                _ => "update",
-            });
+            var operation = data.Operation;
+            var operationValue = operation == WorkspaceFileChangedOperation.Create
+                ? "create"
+                : "update";
+            writer.WriteString("operation", operationValue);
         });
     }
 
@@ -1683,13 +1682,22 @@ internal static class CopilotAgentMapper
 
     private static AgentPlanChangeKind ToPlanChangeKind(PlanChangedOperation operation)
     {
-        return operation switch
+        if (operation == PlanChangedOperation.Create)
         {
-            PlanChangedOperation.Create => AgentPlanChangeKind.Created,
-            PlanChangedOperation.Update => AgentPlanChangeKind.Updated,
-            PlanChangedOperation.Delete => AgentPlanChangeKind.Deleted,
-            _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unsupported plan operation."),
-        };
+            return AgentPlanChangeKind.Created;
+        }
+
+        if (operation == PlanChangedOperation.Update)
+        {
+            return AgentPlanChangeKind.Updated;
+        }
+
+        if (operation == PlanChangedOperation.Delete)
+        {
+            return AgentPlanChangeKind.Deleted;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(operation), operation, "Unsupported plan operation.");
     }
 
     private static AgentActivityKind GetCopilotToolActivityKind(string toolName, string? mcpToolName)
