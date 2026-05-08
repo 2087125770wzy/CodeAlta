@@ -404,6 +404,37 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
+    public void StateMutationCoordinators_DoNotCallBroadProjectionRefreshMethods()
+    {
+        var codeAltaRoot = GetCodeAltaSourceRoot();
+        var mutationCoordinatorFiles = new[]
+        {
+            Path.Combine(codeAltaRoot, "App", "ShellThreadStateCoordinator.cs"),
+            Path.Combine(codeAltaRoot, "App", "ThreadRuntimeEventCoordinator.cs"),
+            Path.Combine(codeAltaRoot, "App", "ChatBackendInitializationCoordinator.cs"),
+            Path.Combine(codeAltaRoot, "App", "AcpFrontendCoordinator.cs"),
+            Path.Combine(codeAltaRoot, "App", "ProviderFrontendCoordinator.cs"),
+            Path.Combine(codeAltaRoot, "Views", "InitialCatalogStateCoordinator.cs"),
+        };
+        var forbiddenCalls = new[]
+        {
+            "RefreshCatalogAndThreadWorkspace(",
+            "RefreshSelectionAndThreadWorkspace(",
+            "RefreshHeaderAndThreadWorkspace(",
+            "UpdatePromptAvailabilityUi(",
+        };
+
+        var violations = mutationCoordinatorFiles
+            .SelectMany(file => File.ReadLines(file).Select((line, index) => new { File = file, Line = line, Number = index + 1 }))
+            .Where(entry => forbiddenCalls.Any(call => entry.Line.Contains(call, StringComparison.Ordinal)))
+            .Select(entry => $"{Path.GetRelativePath(codeAltaRoot, entry.File).Replace('\\', '/')}:{entry.Number}:{entry.Line.Trim()}")
+            .OrderBy(static violation => violation, StringComparer.Ordinal)
+            .ToArray();
+
+        CollectionAssert.AreEqual(Array.Empty<string>(), violations);
+    }
+
+    [TestMethod]
     public void TabContentMigrationInventory_ReportsLegacyContentPlacementApis()
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();
