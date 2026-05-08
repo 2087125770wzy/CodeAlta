@@ -22,6 +22,45 @@ Add a rule here when it is important enough that contributors and agents should 
 - Prefer named ports, request/response DTOs, immutable snapshots, and event streams over large callback aggregates or callback-wrapper context classes.
 - New shell/application contracts should use `ModelProvider` terminology for selectable LLM runtime and endpoint configuration. Keep `Backend` names only for low-level runtime adapters or explicitly marked legacy compatibility seams.
 
+## Frontend Shell Shape
+
+The TUI frontend should stay organized around explicit state, commands, events, and projections rather than broad callbacks into `CodeAltaApp`:
+
+```mermaid
+flowchart LR
+    Views[Views and dialogs\nview models + narrow controllers]
+    Commands[ShellCommandDispatcher\ncommand registry + handlers]
+    Host[ShellFrontendHost\ncompatibility facade]
+    State[ShellStateStore\nselection, tabs, prompt sessions]
+    Domain[Domain services\nselection, catalog, prompts, model providers]
+    Events[ShellFrontendEvent publisher]
+    Projections[Projection controllers\nsidebar, workspace, status, prompts]
+    Runtime[Runtime adapter\nagent sessions and runs]
+    Persistence[Persistence adapters\nview state, config, catalogs]
+    Plugins[Plugin bridge\nheadless runtime + UI tab adapter]
+
+    Views --> Commands
+    Commands --> Domain
+    Host --> Commands
+    Host --> State
+    Domain --> State
+    Domain --> Events
+    Domain --> Runtime
+    Domain --> Persistence
+    Runtime --> Events
+    Plugins --> Events
+    Plugins --> State
+    Events --> Projections
+    State --> Projections
+    Projections --> Views
+```
+
+- `CodeAltaApp` should remain a compatibility facade and composition owner, not the central callback target for application behavior.
+- Views and dialogs receive view models plus command/service interfaces; they should not receive long domain callback lists.
+- Selection, catalog, tab, prompt, model-provider, runtime, persistence, and plugin changes should either publish a typed frontend event or return a typed command/use-case result that a small application service projects.
+- The command palette, command bar, slash commands, and shortcuts should share the same shell command metadata and dispatcher path.
+- Logical draft, thread, editor, and plugin tabs should be inspectable through a single shell tab state/service model even when a visual toolkit requires cached tab-page instances.
+
 ## Runtime Orchestration Concurrency
 
 - Runtime thread/session state should have a clear single writer. Prefer per-thread mailbox/actor-style command processors for mutable orchestration state instead of scattered locks, callback mutation, and frontend-owned workarounds.
