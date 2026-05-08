@@ -72,7 +72,7 @@ internal sealed class ShellWorkspaceContext
     public void DispatchToUi(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        _uiDispatcher.Post(action);
+        UiDispatch.Post(_uiDispatcher, action);
     }
 
     public void DispatchToUiDeferred(Action action)

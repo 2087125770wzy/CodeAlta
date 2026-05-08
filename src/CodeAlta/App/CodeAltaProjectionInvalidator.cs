@@ -21,6 +21,10 @@ internal sealed class CodeAltaProjectionInvalidator : IProjectionInvalidator
 
     public void RefreshShellChrome() => _app.RefreshShellChrome();
 
+    public void InvalidateThreadChrome() => _app.InvalidateThreadChrome();
+
+    public void FocusPromptTarget() => _app.DispatchToUiDeferred(_app.FocusPromptTarget);
+
     public void UpdatePromptAvailabilityUi() => _app.UpdatePromptAvailabilityUi();
 
     public void RefreshQueuedPromptList() => _app.RefreshQueuedPromptList();

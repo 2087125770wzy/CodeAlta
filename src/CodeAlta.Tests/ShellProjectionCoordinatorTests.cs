@@ -55,6 +55,18 @@ public sealed class ShellProjectionCoordinatorTests
     }
 
     [TestMethod]
+    public void Publish_PromptDraftChanged_RefreshesChromeWithoutWorkspaceRefresh()
+    {
+        var invalidator = new CapturingProjectionInvalidator();
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        using var coordinator = new ShellProjectionCoordinator(publisher, invalidator);
+
+        publisher.Publish(new PromptDraftChangedEvent("thread-1"));
+
+        CollectionAssert.AreEqual(new[] { "chrome", "thread-chrome", "prompt" }, invalidator.Calls);
+    }
+
+    [TestMethod]
     public void Publish_ModelProviderCatalogChanged_RefreshesSelectionWorkspace()
     {
         var invalidator = new CapturingProjectionInvalidator();
@@ -76,6 +88,18 @@ public sealed class ShellProjectionCoordinatorTests
         publisher.Publish(new QueuedPromptListChangedEvent("thread-1"));
 
         CollectionAssert.AreEqual(new[] { "queue", "prompt" }, invalidator.Calls);
+    }
+
+    [TestMethod]
+    public void Publish_PromptFocusRequested_FocusesPrompt()
+    {
+        var invalidator = new CapturingProjectionInvalidator();
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        using var coordinator = new ShellProjectionCoordinator(publisher, invalidator);
+
+        publisher.Publish(new PromptFocusRequestedEvent());
+
+        CollectionAssert.AreEqual(new[] { "focus" }, invalidator.Calls);
     }
 
     [TestMethod]
@@ -101,6 +125,10 @@ public sealed class ShellProjectionCoordinatorTests
         public void RefreshHeaderAndThreadWorkspace() => Calls.Add("header");
 
         public void RefreshShellChrome() => Calls.Add("chrome");
+
+        public void InvalidateThreadChrome() => Calls.Add("thread-chrome");
+
+        public void FocusPromptTarget() => Calls.Add("focus");
 
         public void UpdatePromptAvailabilityUi() => Calls.Add("prompt");
 

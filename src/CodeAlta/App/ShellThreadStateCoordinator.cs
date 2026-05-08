@@ -273,8 +273,12 @@ internal sealed class ShellThreadStateCoordinator
 
     public void EnsureSelectionDefaults()
     {
+        var previousSelection = Selection;
         _selectionCoordinator.EnsureSelectionDefaults(Projects, Threads);
-        SyncStateStore(catalogChanged: true, selectionChanged: true);
+        if (Selection != previousSelection)
+        {
+            SyncStateStore(selectionChanged: true);
+        }
     }
 
     public async Task RegisterCreatedThreadAsync(WorkThreadDescriptor thread)

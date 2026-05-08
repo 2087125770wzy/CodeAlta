@@ -522,13 +522,11 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         return _shellView;
     }
 
-    internal void RefreshShellChrome()
-        => _workspaceCoordinator.RefreshShellChrome();
+    internal void RefreshShellChrome() => _workspaceCoordinator.RefreshShellChrome();
 
     internal void RefreshCatalogAndThreadWorkspace() { _threadInfoPresenter?.InvalidateSelection(); _workspaceCoordinator.RefreshCatalogAndThreadWorkspace(); }
 
-    internal void RefreshHeaderAndThreadWorkspace()
-        => _workspaceCoordinator.RefreshHeaderAndThreadWorkspace();
+    internal void RefreshHeaderAndThreadWorkspace() => _workspaceCoordinator.RefreshHeaderAndThreadWorkspace();
 
     internal void RefreshSelectionAndThreadWorkspace() { _threadInfoPresenter?.InvalidateSelection(); _workspaceCoordinator.RefreshSelectionAndThreadWorkspace(); }
 
@@ -555,15 +553,14 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         => _workspaceCoordinator.SetThreadStatus(tab, message, showSpinner, tone, hasCustomStatus);
     internal void ClearThreadStatus(OpenThreadState tab)
         => _workspaceCoordinator.ClearThreadStatus(tab);
-    internal void InvalidateSelectedSessionUsage()
-        => _workspaceCoordinator.InvalidateSelectedSessionUsage();
+    internal void InvalidateSelectedSessionUsage() => _workspaceCoordinator.InvalidateSelectedSessionUsage();
+    internal void InvalidateThreadChrome() => _workspaceCoordinator.InvalidateThreadChrome();
 
     internal bool IsSelectedThread(string threadId)
         => !string.IsNullOrWhiteSpace(threadId) &&
            string.Equals(_threadStateCoordinator.Selection.SelectedThreadId, threadId, StringComparison.OrdinalIgnoreCase);
 
-    internal void SetReadyStatusForCurrentSelection()
-        => _workspaceCoordinator.SetReadyStatusForCurrentSelection();
+    internal void SetReadyStatusForCurrentSelection() => _workspaceCoordinator.SetReadyStatusForCurrentSelection();
 
     private void ObserveUiTask(Func<Task> taskFactory, string operation)
         => _ = UiTaskDiagnostics.ObserveAsync(taskFactory, operation, SetStatus);

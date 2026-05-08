@@ -327,6 +327,29 @@ public sealed class ShellThreadStateCoordinatorTests
     }
 
     [TestMethod]
+    public void EnsureSelectionDefaults_DoesNotPublishWhenSelectionIsUnchanged()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var dispatcher = new InlineUiDispatcher();
+        var publisher = new FrontendEventPublisher(dispatcher);
+        var events = new List<ShellFrontendEvent>();
+        publisher.Subscribe(events.Add);
+        var coordinator = CreateCoordinator(
+            options,
+            stateStore: new ShellStateStore(dispatcher),
+            frontendEvents: publisher);
+        var project = CreateProject("project-1", "Project 1");
+
+        coordinator.ApplyRecoveredCatalogState([project], []);
+        events.Clear();
+
+        coordinator.EnsureSelectionDefaults();
+
+        CollectionAssert.AreEqual(Array.Empty<ShellFrontendEvent>(), events);
+    }
+
+    [TestMethod]
     public async Task RemoveDeletedThreadArtifactsAsync_RemovesPersistedThreadStateAndPendingRestore()
     {
         using var temp = TempDirectory.Create();

@@ -188,12 +188,14 @@ internal sealed class ThreadRuntimeEventCoordinator
 
     private void ApplyReduction(OpenThreadState? tab, ThreadRuntimeReductionResult reduction)
     {
+        var focusPromptAfterReduction = false;
         if (tab is not null)
         {
             if (reduction.ClearThreadStatus)
             {
                 _statusPort.ClearThreadStatus(tab);
                 _frontendEvents?.Publish(new ThreadStatusChangedEvent(tab.Thread.ThreadId));
+                focusPromptAfterReduction = _isSelectedThread(tab.Thread.ThreadId);
             }
 
             if (reduction.ThreadStatus is { } status)
@@ -223,6 +225,11 @@ internal sealed class ThreadRuntimeEventCoordinator
         if (reduction.RefreshShellChrome)
         {
             _frontendEvents?.Publish(new ShellChromeChangedEvent());
+        }
+
+        if (focusPromptAfterReduction)
+        {
+            _frontendEvents?.Publish(new PromptFocusRequestedEvent());
         }
     }
 }

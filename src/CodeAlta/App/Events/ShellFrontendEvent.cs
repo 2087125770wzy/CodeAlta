@@ -20,6 +20,8 @@ internal sealed record PromptImagesChangedEvent(string PromptSessionId) : ShellF
 
 internal sealed record PromptAvailabilityChangedEvent : ShellFrontendEvent;
 
+internal sealed record PromptFocusRequestedEvent : ShellFrontendEvent;
+
 internal sealed record QueuedPromptListChangedEvent(string ThreadId) : ShellFrontendEvent;
 
 internal sealed record SessionUsageChangedEvent(string ThreadId) : ShellFrontendEvent;

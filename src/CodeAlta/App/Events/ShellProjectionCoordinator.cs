@@ -10,6 +10,10 @@ internal interface IProjectionInvalidator
 
     void RefreshShellChrome();
 
+    void InvalidateThreadChrome();
+
+    void FocusPromptTarget();
+
     void UpdatePromptAvailabilityUi();
 
     void RefreshQueuedPromptList();
@@ -57,9 +61,16 @@ internal sealed class ShellProjectionCoordinator : IDisposable
                 break;
             case PromptDraftChangedEvent:
             case PromptImagesChangedEvent:
+                _invalidator.RefreshShellChrome();
+                _invalidator.InvalidateThreadChrome();
+                _invalidator.UpdatePromptAvailabilityUi();
+                break;
             case PromptAvailabilityChangedEvent:
             case ModelProviderStateChangedEvent:
                 _invalidator.UpdatePromptAvailabilityUi();
+                break;
+            case PromptFocusRequestedEvent:
+                _invalidator.FocusPromptTarget();
                 break;
             case ModelProviderCatalogChangedEvent:
                 _invalidator.RefreshSelectionAndThreadWorkspace();

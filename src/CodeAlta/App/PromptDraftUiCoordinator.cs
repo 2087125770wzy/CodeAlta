@@ -235,5 +235,10 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
     }
 
     private void PublishThreadPromptEditedStateChanged()
-        => _frontendEvents.Publish(new CatalogChangedEvent());
+    {
+        if (_getSelection().Target is WorkspaceTarget.Thread { ThreadId: { Length: > 0 } selectedThreadId })
+        {
+            _frontendEvents.Publish(new PromptDraftChangedEvent(selectedThreadId));
+        }
+    }
 }

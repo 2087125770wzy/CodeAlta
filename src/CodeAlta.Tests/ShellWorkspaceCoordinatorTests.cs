@@ -132,6 +132,32 @@ public sealed class ShellWorkspaceCoordinatorTests
         Assert.IsNull(sessionUsage.Usage);
     }
 
+    [TestMethod]
+    public void ShellWorkspaceContext_DispatchToUi_RunsInlineWhenDispatcherHasAccess()
+    {
+        var deferredActions = new Queue<Action>();
+        var workspaceContext = CreateMinimalWorkspaceContext(new QueueingUiDispatcher(deferredActions));
+        var count = 0;
+
+        workspaceContext.DispatchToUi(() => count++);
+
+        Assert.AreEqual(1, count);
+        Assert.AreEqual(0, deferredActions.Count);
+    }
+
+    [TestMethod]
+    public void ShellWorkspaceContext_DispatchToUiDeferred_QueuesWhenDispatcherHasAccess()
+    {
+        var deferredActions = new Queue<Action>();
+        var workspaceContext = CreateMinimalWorkspaceContext(new QueueingUiDispatcher(deferredActions));
+        var count = 0;
+
+        workspaceContext.DispatchToUiDeferred(() => count++);
+
+        Assert.AreEqual(0, count);
+        Assert.AreEqual(1, deferredActions.Count);
+    }
+
     private static (ShellWorkspaceCoordinator Workspace, SessionUsageViewModel SessionUsage) CreateWorkspaceCoordinator(
         ShellThreadStateCoordinator threadStateCoordinator,
         ThreadSelectionContext threadSelection,
@@ -173,6 +199,31 @@ public sealed class ShellWorkspaceCoordinatorTests
 
         return (workspace, sessionUsage);
     }
+
+    private static ShellWorkspaceContext CreateMinimalWorkspaceContext(IUiDispatcher uiDispatcher)
+        => new(
+            new DelegatingShellPromptAvailabilityPort(
+                static () => AgentBackendIds.Codex,
+                static () => (false, string.Empty, StatusTone.Info)),
+            new ShellWorkspaceSurfacePort(
+                static () => false,
+                static () => null,
+                static () => null,
+                static _ => { },
+                static () => { },
+                static _ => { },
+                static _ => { }),
+            new DelegatingShellWorkspaceProjectionPort(
+                static () => { },
+                static () => { },
+                static () => { },
+                static () => { },
+                static () => { },
+                static _ => { },
+                static _ => { },
+                static () => { },
+                static () => { }),
+            uiDispatcher);
 
     private static ShellThreadStateCoordinator CreateThreadStateCoordinator(CatalogOptions options)
         => new(

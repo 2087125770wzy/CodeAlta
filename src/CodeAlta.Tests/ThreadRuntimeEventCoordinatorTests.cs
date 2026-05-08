@@ -459,6 +459,34 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         Assert.IsTrue(events.OfType<SessionUsageChangedEvent>().Any(@event => @event.ThreadId == thread.ThreadId));
     }
 
+    [TestMethod]
+    public void ApplyRuntimeEvent_PublishesPromptFocusRequestAfterShellChromeWhenSelectedThreadBecomesIdle()
+    {
+        var thread = CreateThread();
+        var tab = CreateOpenThreadState(thread);
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        var events = new List<ShellFrontendEvent>();
+        publisher.Subscribe(events.Add);
+        var coordinator = CreateCoordinator(thread, tab, frontendEvents: publisher);
+
+        coordinator.ApplyRuntimeEvent(
+            new WorkThreadAgentEvent(
+                thread.ThreadId,
+                new AgentSessionUpdateEvent(
+                    AgentBackendIds.Copilot,
+                    "session-1",
+                    DateTimeOffset.UtcNow,
+                    null,
+                    AgentSessionUpdateKind.Idle,
+                    "idle")));
+
+        var shellChromeIndex = events.FindIndex(static @event => @event is ShellChromeChangedEvent);
+        var promptFocusIndex = events.FindIndex(static @event => @event is PromptFocusRequestedEvent);
+
+        Assert.IsTrue(shellChromeIndex >= 0, "The idle runtime update should refresh shell chrome before focus is restored.");
+        Assert.IsTrue(promptFocusIndex > shellChromeIndex, "Prompt focus should be requested after shell chrome refreshes so later projection updates do not steal focus.");
+    }
+
     private static ThreadRuntimeEventCoordinator CreateCoordinator(
         WorkThreadDescriptor thread,
         OpenThreadState tab,

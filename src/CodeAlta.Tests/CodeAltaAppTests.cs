@@ -2581,6 +2581,25 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void PromptDraftUiCoordinator_FirstThreadPromptCharacterPublishesPromptDraftEvent()
+    {
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        var events = new List<ShellFrontendEvent>();
+        publisher.Subscribe(events.Add);
+        var coordinator = new PromptDraftUiCoordinator(
+            new PromptDraftCoordinator(),
+            new CatalogOptions { GlobalRoot = Path.GetTempPath() },
+            static () => ShellSelection.Thread("thread-1", "project-1"),
+            publisher);
+
+        coordinator.SyncPromptText(new ThreadSessionState());
+        coordinator.PromptText = "a";
+
+        Assert.IsFalse(events.OfType<CatalogChangedEvent>().Any());
+        Assert.IsTrue(events.OfType<PromptDraftChangedEvent>().Any(e => e.PromptSessionId == "thread-1"));
+    }
+
+    [TestMethod]
     public void CreateStyledPromptEditor_PreservesMarkdownHighlighting()
     {
         var editor = ThreadWorkspaceView.CreateStyledPromptEditor(_ => { }, onOpenHelp: null, onOpenCommandPalette: null, placeholder: "Prompt");
