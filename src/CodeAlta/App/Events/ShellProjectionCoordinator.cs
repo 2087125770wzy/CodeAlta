@@ -63,6 +63,7 @@ internal sealed class ShellProjectionCoordinator : IDisposable
         switch (frontendEvent)
         {
             case CatalogChangedEvent:
+            case StartupCatalogProjectionReadyEvent:
                 _workspaceProjections.ApplyCatalogProjection();
                 break;
             case SelectionChangedEvent:

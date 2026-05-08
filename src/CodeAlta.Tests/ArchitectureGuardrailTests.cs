@@ -558,6 +558,7 @@ public sealed class ArchitectureGuardrailTests
         var coordinatorSource = File.ReadAllText(Path.Combine(codeAltaRoot, "App", "Events", "ShellProjectionCoordinator.cs"));
         Assert.IsFalse(coordinatorSource.Contains("IProjectionInvalidator", StringComparison.Ordinal));
         Assert.IsFalse(coordinatorSource.Contains("RefreshCatalogAndThreadWorkspace", StringComparison.Ordinal));
+        StringAssert.Contains(coordinatorSource, "StartupCatalogProjectionReadyEvent");
         StringAssert.Contains(coordinatorSource, "IWorkspaceProjectionController");
         StringAssert.Contains(coordinatorSource, "IPromptAvailabilityProjectionController");
         StringAssert.Contains(coordinatorSource, "IQueuedPromptProjectionController");
@@ -568,6 +569,10 @@ public sealed class ArchitectureGuardrailTests
         StringAssert.Contains(coordinatorSource, "ApplyQueuedPromptProjection");
         StringAssert.Contains(coordinatorSource, "ApplySessionUsageProjection");
         StringAssert.Contains(coordinatorSource, "ApplyTabProjection");
+
+        var shellBridgeSource = File.ReadAllText(Path.Combine(codeAltaRoot, "App", "ICodeAltaShell.cs"));
+        Assert.IsFalse(shellBridgeSource.Contains("RefreshCatalogAndThreadWorkspace", StringComparison.Ordinal));
+        StringAssert.Contains(shellBridgeSource, "PublishStartupCatalogProjectionReady");
     }
 
     [TestMethod]

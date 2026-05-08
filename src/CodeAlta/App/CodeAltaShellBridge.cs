@@ -43,8 +43,8 @@ internal sealed class CodeAltaShellBridge : ICodeAltaShell
     public void HandleRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent)
         => _app.HandleRuntimeEvent(runtimeEvent);
 
-    public void RefreshCatalogAndThreadWorkspace()
-        => _app.RefreshCatalogAndThreadWorkspace();
+    public void PublishStartupCatalogProjectionReady()
+        => _app.PublishStartupCatalogProjectionReady();
 
     public void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken)
         => _app.TrySchedulePendingStartupThreadRestore(cancellationToken);

@@ -83,7 +83,7 @@ public sealed class CodeAltaShellControllerTests
         await controller.InitializeAsync(CancellationToken.None);
 
         CollectionAssert.Contains(log, "Shell.InitializeChatBackends");
-        CollectionAssert.Contains(log, "Shell.RefreshCatalogAndThreadWorkspace");
+        CollectionAssert.Contains(log, "Shell.PublishStartupCatalogProjectionReady");
         CollectionAssert.Contains(log, "Shell.SetReadyStatus");
         CollectionAssert.Contains(log, "Shell.SetInitialized:True");
         CollectionAssert.Contains(log, "Importer.Import");
@@ -747,8 +747,8 @@ public sealed class CodeAltaShellControllerTests
             log.Add($"Shell.HandleRuntimeEvent:{runtimeEvent.ThreadId}");
         }
 
-        public void RefreshCatalogAndThreadWorkspace()
-            => log.Add("Shell.RefreshCatalogAndThreadWorkspace");
+        public void PublishStartupCatalogProjectionReady()
+            => log.Add("Shell.PublishStartupCatalogProjectionReady");
 
         public void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken)
             => log.Add("Shell.TrySchedulePendingStartupThreadRestore");

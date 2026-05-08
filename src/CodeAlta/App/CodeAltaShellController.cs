@@ -450,7 +450,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         return UiDispatcher.InvokeAsync(
             () =>
             {
-                _shell.RefreshCatalogAndThreadWorkspace();
+                _shell.PublishStartupCatalogProjectionReady();
                 _shell.SetReadyStatusForCurrentSelection();
                 _shell.SetInitialized(true);
                 _shell.TrySchedulePendingStartupThreadRestore(CancellationToken.None);

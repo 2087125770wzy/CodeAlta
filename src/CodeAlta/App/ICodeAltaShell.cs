@@ -26,7 +26,7 @@ internal interface ICodeAltaShell
 
     void HandleRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent);
 
-    void RefreshCatalogAndThreadWorkspace();
+    void PublishStartupCatalogProjectionReady();
 
     void TrySchedulePendingStartupThreadRestore(CancellationToken cancellationToken);
 

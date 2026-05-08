@@ -19,6 +19,18 @@ public sealed class ShellProjectionCoordinatorTests
     }
 
     [TestMethod]
+    public void Publish_StartupCatalogProjectionReady_AppliesCatalogProjection()
+    {
+        var projections = new CapturingProjectionControllers();
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        using var coordinator = new ShellProjectionCoordinator(publisher, projections, projections, projections);
+
+        publisher.Publish(new StartupCatalogProjectionReadyEvent());
+
+        CollectionAssert.AreEqual(new[] { "catalog" }, projections.Calls);
+    }
+
+    [TestMethod]
     public void Publish_SelectionChanged_RefreshesSelectionWorkspace()
     {
         var projections = new CapturingProjectionControllers();

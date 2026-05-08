@@ -207,7 +207,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _initialCatalogStateCoordinator = new InitialCatalogStateCoordinator(
             cancellationToken => _threadStateCoordinator.LoadInitialCatalogStateAsync(cancellationToken),
             _threadStateCoordinator.ApplyInitialCatalogState,
-            RefreshCatalogAndThreadWorkspace,
+            PublishStartupCatalogProjectionReady,
             FocusPromptEditor,
             SetStatus);
         _acpUi = new AcpFrontendCoordinator(
@@ -509,6 +509,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     internal void RefreshShellChrome() => _workspaceCoordinator.RefreshShellChrome();
 
     internal void RefreshCatalogAndThreadWorkspace() { _threadInfoPresenter?.InvalidateSelection(); _workspaceCoordinator.RefreshCatalogAndThreadWorkspace(); }
+
+    internal void PublishStartupCatalogProjectionReady()
+        => _frontendEvents.Publish(new StartupCatalogProjectionReadyEvent());
 
     internal void RefreshHeaderAndThreadWorkspace() => _workspaceCoordinator.RefreshHeaderAndThreadWorkspace();
 

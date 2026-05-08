@@ -6,6 +6,8 @@ internal abstract record ShellFrontendEvent;
 
 internal sealed record CatalogChangedEvent : ShellFrontendEvent;
 
+internal sealed record StartupCatalogProjectionReadyEvent : ShellFrontendEvent;
+
 internal sealed record SelectionChangedEvent(ShellFrontendStateSnapshot? Snapshot = null) : ShellFrontendEvent;
 
 internal sealed record OpenTabsChangedEvent(IReadOnlyList<ShellTabSnapshot> Tabs) : ShellFrontendEvent;
