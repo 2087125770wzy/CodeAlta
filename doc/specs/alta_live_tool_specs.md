@@ -28,7 +28,7 @@ alta model list --provider codex
 alta session create --project CodeAlta --same-model-as <thread-id> --reasoning low
 alta session tail <thread-id> --last 10
 alta session send <thread-id> --stdin
-alta skills activate <skill-name> --session <thread-id>
+alta skill activate <skill-name> --session <thread-id>
 ```
 
 The tool should be:
@@ -99,7 +99,7 @@ Model-visible tool result shape:
 
 ```jsonl
 {"type":"alta.result","version":1,"exitCode":0,"correlationId":"01HX...","truncated":false}
-{"type":"alta.session.summary","version":1,"correlationId":"01HX...",...}
+{"type":"alta.session.summary","version":1,"correlationId":"01HX...","count":1,"truncated":false}
 ```
 
 The live tool should not return a JSON object with `stdout`/`stderr` string properties containing escaped JSONL. That nested form is unnecessarily verbose for model context. Instead, the model-visible response for non-help commands is a flat finite JSONL transcript: one compact `alta.result` header followed by the command's normal JSONL records and any diagnostic records. Empty streams have no section marker.
@@ -121,7 +121,7 @@ Implications:
 - do not make an external `alta ...` shell process control a running CodeAlta instance;
 - commands that need live runtime state receive it from the current dependency-injection/service context;
 - read-only catalog commands may still be reusable in tests or startup diagnostics, but the live session-control feature assumes an in-process host context;
-- plugin command contributions are merged into the same in-process command tree before sessions receive the live tool;
+- plugin command contributions are merged into the in-process command catalog/tree before sessions receive the live tool;
 - trusted plugins may also invoke the same in-process dispatcher programmatically instead of shelling out or duplicating orchestration APIs.
 
 ### 5.3 Non-blocking command model
@@ -183,7 +183,8 @@ Implementation guidance:
 - prefer built-in `XenoAtom.CommandLine` validators and constraints, such as `Validate.OneOf`, `Validate.Range`, `Validate.NonEmpty`, mutually exclusive constraints, and required argument cardinality, so invalid usage is caught before command handlers mutate state;
 - when custom validation is needed while parsing options, throw the current library exception type `CommandOptionException` (older notes may call this `OptionException`) or another appropriate `CommandException` so the command path, unknown-token suggestions, inactive-option notes, and `Use ... --help` guidance remain consistent;
 - for errors detected after parsing but before mutation, return an `alta.error` record with the stable exit code that best matches the condition; use exit code 2 only for command-line usage/parse/argument validation errors;
-- configure `XenoAtom.CommandLine` output through `ICommandOutput` or an equivalent adapter so `--help` continues to use normal help output while errors, unknown-token diagnostics, version output, and command results remain JSONL for non-help invocations.
+- configure `XenoAtom.CommandLine` output through `ICommandOutput` or an equivalent adapter so `--help` continues to use normal help output while errors, unknown-token diagnostics, version output, and command results remain JSONL for non-help invocations;
+- do not leak the library default parse-error exit code if it differs from this spec; the `alta` dispatcher should map parse/usage failures to exit code 2 consistently.
 
 Example `alta session list` output:
 
@@ -267,7 +268,7 @@ alta --help
 alta <group> --help
 alta <group> <command> --help
 alta version
-alta capability list
+alta tool capability list
 ```
 
 Responsibilities:
@@ -276,7 +277,7 @@ Responsibilities:
 - rely on `XenoAtom.CommandLine` help generation to list visible subcommands, options, arguments, usage, and command descriptions;
 - make each command description concise and agent-readable because it becomes the progressive discovery text shown by `--help`;
 - include examples in command help text where the syntax is not obvious;
-- expose runtime capabilities with `capability list`, not command-tree discovery.
+- expose runtime/live-tool capabilities with `tool capability list` under the canonical `tool` group, not as command-tree discovery.
 
 No separate `alta describe`, `alta commands`, or `alta schema` commands are required for v1. They would duplicate `XenoAtom.CommandLine`'s built-in help behavior and should be added only later if a concrete machine-readable discovery gap remains after the CLI/live tool exists.
 
@@ -437,10 +438,12 @@ Implementation source:
 
 Provider-managed backends that own their native skill system must return a clear unsupported-capability response when CodeAlta-managed skill activation cannot be injected.
 
-### 6.7 Runtime, provider, and plugin discovery commands
+### 6.7 Provider, plugin, and tool discovery commands
 
 ```text
-alta runtime status
+alta tool status
+alta tool list
+alta tool capability list
 alta provider list
 alta provider model list [--provider <id>]
 alta model list [--provider <id>]
@@ -448,10 +451,9 @@ alta model show <model-ref>
 alta model resolve [--model-ref <ref>] [--same-model-as <thread-id>] [--provider <id>] [--model <id>] [--reasoning <effort>]
 alta plugin list
 alta plugin status <runtime-key>
-alta tool list
 ```
 
-These are read-only discovery commands that help a global agent understand what CodeAlta can do before creating or steering sessions. `provider model list` and `model list` should emit one `alta.model.item` JSONL record per model, including `modelRef`. `model resolve` should emit a single `alta.model.selection` JSONL record after applying the same precedence rules as `session create`.
+These are read-only discovery commands that help a global agent understand what CodeAlta can do before creating or steering sessions. `tool status` should describe the live gateway availability, caller scope, and output limits. `tool capability list` should summarize runtime/backend/plugin capabilities and command policy classifications without replacing `--help` for command discovery. `provider model list` and `model list` should emit one `alta.model.item` JSONL record per model, including `modelRef`. `model resolve` should emit a single `alta.model.selection` JSONL record after applying the same precedence rules as `session create`.
 
 Implementation source:
 
@@ -517,12 +519,16 @@ public sealed record AltaModelSelection
 
 public interface IAltaCommandContributor
 {
-    IEnumerable<CommandNode> GetCommandLineNodes(AltaCommandContributionContext context);
+    IEnumerable<CommandNode> CreateCommandLineNodes(AltaCommandContributionContext context);
     IEnumerable<AltaCommandPolicy> GetCommandPolicies(AltaCommandContributionContext context);
 }
 ```
 
-The command registry should generate one `CommandApp` tree for in-process live-tool argument parsing and any future in-process UI/diagnostic command surfaces. Help is not a separate metadata service: every root command, command group, and leaf command that accepts options should include `HelpOption` so `XenoAtom.CommandLine` can render `alta --help`, `alta session --help`, `alta session tail --help`, and plugin command help automatically.
+The command registry should generate a `CommandApp` tree for in-process live-tool argument parsing and any future in-process UI/diagnostic command surfaces. Help is not a separate metadata service: every root command, command group, and leaf command that accepts options should include `HelpOption` so `XenoAtom.CommandLine` can render `alta --help`, `alta session --help`, `alta session tail --help`, and plugin command help automatically.
+
+`XenoAtom.CommandLine` command graphs are intended for one invocation at a time: parsing mutates per-run option state, and concurrent `RunAsync`/`Parse` calls on the same command tree are not supported. The `alta` registry must therefore either create a fresh command tree with fresh, unattached `CommandNode` instances for each concurrent invocation, or serialize invocations through a single built tree. Prefer fresh per-invocation trees if multiple agents/plugins may call `alta` concurrently; if v1 starts with serialized dispatch, document the serialization and keep handlers non-blocking so the critical section stays short.
+
+Plugin and core command contributors must not cache and reuse `CommandNode` instances across multiple trees after they have been attached to a parent. Contribution APIs should either return fresh nodes for each registry build or provide factories/descriptors that the registry uses to create fresh nodes.
 
 `AltaCommandPolicy` is for in-process host enforcement and live-tool safety checks. It should not be treated as a replacement for help text or as a requirement to implement `alta describe` in v1.
 
@@ -577,11 +583,15 @@ The in-process command context should carry:
 - JSONL truncation limits;
 - cancellation token for bounded current work.
 
+Frontend/TUI integrations, such as future command-palette actions or sidebar affordances, should call the same in-process dispatcher through application services. They should not reimplement `alta` parsing in UI controls or move reusable orchestration into the frontend project. Run bounded command dispatch outside UI event handlers where needed, then marshal any view-state updates back through existing frontend coordinators/projections in line with `doc/development-guide.md`.
+
 ### 7.5 Agent tool integration
 
 For CodeAlta-managed backends, the runtime should add an `alta` tool definition to sessions when enabled by policy. The handler dispatches in-process directly to the command registry.
 
 Provider-managed backends may not accept host-injected tools. For those sessions, the model-visible `alta` live tool is only guaranteed when the host controls tool injection. V1 should not advertise an external shell command as an equivalent live-control path.
+
+The `AgentToolResult` returned to the backend should contain one `AgentToolResultItem.Text` item: either the normal help text for `--help`, or the compact flat JSONL transcript for non-help commands. `AgentToolResult.Success` should be `true` only when the `alta.result.exitCode` is `0`; for non-zero exit codes, set `Error` to a short summary from the first `alta.error` record when available. Do not use tool progress callbacks for normal command output in v1 because `alta` commands are finite snapshots, not streams.
 
 The tool should set caller identity:
 
@@ -608,11 +618,19 @@ Candidate service shape exposed through plugin services:
 ```csharp
 public interface IPluginAltaService
 {
-    ValueTask<AltaCommandResult> InvokeAsync(
+    ValueTask<PluginAltaCommandResult> InvokeAsync(
         IReadOnlyList<string> args,
         string? stdin = null,
         PluginAltaInvocationOptions? options = null,
         CancellationToken cancellationToken = default);
+}
+
+public sealed record PluginAltaCommandResult
+{
+    public required int ExitCode { get; init; }
+    public required string TranscriptJsonl { get; init; }
+    public bool Truncated { get; init; }
+    public string? Error { get; init; }
 }
 
 public sealed record PluginAltaInvocationOptions
@@ -624,6 +642,8 @@ public sealed record PluginAltaInvocationOptions
     public int? MaxOutputBytes { get; init; }
 }
 ```
+
+Plugin-facing service and contribution DTOs belong in `CodeAlta.Plugins.Abstractions`, because that is the only intended public 1.0 API surface. The internal `CodeAlta.LiveTool` registry can use richer internal types, but it must adapt them to stable plugin-facing DTOs rather than requiring plugins to reference a future non-public `CodeAlta.LiveTool` package.
 
 The service should:
 
@@ -640,7 +660,7 @@ A plugin-created session in the same project as an explicit source thread may us
 
 Plugins should be able to interact with the live `alta` tool in three complementary ways:
 
-1. **Contribute command-line nodes**: contribute `XenoAtom.CommandLine.CommandNode` entries that appear in `alta --help` and can be invoked by agents, host code, UI surfaces, or other plugins.
+1. **Contribute command-line nodes**: contribute factories/descriptors that create fresh `XenoAtom.CommandLine.CommandNode` entries appearing in `alta --help` and invokable by agents, host code, UI surfaces, or other plugins.
 2. **Contribute live command policies/handlers**: contribute safety/capability metadata and handlers that can run in a headless command context.
 3. **Invoke existing commands**: call `IPluginAltaService.InvokeAsync(...)` to use built-in or plugin-contributed commands such as `session create`, `session send`, `model resolve`, or `session status`.
 
@@ -657,7 +677,7 @@ public virtual IEnumerable<PluginAltaCommandContribution> GetAltaCommands() => [
 
 public sealed record PluginAltaCommandContribution
 {
-    public required CommandNode CommandNode { get; init; }
+    public required Func<AltaCommandContributionContext, CommandNode> CreateCommandNode { get; init; }
     public required AltaCommandPolicy Policy { get; init; }
     public required PluginAltaCommandHandler Handler { get; init; }
 }
@@ -665,7 +685,7 @@ public sealed record PluginAltaCommandContribution
 
 The runtime should reject or namespace plugin commands that collide with core command paths unless explicitly declared as aliases.
 
-Plugin commands must declare whether they are read-only, mutating, disruptive, require the in-process runtime, or can run with catalog-only services. These flags are enforced by the host and may be summarized by `alta capability list`; normal command discovery remains `--help`.
+Plugin commands must declare whether they are read-only, mutating, disruptive, require the in-process runtime, or can run with catalog-only services. These flags are enforced by the host and may be summarized by `alta tool capability list`; normal command discovery remains `--help`.
 
 Plugins invoking `alta` must not get a privileged bypass by default. A plugin can be trusted code, but `alta` command policy should still classify and audit the operation. Future plugin-management UI can add per-plugin policy controls; v1 should at least record `pluginRuntimeKey` provenance for mutating commands.
 
@@ -673,10 +693,10 @@ Plugins invoking `alta` must not get a privileged bypass by default. A plugin ca
 
 ### 9.1 Read-only vs mutating operations
 
-Commands must be classified:
+Commands must be classified. Initial v1 classifications:
 
-- read-only: `project list`, `session list`, `session children`, `session tail`, `session model`, `model list`, `model resolve`, `--help`, `version`, `provider list`;
-- mutating: `project upsert`, `session create`, `session send`, `session queue`, `skill activate`;
+- read-only: `--help`, `version`, `project list/show/resolve`, `session list/show/status/children/model/tail/events/join`, `skill list/show`, `provider list`, `provider model list`, `model list/show/resolve`, `plugin list/status`, `tool status`, `tool list`, `tool capability list`;
+- mutating: `project upsert`, `session create`, `session send`, `session steer`, `session queue`, `session compact`, `session message`, `session request`, `skill activate`;
 - disruptive: `session abort`, future delete/archive operations.
 
 The live tool handler should enforce command classification for audit/policy, but v1 does not require user-facing confirmation prompts for disruptive commands. CodeAlta sessions and plugins are configured as trusted/full-access actors in this phase. Future confirmation/pre-approval flows can be added without changing command names.
@@ -868,6 +888,7 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 - [ ] Build an `AltaCommandRegistry` around `XenoAtom.CommandLine`.
 - [ ] Move/extend existing top-level CLI parsing so `alta --help` can show new command groups.
 - [ ] Implement `version` and ensure `--help` works at the root, command-group, and leaf-command levels.
+- [ ] Choose and test the command-graph concurrency strategy: fresh per-invocation trees or serialized dispatch over one tree.
 - [ ] Implement catalog-only `project list/show/resolve/upsert` using `ProjectCatalog`.
 - [ ] Add tests for parsing, help availability, JSONL output, invalid usage diagnostics, `CommandOptionException`/validator failures, and exit codes.
 
@@ -882,7 +903,7 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 ### Phase 3: In-process live tool wiring
 
 - [ ] Register the `AltaCommandRegistry` and built-in command contributors in the CodeAlta composition root.
-- [ ] Build the final command tree after safe-mode/plugin bootstrap so plugin commands are available before sessions receive the live tool.
+- [ ] Build/freeze the final command catalog or contributor set after safe-mode/plugin bootstrap so plugin commands are available before sessions receive the live tool.
 - [ ] Expose an in-process dispatcher service that session/tool composition, UI code, tests, and plugins can call.
 - [ ] Add tests for in-process dispatch, compact flat live-tool transcript formatting, output capture, cancellation, truncation, and missing-service diagnostics.
 
@@ -927,9 +948,9 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 
 ### Phase 9: Plugin extension support
 
-- [ ] Add plugin `alta` command contribution abstractions.
-- [ ] Add `IPluginAltaService` (or equivalent) to plugin services so plugins can invoke built-in and plugin-contributed `alta` commands.
-- [ ] Merge core and plugin command nodes so plugin commands appear in the relevant `--help` output.
+- [ ] Add plugin `alta` command contribution abstractions with stable DTOs in `CodeAlta.Plugins.Abstractions` and fresh command-node factories/descriptors.
+- [ ] Add `IPluginAltaService` (or equivalent) to plugin services so plugins can invoke built-in and plugin-contributed `alta` commands without referencing `CodeAlta.LiveTool` directly.
+- [ ] Merge core and plugin command-node factories/descriptors so plugin commands appear in the relevant `--help` output.
 - [ ] Enforce collision rules and safety classifications.
 - [ ] Add tests with a sample plugin contributing a read-only command, a mutating command, and invoking `alta session create` through the plugin service.
 
@@ -951,7 +972,7 @@ Before considering the feature complete:
 - add command help snapshots for root, command-group, leaf-command, and plugin-contributed help output;
 - add invalid-usage diagnostic snapshots for unknown options, bad enum values, missing required arguments, mutually exclusive options, and plugin-contributed command validation;
 - add JSONL record contract tests for major command outputs and flat live-tool transcript/result-header formatting;
-- add in-process command dispatch tests that do not require the terminal UI;
+- add in-process command dispatch tests that do not require the terminal UI, including the chosen command-graph concurrency behavior;
 - add visibility-policy tests for global coordinator access, project-scoped access, coordinator replies, and denied cross-project access;
 - add orchestration tests for session list/send/steer/abort behavior and same-project child-session provenance;
 - add plugin tests for in-process command contribution discovery, collision handling, plugin invocation of built-in commands, and plugin provenance;
@@ -966,3 +987,5 @@ Before considering the feature complete:
 - `alta session tail` and `session events` read CodeAlta event projections / normalized stored events first. Backend history is fallback only and must tolerate transient file-write conflicts.
 - For 1.0, `CodeAlta.Plugins.Abstractions` is the only intended public package/API. `CodeAlta.LiveTool` may expose public types internally but ships bundled with the executable, not as a separate stable API.
 - Agent live-tool results use a compact flat JSONL transcript headed by `alta.result`; they must not wrap escaped stdout/stderr JSONL inside another JSON object.
+- Runtime and capability discovery belongs under the canonical `tool` group (`tool status`, `tool list`, `tool capability list`); v1 should not add separate `runtime` or `capability` command groups.
+- Because `XenoAtom.CommandLine` command graphs are not safe for concurrent invocations, the registry must use fresh command trees per concurrent call or serialize dispatch over a shared tree.
