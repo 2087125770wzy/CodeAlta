@@ -925,13 +925,13 @@ The skill should include a `samples/plugins/` folder with real sample plugins. S
 
 Recommended initial samples:
 
-- `hello-command`: one-file command and notification plugin;
+- `hello-command`: one-file command plugin with a visible status result;
 - `prompt-guidance`: system/developer prompt contribution plugin;
 - `ui-status`: terminal UI status/visual contribution plugin;
+- `ui-all-regions`: terminal UI sample contributing markers/status/renderers for every `PluginUiRegion` so live wiring can be inspected;
 - `skill-root`: plugin-contributed skill root;
-- `package-reference`: plugin with a direct `#:package` dependency to verify `EnableDynamicLoading` and private dependency resolution;
-- `background-task`: plugin using `IPluginTaskService` and unload cancellation;
-- `backend-provider`: minimal backend/provider contribution using `CodeAlta.Agent` contracts;
+- `package-reference`: plugin with a direct `#:package` dependency to verify `EnableDynamicLoading`, private dependency resolution, and visible command execution;
+- `background-task`: plugin using `IPluginTaskService`, visible task status, and unload cancellation;
 - `multi-plugin-assembly`: one `plugin.cs` assembly with multiple `PluginBase` classes.
 
 Integration tests should copy these samples into temporary plugin roots, generate build files, run the build service, load the result, assert expected contributions, unload the ALC, and verify diagnostics. Tests that require the .NET 10 SDK or network package restore should be categorized so failures are actionable.

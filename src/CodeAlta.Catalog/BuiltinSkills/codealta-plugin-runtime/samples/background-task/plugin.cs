@@ -14,4 +14,13 @@ public sealed class BackgroundTaskPlugin : PluginBase
         });
         return ValueTask.CompletedTask;
     }
+
+    public override IEnumerable<PluginCommandContribution> GetCommands()
+    {
+        yield return Command.Prompt("background-task-status", "Show tracked sample background task state.", static (context, _) =>
+        {
+            var count = context.Services.Tasks.RunningTaskCount;
+            return ValueTask.FromResult(PluginCommandResult.Message($"Background task sample has {count} tracked task(s) running."));
+        });
+    }
 }

@@ -5,7 +5,7 @@ public sealed class MultiOnePlugin : PluginBase
 {
     public override IEnumerable<PluginCommandContribution> GetCommands()
     {
-        yield return Command.Prompt("multi-one", "Command from the first plugin type.", static (_, _) => ValueTask.FromResult(PluginCommandResult.Handled));
+        yield return Command.Prompt("multi-one", "Command from the first plugin type.", static (_, _) => ValueTask.FromResult(PluginCommandResult.Message("Multi plugin one handled the command.")));
     }
 }
 
@@ -14,6 +14,6 @@ public sealed class MultiTwoPlugin : PluginBase
 {
     public override IEnumerable<PluginCommandContribution> GetCommands()
     {
-        yield return Command.Prompt("multi-two", "Command from the second plugin type.", static (_, _) => ValueTask.FromResult(PluginCommandResult.Handled));
+        yield return Command.Prompt("multi-two", "Command from the second plugin type.", static (_, _) => ValueTask.FromResult(PluginCommandResult.Message("Multi plugin two handled the command.")));
     }
 }

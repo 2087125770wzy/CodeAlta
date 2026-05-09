@@ -104,7 +104,8 @@ public sealed class PluginRuntimeEndToEndTests
 
         var (result, diagnostics) = await adapter.ExecuteCommandAsync([activePlugin], "sample-humanize");
 
-        Assert.AreEqual(PluginCommandResult.Handled, result);
+        Assert.AreEqual(PluginCommandDisposition.Handled, result.Disposition);
+        Assert.AreEqual("Humanizer says: Sample plugin", result.UserMessage);
         Assert.AreEqual(0, diagnostics.Count, string.Join(Environment.NewLine, diagnostics.Select(static diagnostic => diagnostic.Message)));
         var deactivationDiagnostics = await activePlugin.DeactivateAsync(TimeSpan.FromSeconds(5));
         Assert.AreEqual(0, deactivationDiagnostics.Count, string.Join(Environment.NewLine, deactivationDiagnostics.Select(static diagnostic => diagnostic.Message)));

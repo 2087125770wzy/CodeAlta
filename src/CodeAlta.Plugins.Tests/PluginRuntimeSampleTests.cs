@@ -8,10 +8,10 @@ public sealed class PluginRuntimeSampleTests
         "hello-command",
         "prompt-guidance",
         "ui-status",
+        "ui-all-regions",
         "skill-root",
         "package-reference",
         "background-task",
-        "backend-provider",
         "multi-plugin-assembly",
     ];
 

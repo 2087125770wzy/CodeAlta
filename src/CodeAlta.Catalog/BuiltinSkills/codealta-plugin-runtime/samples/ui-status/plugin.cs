@@ -1,10 +1,22 @@
 using CodeAlta.Plugins.Abstractions;
+using XenoAtom.Terminal.UI.Controls;
 
-[Plugin("ui-status", DisplayName = "UI Status", Description = "Adds a sample footer/status contribution.")]
+[Plugin("ui-status", DisplayName = "UI Status", Description = "Adds sample footer/status contributions.")]
 public sealed class UiStatusPlugin : PluginBase
 {
     public override IEnumerable<PluginUiContribution> GetUiContributions()
     {
-        yield return PluginUi.Status("Sample plugin", static _ => "active");
+        yield return new PluginStatusContribution
+        {
+            Region = PluginUiRegion.ThreadStatus,
+            Name = "sample-status",
+            GetStatus = static _ => new PluginStatusItem
+            {
+                Label = "Sample plugin",
+                Text = "active",
+                Tone = PluginStatusTone.Success,
+            },
+        };
+        yield return PluginUi.Visual(PluginUiRegion.ThreadFooter, static _ => new Markup("[dim]sample plugin footer active[/]"), "sample-footer");
     }
 }

@@ -5,6 +5,6 @@ public sealed class HelloCommandPlugin : PluginBase
 {
     public override IEnumerable<PluginCommandContribution> GetCommands()
     {
-        yield return Command.Prompt("hello", "Handle /hello from a plugin.", static (_, _) => ValueTask.FromResult(PluginCommandResult.Handled));
+        yield return Command.Prompt("hello", "Handle /hello from a plugin.", static (_, _) => ValueTask.FromResult(PluginCommandResult.Message("Hello from the sample plugin.")));
     }
 }

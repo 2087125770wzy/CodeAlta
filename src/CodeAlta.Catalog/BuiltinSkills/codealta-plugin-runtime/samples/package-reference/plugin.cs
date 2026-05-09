@@ -9,8 +9,8 @@ public sealed class PackageReferencePlugin : PluginBase
     {
         yield return Command.Prompt("sample-humanize", "Use a private package dependency.", static (_, _) =>
         {
-            _ = "sample plugin".Humanize();
-            return ValueTask.FromResult(PluginCommandResult.Handled);
+            var message = "sample plugin".Humanize();
+            return ValueTask.FromResult(PluginCommandResult.Message($"Humanizer says: {message}"));
         });
     }
 }
