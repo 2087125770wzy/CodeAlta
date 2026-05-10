@@ -571,19 +571,23 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
 
         try
         {
+            var threadStateUpdated = false;
             var agentId = await _threadActors.GetOrCreate(thread.ThreadId).QueryAsync(
                     async actorCancellationToken =>
                     {
                         var ensuredAgentId = await EnsureCoordinatorSessionCoreAsync(thread, options, actorCancellationToken).ConfigureAwait(false);
-                        if (thread.StartedAt is null)
-                        {
-                            thread.MarkStarted(DateTimeOffset.UtcNow);
-                        }
+                        thread.MarkStarted(DateTimeOffset.UtcNow);
+                        threadStateUpdated = true;
 
                         return ensuredAgentId;
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
+
+            if (threadStateUpdated)
+            {
+                PublishThreadCatalogEvent(thread);
+            }
 
             var runStartedAt = DateTimeOffset.UtcNow;
             var runId = await _agentHub.RunAsync(agentId, sendOptions, cancellationToken).ConfigureAwait(false);
@@ -594,8 +598,20 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
 
             return runId;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            var activeRunId = await ClearActiveRunAsync(thread.ThreadId, CancellationToken.None).ConfigureAwait(false);
+            PublishRunFinishedEvent(
+                thread.ThreadId,
+                activeRunId,
+                WorkThreadLifecycleEventKind.RunAborted,
+                "Runtime run cancelled.",
+                DateTimeOffset.UtcNow);
+            throw;
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            await ClearActiveRunAsync(thread.ThreadId, CancellationToken.None).ConfigureAwait(false);
             PublishRuntimeFailureEvent(thread, ex);
             throw;
         }
@@ -1171,6 +1187,38 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         }
     }
 
+    private async Task<AgentRunId?> ClearActiveRunAsync(string threadId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(threadId) || !_threadActors.TryGet(threadId, out var actor))
+        {
+            return null;
+        }
+
+        try
+        {
+            return await actor.QueryAsync(
+                    _ =>
+                    {
+                        if (_entries.TryGetValue(threadId, out var entry))
+                        {
+                            return ValueTask.FromResult(entry.ClearActiveRun());
+                        }
+
+                        return ValueTask.FromResult<AgentRunId?>(null);
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
+        {
+            return null;
+        }
+        catch (InvalidOperationException) when (_disposed)
+        {
+            return null;
+        }
+    }
+
     private async Task PostAgentEventToActorAsync(
         WorkThreadActor actor,
         string threadId,
@@ -1718,6 +1766,30 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
             }));
     }
 
+    private void PublishRunFinishedEvent(
+        string threadId,
+        AgentRunId? runId,
+        WorkThreadLifecycleEventKind kind,
+        string message,
+        DateTimeOffset timestamp)
+    {
+        if (_disposed || string.IsNullOrWhiteSpace(threadId))
+        {
+            return;
+        }
+
+        _events.TryPublish(new WorkThreadLifecycleRuntimeEvent(
+            threadId,
+            timestamp,
+            new WorkThreadLifecycleEvent
+            {
+                ThreadId = threadId,
+                Kind = kind,
+                RunId = runId?.Value,
+                Message = message,
+            }));
+    }
+
     private void PublishSessionLifecycleEvent(
         string threadId,
         string? previousThreadId,
@@ -2117,6 +2189,14 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
 
             ActiveRunId = runId;
             return true;
+        }
+
+        public AgentRunId? ClearActiveRun()
+        {
+            var activeRunId = ActiveRunId;
+            ActiveRunId = null;
+            LastTerminalEventAt = DateTimeOffset.UtcNow;
+            return activeRunId;
         }
 
         public void BeginQueueDrain()

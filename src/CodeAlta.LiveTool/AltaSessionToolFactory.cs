@@ -29,18 +29,18 @@ public static class AltaSessionToolFactory
               "description": "Optional working directory used for project-relative command resolution."
             },
             "maxOutputRecords": {
-              "type": "integer",
-              "description": "Optional positive cap on returned JSONL records after the alta.result header.",
+              "type": ["integer", "null"],
+              "description": "Optional positive cap on returned JSONL records after the alta.result header. Omit unless setting a positive integer.",
               "minimum": 1
             },
             "maxOutputBytes": {
-              "type": "integer",
-              "description": "Optional positive cap on returned UTF-8 transcript bytes.",
+              "type": ["integer", "null"],
+              "description": "Optional positive cap on returned UTF-8 transcript bytes. Omit unless setting a positive integer.",
               "minimum": 1
             },
             "timeoutMs": {
-              "type": "integer",
-              "description": "Optional positive timeout for this finite alta command invocation, in milliseconds.",
+              "type": ["integer", "null"],
+              "description": "Optional positive timeout for this finite alta command invocation, in milliseconds. Omit unless setting a positive integer.",
               "minimum": 1
             }
           },
@@ -204,6 +204,11 @@ public static class AltaSessionToolFactory
     {
         error = null;
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(propertyName, out var element))
+        {
+            return null;
+        }
+
+        if (element.ValueKind is JsonValueKind.Null)
         {
             return null;
         }

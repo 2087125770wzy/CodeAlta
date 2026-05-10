@@ -95,7 +95,7 @@ The tool payload should be intentionally small so plugins can add subcommands wi
 }
 ```
 
-The implemented agent-tool schema exposes `args`, nullable `stdin`, nullable `cwd`, `maxOutputRecords`, `maxOutputBytes`, and `timeoutMs` (milliseconds). The handler passes `cwd` through to the shared dispatcher so project-relative commands such as `project resolve` use the caller-supplied working directory while still falling back to the session working directory when omitted.
+The implemented agent-tool schema exposes `args`, nullable `stdin`, nullable `cwd`, nullable `maxOutputRecords`, nullable `maxOutputBytes`, and nullable `timeoutMs` (milliseconds). Optional numeric caps should be omitted unless set to positive integers; explicit JSON `null` is accepted and treated like omission for compatibility. The handler passes `cwd` through to the shared dispatcher so project-relative commands such as `project resolve` use the caller-supplied working directory while still falling back to the session working directory when omitted.
 
 Model-visible tool result shape:
 
@@ -396,7 +396,7 @@ alta session message <thread-id> (--message <text> | --stdin) [--kind note|reque
 alta session request <thread-id> (--message <text> | --stdin) [--reply-requested]
 ```
 
-These commands are wrappers over `session send` or `session queue` that add CodeAlta attribution metadata. They are useful when one agent needs to communicate with another without pretending to be the user. `--reply-requested` is metadata for the target session; the command still returns after delivery/queueing and does not wait for a reply.
+These commands are wrappers over `session send` or `session queue` that add CodeAlta attribution metadata. They are useful when one agent needs to communicate with another without pretending to be the user. Use plain `session send` for actionable delegated work that should run as a normal target-session turn; use `message`/`request` for peer notes, handoffs, or coordination metadata where the delegated-agent header is desired. `--reply-requested` is metadata for the target session; the command still returns after delivery/queueing and does not wait for a reply. Agent-originated submissions may report `detached: true` after acceptance when the target turn continues beyond the live-tool acknowledgement window; callers must poll `session status` and `session tail`/`events` before treating the target work as complete.
 
 For parent/child sessions, explicit `alta session message` calls are not required for routine child-to-parent completion reporting. When a child session has a durable `parentThreadId`, the runtime automatically forwards the child's last visible assistant message for each completed turn to the parent as a peer-agent notification. The parent delivery path is fail-soft: if the parent has an active run, CodeAlta sends the notification as steering input; otherwise, or if steering is unavailable/races with idle, CodeAlta persists it as a queued prompt so child completion reporting does not fail the child turn.
 

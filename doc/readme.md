@@ -113,7 +113,7 @@ alta session tail <thread-id> --last 10
 alta session events <thread-id> --limit 20
 ```
 
-Session control commands submit work and return submission/queue metadata instead of waiting for the target agent to finish. `send --queue-if-busy` and explicit `queue` persist durable queue items with caller attribution; the runtime drains at most one queued prompt for a thread when the active run becomes idle.
+Session control commands submit work and return submission/queue metadata instead of waiting for the target agent to finish. Agent-originated submissions can return `detached: true` after the runtime accepts a long-running turn; treat that as an accepted submission and poll `session status` plus `session tail`/`session events` until an assistant response or failure is visible. `send --queue-if-busy` and explicit `queue` persist durable queue items with caller attribution; the runtime drains at most one queued prompt for a thread when the active run becomes idle.
 
 ```text
 alta session create --project CodeAlta --title "Investigate parser" --same-model-as <thread-id> --reasoning low
@@ -126,12 +126,14 @@ alta session compact <thread-id>
 alta session join <thread-id>
 ```
 
-Agents should use the peer-agent wrappers when talking to another session so CodeAlta records provenance and the target sees a non-authoritative delegated-agent header rather than a user/developer/system instruction:
+Use `session send` for actionable delegated prompts that should make the target model run as its next normal turn. Use the peer-agent wrappers for attributed notes, handoffs, or coordination messages where the target should see a non-authoritative delegated-agent header rather than a user/developer/system instruction:
 
 ```text
 alta session message <thread-id> --kind handoff --message "Here is the context I collected."
 alta session request <thread-id> --reply-requested --stdin
 ```
+
+Optional live-tool caps such as `maxOutputRecords`, `maxOutputBytes`, and `timeoutMs` should be omitted unless setting positive integers; explicit JSON `null` is treated like omission for compatibility.
 
 Model and provider discovery use the same model-ref rules as session creation:
 

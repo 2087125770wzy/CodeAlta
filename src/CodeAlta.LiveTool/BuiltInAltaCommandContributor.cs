@@ -10,6 +10,8 @@ namespace CodeAlta.LiveTool;
 
 internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 {
+    private static readonly TimeSpan AgentCallerSubmitAckTimeout = TimeSpan.FromSeconds(1);
+
     private static readonly AltaCommandPolicy[] Policies =
     [
         Read("version", supportsCatalogOnlyContext: true),
@@ -1243,11 +1245,22 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 return AltaExitCodes.Success;
             }
 
-            var submittedRunId = await runtime.SendAsync(
+            var sendTask = runtime.SendAsync(
                 info.Thread,
                 executionOptions,
                 new AgentSendOptions { Input = AgentInput.Text(inputText) },
-                context.CancellationToken).ConfigureAwait(false);
+                IsAgentCaller(context) ? CancellationToken.None : context.CancellationToken);
+
+            if (IsAgentCaller(context) && await Task.WhenAny(sendTask, Task.Delay(AgentCallerSubmitAckTimeout)).ConfigureAwait(false) != sendTask)
+            {
+                _ = ObserveDetachedPromptSubmissionAsync(sendTask);
+                await runtime.PersistThreadLocalStateAsync(info.Thread, CancellationToken.None).ConfigureAwait(false);
+                await PersistPromptProvenanceAsync(context, info.Thread, runId: null, queued: false, kind, inputText).ConfigureAwait(false);
+                WritePromptResult(context, kind is PromptDispatchKind.Message or PromptDispatchKind.Request ? "alta.session.message.sent" : "alta.session.submitted", info.Thread, runId: null, queueItemId: null, queued: false, kind, inputText);
+                return AltaExitCodes.Success;
+            }
+
+            var submittedRunId = await sendTask.ConfigureAwait(false);
             await runtime.PersistThreadLocalStateAsync(info.Thread, context.CancellationToken).ConfigureAwait(false);
             await PersistPromptProvenanceAsync(context, info.Thread, submittedRunId.Value, queued: false, kind, inputText).ConfigureAwait(false);
             WritePromptResult(context, kind is PromptDispatchKind.Message or PromptDispatchKind.Request ? "alta.session.message.sent" : "alta.session.submitted", info.Thread, submittedRunId.Value, null, queued: false, kind, inputText);
@@ -2067,6 +2080,22 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         await threadCatalog.SaveViewStateAsync(viewState, context.CancellationToken).ConfigureAwait(false);
     }
 
+    private static bool IsAgentCaller(AltaCommandContext context)
+        => string.Equals(context.Caller.Kind, "agent", StringComparison.OrdinalIgnoreCase);
+
+    private static async Task ObserveDetachedPromptSubmissionAsync(Task<AgentRunId> sendTask)
+    {
+        try
+        {
+            await sendTask.ConfigureAwait(false);
+        }
+        catch
+        {
+            // WorkThreadRuntimeService publishes runtime failure events for observers; this continuation
+            // prevents detached live-tool submissions from surfacing as unobserved task exceptions.
+        }
+    }
+
     private static string BuildPeerAgentMessage(AltaCommandContext context, WorkThreadDescriptor target, PromptOptions options, string body)
     {
         var kind = string.IsNullOrWhiteSpace(options.MessageKind) ? "note" : options.MessageKind;
@@ -2310,6 +2339,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             runId,
             queueItemId,
             queued,
+            detached = runId is null && queueItemId is null && !queued,
             dispatchKind = kind.ToString().ToLowerInvariant(),
             submittedBy = CreateProvenance(context),
             promptPreview = prompt.Length <= 160 ? prompt : prompt[..160],
