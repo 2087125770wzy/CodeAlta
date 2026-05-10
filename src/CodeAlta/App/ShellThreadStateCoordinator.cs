@@ -553,8 +553,15 @@ internal sealed class ShellThreadStateCoordinator
     public ProjectDescriptor? GetSelectedProject()
     {
         var selectedThread = GetSelectedThread();
-        return selectedThread?.ProjectRef is { } projectId
-            ? GetProjectById(projectId)
+        if (selectedThread is not null)
+        {
+            return selectedThread.ProjectRef is { } projectId
+                ? GetProjectById(projectId)
+                : null;
+        }
+
+        return Selection.Target is WorkspaceTarget.Draft { IsGlobal: true }
+            ? null
             : GetProjectById(SelectedProjectId);
     }
 

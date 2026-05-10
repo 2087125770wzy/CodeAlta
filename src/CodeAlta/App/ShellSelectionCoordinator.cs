@@ -127,10 +127,10 @@ internal sealed class ShellSelectionCoordinator
             return;
         }
 
-        var preferredProjectId = NormalizeProjectId(projects, persistedSelection.ProjectId ?? projects.FirstOrDefault()?.Id);
+        var preferredProjectId = NormalizeProjectId(projects, persistedSelection.ProjectId);
         Selection = persistedSelection.DraftScope == WorkThreadDraftScope.Global
             ? ShellSelection.GlobalDraft(preferredProjectId)
-            : preferredProjectId is { } projectId
+            : (preferredProjectId ?? GetDefaultProjectId(projects)) is { } projectId
                 ? ShellSelection.ProjectDraft(projectId)
                 : ShellSelection.GlobalDraft();
     }
@@ -220,11 +220,17 @@ internal sealed class ShellSelectionCoordinator
 
         if (string.IsNullOrWhiteSpace(projectId))
         {
-            return projects.FirstOrDefault()?.Id;
+            return null;
         }
 
         return projects.FirstOrDefault(project =>
             string.Equals(project.Id, projectId, StringComparison.OrdinalIgnoreCase))?.Id;
+    }
+
+    private static string? GetDefaultProjectId(IReadOnlyList<ProjectDescriptor> projects)
+    {
+        ArgumentNullException.ThrowIfNull(projects);
+        return projects.FirstOrDefault()?.Id;
     }
 
     private static WorkThreadDescriptor? FindThread(IReadOnlyList<WorkThreadDescriptor> threads, string threadId)

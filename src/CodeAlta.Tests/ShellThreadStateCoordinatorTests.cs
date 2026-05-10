@@ -349,6 +349,23 @@ public sealed class ShellThreadStateCoordinatorTests
     }
 
     [TestMethod]
+    public void OpenThread_GlobalThreadDoesNotSelectFirstProject()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var coordinator = CreateCoordinator(options);
+        var firstProject = CreateProject("project-1", ".azuredevops");
+        var globalThread = CreateGlobalThread("global-thread", options.GlobalRoot);
+        coordinator.ApplyRecoveredCatalogState([firstProject], [globalThread]);
+
+        coordinator.OpenThread(globalThread.ThreadId);
+
+        Assert.AreEqual(globalThread.ThreadId, coordinator.SelectedThreadId);
+        Assert.IsNull(coordinator.SelectedProjectId);
+        Assert.IsNull(coordinator.GetSelectedProject());
+    }
+
+    [TestMethod]
     public void ApplyRecoveredCatalogState_PreservesPersistedDraftSelectionEvenWhenOpenThreadsExist()
     {
         using var temp = TempDirectory.Create();
@@ -638,6 +655,24 @@ public sealed class ShellThreadStateCoordinatorTests
             ProjectRef = "project-1",
             WorkingDirectory = @"C:\repo",
             Title = "Test thread",
+            Status = WorkThreadStatus.Active,
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp,
+            LastActiveAt = timestamp,
+        };
+    }
+
+    private static WorkThreadDescriptor CreateGlobalThread(string threadId, string globalRoot)
+    {
+        var timestamp = DateTimeOffset.Parse("2026-03-29T12:00:00+00:00");
+        return new WorkThreadDescriptor
+        {
+            ThreadId = threadId,
+            Kind = WorkThreadKind.GlobalThread,
+            BackendId = AgentBackendIds.Codex.Value,
+            BackendSessionId = $"session-{threadId}",
+            WorkingDirectory = globalRoot,
+            Title = "Global Thread",
             Status = WorkThreadStatus.Active,
             CreatedAt = timestamp,
             UpdatedAt = timestamp,

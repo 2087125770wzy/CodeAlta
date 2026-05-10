@@ -232,7 +232,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         _fileEditorWorkspaceCoordinator = new FileEditorWorkspaceCoordinator(
             projectFileSearchService,
             _shellTabService,
-            () => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject),
+            ResolvePromptRoot,
             () => ThreadInput,
             () => _threadWorkspaceView,
             build => CreateComputedVisual(build),
@@ -419,6 +419,9 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         return true;
     }
 
+    private string? ResolvePromptRoot()
+        => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject, _catalogOptions.GlobalRoot);
+
     internal void RefreshModelProviderSelectorsForDraftScope(AgentBackendId? preferredBackendId = null)
         => _modelProviderSelectorCoordinator.RefreshForDraftScope(preferredBackendId);
 
@@ -458,7 +461,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         if (_shellView is not null) return _shellView;
 
         var projectFileSearch = _ownedServices?.ProjectFileSearchService ?? NullProjectFileSearchService.Instance;
-        var promptRoot = () => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject);
+        Func<string?> promptRoot = ResolvePromptRoot;
         var imageCallbacks = PromptImageWorkspaceCallbackFactory.Create(
             _promptDraftUiCoordinator,
             new PromptImageCapabilityContext(GetSelectedThread, threadId => _threadStateCoordinator.FindOpenThread(threadId), GetPreferredModelProviderId, _chatBackendStates),
