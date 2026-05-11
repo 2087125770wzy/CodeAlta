@@ -950,6 +950,98 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
+    public async Task SessionEventsAndMetrics_CanReturnCompactFilteredSnapshots()
+    {
+        using var root = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = root.Path };
+        var backendId = new AgentBackendId("metrics");
+        var sessionId = "session-metrics";
+        var timestamp = new DateTimeOffset(2026, 05, 09, 11, 00, 00, TimeSpan.Zero);
+        var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(root.Path));
+        await store.UpsertSessionAsync(new LocalAgentSessionSummary
+        {
+            SessionId = sessionId,
+            BackendId = backendId,
+            ProtocolFamily = "openai",
+            ProviderKey = backendId.Value,
+            ModelId = "gpt-metrics",
+            WorkingDirectory = root.Path,
+            Title = "Metrics session",
+            Summary = "Stored metrics",
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp.AddMinutes(4),
+        }).ConfigureAwait(false);
+        await store.AppendEventsAsync(
+            "openai",
+            backendId.Value,
+            sessionId,
+            [
+                new AgentContentCompletedEvent(backendId, sessionId, timestamp, new AgentRunId("run-1"), AgentContentKind.User, "user-1", null, "please summarize"),
+                new AgentActivityEvent(backendId, sessionId, timestamp.AddMinutes(1), new AgentRunId("run-1"), AgentActivityKind.ToolCall, AgentActivityPhase.Requested, "tool-1", null, "read_file", null),
+                new AgentContentCompletedEvent(backendId, sessionId, timestamp.AddMinutes(2), new AgentRunId("run-1"), AgentContentKind.ToolOutput, "tool-output-1", "tool-1", "large tool output"),
+                new AgentSessionUpdateEvent(
+                    backendId,
+                    sessionId,
+                    timestamp.AddMinutes(3),
+                    new AgentRunId("run-1"),
+                    AgentSessionUpdateKind.UsageUpdated,
+                    "Usage updated.",
+                    Usage: new AgentSessionUsage(
+                        Window: new AgentWindowUsageSnapshot(321, 1000, 4, "test window"),
+                        LastOperation: new AgentOperationUsageSnapshot(Model: "gpt-metrics", InputTokens: 100, OutputTokens: 20, CachedInputTokens: 10),
+                        Scope: AgentUsageScope.CurrentWindow,
+                        Source: AgentUsageSource.LocalProviderUsage,
+                        UpdatedAt: timestamp.AddMinutes(3))),
+                new AgentContentCompletedEvent(backendId, sessionId, timestamp.AddMinutes(4), new AgentRunId("run-1"), AgentContentKind.Assistant, "assistant-1", null, "final concise answer"),
+            ]).ConfigureAwait(false);
+        var runtime = CreateRuntime(options, backendId);
+        await using var _ = runtime.ConfigureAwait(false);
+        var dispatcher = CreateDispatcher(new AltaServiceCollection()
+            .Add(options)
+            .Add(new ProjectCatalog(options))
+            .Add(new WorkThreadCatalog(options))
+            .Add(runtime));
+        var threadId = WorkThreadRuntimeService.CreateThreadId(backendId, sessionId);
+
+        var filteredEvents = await dispatcher.InvokeAsync(["session", "events", threadId, "--kind", "assistant.message", "--fields", "timestamp,kind,text"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var noToolOutput = await dispatcher.InvokeAsync(["session", "events", threadId, "--no-tool-output"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var metrics = await dispatcher.InvokeAsync(["session", "metrics", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var show = await dispatcher.InvokeAsync(["session", "show", threadId], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+        var list = await dispatcher.InvokeAsync(["session", "list", "--metrics"], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);
+
+        Assert.AreEqual(AltaExitCodes.Success, filteredEvents.ExitCode);
+        var filteredEvent = ReadJsonLines(filteredEvents.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.event");
+        Assert.AreEqual("assistant.message", filteredEvent.GetProperty("kind").GetString());
+        Assert.AreEqual("final concise answer", filteredEvent.GetProperty("text").GetString());
+        Assert.IsFalse(filteredEvent.TryGetProperty("source", out var sourceProperty));
+        Assert.IsFalse(filteredEvent.TryGetProperty("role", out var roleProperty));
+
+        Assert.AreEqual(AltaExitCodes.Success, noToolOutput.ExitCode);
+        Assert.IsFalse(ReadJsonLines(noToolOutput.Stdout)
+            .Where(static line => line.GetProperty("type").GetString() == "alta.session.event")
+            .Any(static line => line.GetProperty("kind").GetString() == "tool.output"));
+
+        Assert.AreEqual(AltaExitCodes.Success, metrics.ExitCode);
+        var metricsPayload = ReadJsonLines(metrics.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.metrics").GetProperty("metrics");
+        Assert.AreEqual("last-turn", metricsPayload.GetProperty("scope").GetString());
+        Assert.AreEqual(240000d, metricsPayload.GetProperty("durationMs").GetDouble());
+        Assert.AreEqual(1, metricsPayload.GetProperty("toolCallCount").GetInt32());
+        Assert.AreEqual(3, metricsPayload.GetProperty("finalAnswer").GetProperty("finalAnswerWords").GetInt32());
+        Assert.AreEqual(100, metricsPayload.GetProperty("currentUsage").GetProperty("lastOperation").GetProperty("inputTokens").GetInt64());
+        Assert.AreEqual(20, metricsPayload.GetProperty("currentUsage").GetProperty("lastOperation").GetProperty("outputTokens").GetInt64());
+        Assert.AreEqual(10, metricsPayload.GetProperty("currentUsage").GetProperty("lastOperation").GetProperty("cachedInputTokens").GetInt64());
+
+        Assert.AreEqual(AltaExitCodes.Success, show.ExitCode);
+        Assert.IsTrue(ReadJsonLines(show.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.detail").TryGetProperty("metrics", out var showMetrics));
+        Assert.AreEqual(1, showMetrics.GetProperty("toolCallCount").GetInt32());
+
+        Assert.AreEqual(AltaExitCodes.Success, list.ExitCode);
+        var listItem = ReadJsonLines(list.Stdout).Single(static line => line.GetProperty("type").GetString() == "alta.session.item");
+        Assert.IsTrue(listItem.TryGetProperty("metrics", out var listMetrics));
+        Assert.AreEqual(240000d, listMetrics.GetProperty("durationMs").GetDouble());
+    }
+
+    [TestMethod]
     public async Task SessionEvents_CorruptOrLockedStoredHistoryWarnsAndFallsBackWithoutFailing()
     {
         using var root = TempDirectory.Create();

@@ -109,9 +109,12 @@ alta session show <thread-id>
 alta session status <thread-id>
 alta session children <thread-id> --recursive
 alta session model <thread-id>
+alta session metrics <thread-id> --scope last-turn
 alta session tail <thread-id> --last 10
-alta session events <thread-id> --limit 20
+alta session events <thread-id> --kind assistant.message --fields timestamp,kind,text
 ```
+
+Use `session metrics` when you need compact timing, final-answer, tool-call, and token/usage summaries without replaying a full transcript. `session show` includes last-turn metrics when history is available, and `session list --metrics` adds the same compact metrics to each emitted row. `session events` and `session tail` can be narrowed with `--kind`, `--fields`, and `--no-tool-output` to avoid large tool-result payloads during diagnostics.
 
 Session control commands submit work and return submission/queue metadata instead of waiting for the target agent to finish. Agent-originated submissions can return `detached: true` after the runtime accepts a long-running turn. For parent/child delegated work, do not poll by default: CodeAlta forwards the child final reply or a child-run error back to the parent thread automatically. Parented delegated submissions include `notificationExpected: true`, `shouldPoll: false`, `followUpMode: "notification"`, and `recommendedAction: "stop"` so coordinators can stop immediately. Use `session status`, `tail`, or `events` only for diagnostics, explicit observation, or when no parent notification is expected. `send --queue-if-busy` and explicit `queue` persist durable queue items with caller attribution; the runtime drains at most one queued prompt for a thread when the active run becomes idle.
 

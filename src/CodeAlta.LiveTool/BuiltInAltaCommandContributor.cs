@@ -26,6 +26,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         Read("session status"),
         Read("session children"),
         Read("session model"),
+        Read("session metrics"),
         Read("session tail"),
         Read("session events"),
         Mutating("session create"),
@@ -195,6 +196,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         group.Add(CreateSessionStatusCommand(context));
         group.Add(CreateSessionChildrenCommand(context));
         group.Add(CreateSessionModelCommand(context));
+        group.Add(CreateSessionMetricsCommand(context));
         group.Add(CreateSessionTailCommand(context));
         group.Add(CreateSessionEventsCommand(context));
         group.Add(CreateSessionCreateCommand(context));
@@ -222,13 +224,15 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string? state = null;
         string? backend = null;
         var limit = 50;
+        var includeMetrics = false;
         var command = Leaf("list", "List recoverable/live sessions as JSONL.");
         command.Add("project=", "Filter by project id, slug, or path.", value => project = value);
         command.Add("state=", "Filter by running, idle, inactive, archived, or all.", value => state = ValidateState(value));
         command.Add("backend=", "Filter by backend/provider id.", value => backend = value);
         command.Add("limit=", "Maximum sessions to return.", (int value) => limit = value);
-        command.Add(async (_, _) => await HandleSessionListAsync(context, project, state, backend, limit).ConfigureAwait(false));
-        AddHelpText(command, "Examples: `alta session list --project CodeAlta --state all --limit 20`; `alta session list --state running`.");
+        command.Add("metrics", "Include compact session metrics for emitted rows. This reads stored session history.", value => includeMetrics = value is not null);
+        command.Add(async (_, _) => await HandleSessionListAsync(context, project, state, backend, limit, includeMetrics).ConfigureAwait(false));
+        AddHelpText(command, "Examples: `alta session list --project CodeAlta --state all --limit 20`; add `--metrics` for compact duration/usage fields.");
         return command;
     }
 
@@ -271,17 +275,29 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return command;
     }
 
+    private static Command CreateSessionMetricsCommand(AltaCommandContext context)
+    {
+        string? threadId = null;
+        var scope = "last-turn";
+        var command = Leaf("metrics", "Summarize session timing, answer, tool, and usage metrics.");
+        command.Add("<thread-id>", "CodeAlta thread id.", value => threadId = value);
+        command.Add("scope=", "Metric scope: last-turn or session. Defaults to last-turn.", value => scope = value ?? scope);
+        command.Add(async (_, _) => await HandleSessionMetricsAsync(context, threadId, scope).ConfigureAwait(false));
+        AddHelpText(command, "Examples: `alta session metrics <thread-id>`; `alta session metrics <thread-id> --scope session`.");
+        return command;
+    }
+
     private static Command CreateSessionTailCommand(AltaCommandContext context)
     {
         string? threadId = null;
         var last = 20;
-        string? include = null;
+        var options = new SessionEventsOptions();
         var command = Leaf("tail", "Return a finite sanitized snapshot of recent session events.");
         command.Add("<thread-id>", "CodeAlta thread id.", value => threadId = value);
         command.Add("last=", "Number of recent events to return.", (int value) => last = value);
-        command.Add("include=", "Comma-separated categories: user,assistant,reasoning,tool,host,event.", value => include = value);
-        command.Add(async (_, _) => await HandleSessionEventsAsync(context, threadId, since: null, limit: last, include, fromTail: true).ConfigureAwait(false));
-        AddHelpText(command, "Examples: `alta session tail <thread-id> --last 10`; add `--include user,assistant,tool` to narrow categories.");
+        AddSessionEventOptions(command, options);
+        command.Add(async (_, _) => await HandleSessionEventsAsync(context, threadId, since: null, limit: last, options, fromTail: true).ConfigureAwait(false));
+        AddHelpText(command, "Examples: `alta session tail <thread-id> --last 10`; add `--include user,assistant` or `--kind assistant.message` to narrow output.");
         return command;
     }
 
@@ -290,15 +306,23 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string? threadId = null;
         long? since = null;
         var limit = 50;
-        string? include = null;
+        var options = new SessionEventsOptions();
         var command = Leaf("events", "Return a finite sanitized snapshot of session events.");
         command.Add("<thread-id>", "CodeAlta thread id.", value => threadId = value);
         command.Add("since=", "Return events after this sequence number.", (long value) => since = value);
         command.Add("limit=", "Maximum events to return.", (int value) => limit = value);
-        command.Add("include=", "Comma-separated categories: user,assistant,reasoning,tool,host,event.", value => include = value);
-        command.Add(async (_, _) => await HandleSessionEventsAsync(context, threadId, since, limit, include, fromTail: false).ConfigureAwait(false));
-        AddHelpText(command, "Example: `alta session events <thread-id> --since 120 --limit 50 --include assistant,tool,event`.");
+        AddSessionEventOptions(command, options);
+        command.Add(async (_, _) => await HandleSessionEventsAsync(context, threadId, since, limit, options, fromTail: false).ConfigureAwait(false));
+        AddHelpText(command, "Examples: `alta session events <thread-id> --since 120 --limit 50 --include assistant,tool`; `alta session events <thread-id> --kind assistant.message --fields timestamp,kind,content`.");
         return command;
+    }
+
+    private static void AddSessionEventOptions(Command command, SessionEventsOptions options)
+    {
+        command.Add("include=", "Comma-separated categories: user,assistant,reasoning,tool,host,event.", value => options.Include = value);
+        command.Add("kind=", "Comma-separated exact event kinds, e.g. assistant.message or tool.output.", value => options.Kind = value);
+        command.Add("fields=", "Comma-separated output fields. Always includes type/version/correlationId. Supported: threadId,sequenceNumber,timestamp,kind,role,source,content,text,metadata.", value => options.Fields = value);
+        command.Add("no-tool-output", "Suppress tool output content records while keeping non-output events.", value => options.NoToolOutput = value is not null);
     }
 
     private static Command CreateSessionCreateCommand(AltaCommandContext context)
@@ -857,7 +881,8 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string? projectFilter,
         string? stateFilter,
         string? backendFilter,
-        int limit)
+        int limit,
+        bool includeMetrics)
     {
         if (limit <= 0)
         {
@@ -899,9 +924,14 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
         var truncated = filtered.Length > limit;
         var emitted = truncated ? filtered.Take(limit).ToArray() : filtered;
+        var metricsByThreadId = includeMetrics
+            ? await BuildCompactMetricsForListAsync(context, emitted).ConfigureAwait(false)
+            : null;
         foreach (var info in emitted)
         {
-            WriteSession(context, "alta.session.item", info, includeChildren: false, infos);
+            SessionMetrics? metrics = null;
+            metricsByThreadId?.TryGetValue(info.Thread.ThreadId, out metrics);
+            WriteSession(context, "alta.session.item", info, includeChildren: false, infos, metrics);
         }
 
         WriteSummary(context, "alta.session.summary", emitted.Length, truncated);
@@ -927,7 +957,46 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
         }
 
-        WriteSession(context, recordType, info, includeChildren: true, infos);
+        var metrics = recordType == "alta.session.detail"
+            ? await BuildCompactMetricsAsync(context, info).ConfigureAwait(false)
+            : null;
+        WriteSession(context, recordType, info, includeChildren: true, infos, metrics);
+        return AltaExitCodes.Success;
+    }
+
+    private static async ValueTask<int> HandleSessionMetricsAsync(AltaCommandContext context, string? threadId, string? scope)
+    {
+        if (string.IsNullOrWhiteSpace(threadId))
+        {
+            return UsageError(context, "usage.missingThread", "Thread id is required.", "alta session metrics");
+        }
+
+        var normalizedScope = NormalizeMetricsScope(scope);
+        if (normalizedScope is null)
+        {
+            return UsageError(context, "usage.invalidScope", "--scope must be last-turn or session.", "alta session metrics");
+        }
+
+        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        {
+            return AltaExitCodes.ServiceUnavailable;
+        }
+
+        var infos = await LoadSessionInfosAsync(context).ConfigureAwait(false);
+        if (infos is null)
+        {
+            return AltaExitCodes.ServiceUnavailable;
+        }
+
+        var info = FindThread(infos, threadId);
+        if (info is null)
+        {
+            return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
+        }
+
+        var history = await ReadSessionHistoryAsync(context, runtime, info).ConfigureAwait(false);
+        var metrics = BuildSessionMetrics(info, history ?? [], normalizedScope.Value);
+        WriteSessionMetrics(context, "alta.session.metrics", info, metrics);
         return AltaExitCodes.Success;
     }
 
@@ -989,7 +1058,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         string? threadId,
         long? since,
         int limit,
-        string? include,
+        SessionEventsOptions options,
         bool fromTail)
     {
         if (string.IsNullOrWhiteSpace(threadId))
@@ -1019,6 +1088,74 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return NotFound(context, "session.notFound", $"Session '{threadId}' was not found.");
         }
 
+        var history = await ReadSessionHistoryAsync(context, runtime, info).ConfigureAwait(false);
+
+        if (history is null)
+        {
+            WriteSummary(context, fromTail ? "alta.session.tail.summary" : "alta.session.events.summary", 0, truncated: false);
+            return AltaExitCodes.Success;
+        }
+
+        var includes = ParseSet(options.Include);
+        var kinds = ParseSet(options.Kind);
+        var fields = ParseSet(options.Fields);
+        var records = history
+            .Select((agentEvent, index) => (Event: agentEvent, Sequence: (long)index + 1))
+            .Where(item => since is null || item.Sequence > since.Value)
+            .Where(item => IncludesEvent(item.Event, includes, kinds, options.NoToolOutput))
+            .ToArray();
+        var selected = fromTail
+            ? records.TakeLast(limit + 1).ToArray()
+            : records.Take(limit + 1).ToArray();
+        var truncated = selected.Length > limit;
+        var emitted = truncated
+            ? (fromTail ? selected.Skip(1).ToArray() : selected.Take(limit).ToArray())
+            : selected;
+
+        foreach (var item in emitted)
+        {
+            WriteAgentEvent(context, info.Thread, item.Event, item.Sequence, fields);
+        }
+
+        WriteSummary(context, fromTail ? "alta.session.tail.summary" : "alta.session.events.summary", emitted.Length, truncated);
+        return AltaExitCodes.Success;
+    }
+
+    private static async Task<IReadOnlyDictionary<string, SessionMetrics>> BuildCompactMetricsForListAsync(
+        AltaCommandContext context,
+        IReadOnlyList<AltaSessionInfo> infos)
+    {
+        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        {
+            return new Dictionary<string, SessionMetrics>(StringComparer.Ordinal);
+        }
+
+        var result = new Dictionary<string, SessionMetrics>(StringComparer.Ordinal);
+        foreach (var info in infos)
+        {
+            var history = await ReadSessionHistoryAsync(context, runtime, info).ConfigureAwait(false);
+            result[info.Thread.ThreadId] = BuildSessionMetrics(info, history ?? [], SessionMetricsScope.LastTurn);
+        }
+
+        return result;
+    }
+
+    private static async Task<SessionMetrics?> BuildCompactMetricsAsync(AltaCommandContext context, AltaSessionInfo info)
+    {
+        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        {
+            return null;
+        }
+
+        var history = await ReadSessionHistoryAsync(context, runtime, info).ConfigureAwait(false);
+        return BuildSessionMetrics(info, history ?? [], SessionMetricsScope.LastTurn);
+    }
+
+    private static async Task<IReadOnlyList<AgentEvent>?> ReadSessionHistoryAsync(
+        AltaCommandContext context,
+        WorkThreadRuntimeService runtime,
+        AltaSessionInfo info)
+    {
         var storedHistoryUnavailable = false;
         var history = await runtime.TryReadStoredHistoryAsync(
                 info.Thread,
@@ -1050,34 +1187,143 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             }
         }
 
-        if (history is null)
-        {
-            WriteSummary(context, fromTail ? "alta.session.tail.summary" : "alta.session.events.summary", 0, truncated: false);
-            return AltaExitCodes.Success;
-        }
-
-        var includes = ParseIncludes(include);
-        var records = history
-            .Select((agentEvent, index) => (Event: agentEvent, Sequence: (long)index + 1))
-            .Where(item => since is null || item.Sequence > since.Value)
-            .Where(item => IncludesEvent(item.Event, includes))
-            .ToArray();
-        var selected = fromTail
-            ? records.TakeLast(limit + 1).ToArray()
-            : records.Take(limit + 1).ToArray();
-        var truncated = selected.Length > limit;
-        var emitted = truncated
-            ? (fromTail ? selected.Skip(1).ToArray() : selected.Take(limit).ToArray())
-            : selected;
-
-        foreach (var item in emitted)
-        {
-            WriteAgentEvent(context, info.Thread, item.Event, item.Sequence);
-        }
-
-        WriteSummary(context, fromTail ? "alta.session.tail.summary" : "alta.session.events.summary", emitted.Length, truncated);
-        return AltaExitCodes.Success;
+        return history;
     }
+
+    private static SessionMetricsScope? NormalizeMetricsScope(string? scope)
+    {
+        if (string.IsNullOrWhiteSpace(scope) || string.Equals(scope, "last-turn", StringComparison.OrdinalIgnoreCase) || string.Equals(scope, "turn", StringComparison.OrdinalIgnoreCase))
+        {
+            return SessionMetricsScope.LastTurn;
+        }
+
+        return string.Equals(scope, "session", StringComparison.OrdinalIgnoreCase) || string.Equals(scope, "all", StringComparison.OrdinalIgnoreCase)
+            ? SessionMetricsScope.Session
+            : null;
+    }
+
+    private static SessionMetrics BuildSessionMetrics(AltaSessionInfo info, IReadOnlyList<AgentEvent> history, SessionMetricsScope scope)
+    {
+        var scoped = SelectMetricScope(history, scope);
+        var firstEvent = scoped.FirstOrDefault();
+        var lastEvent = scoped.LastOrDefault();
+        var firstUser = scoped.OfType<AgentContentCompletedEvent>().FirstOrDefault(static content => content.Kind == AgentContentKind.User);
+        var finalAssistant = scoped.OfType<AgentContentCompletedEvent>().LastOrDefault(static content => content.Kind == AgentContentKind.Assistant);
+        var startedAt = firstUser?.Timestamp ?? firstEvent?.Timestamp;
+        var completedAt = finalAssistant?.Timestamp ?? lastEvent?.Timestamp;
+        var duration = startedAt is not null && completedAt is not null && completedAt >= startedAt
+            ? completedAt.Value - startedAt.Value
+            : (TimeSpan?)null;
+        var toolCallCount = scoped.OfType<AgentActivityEvent>()
+            .Count(static activity => IsToolLikeActivity(activity.Kind) && activity.Phase == AgentActivityPhase.Requested);
+        var usageUpdates = scoped.OfType<AgentSessionUpdateEvent>()
+            .Where(static update => update.Usage is not null)
+            .ToArray();
+        var finalUsage = usageUpdates.LastOrDefault()?.Usage;
+        var providerTotals = BuildProviderOperationTotals(usageUpdates);
+        var finalAnswer = finalAssistant?.Content ?? string.Empty;
+
+        return new SessionMetrics(
+            scope,
+            scoped.Count,
+            scoped.Select(static agentEvent => agentEvent.RunId?.Value).Where(static runId => !string.IsNullOrWhiteSpace(runId)).Distinct(StringComparer.Ordinal).Count(),
+            startedAt,
+            completedAt,
+            duration,
+            finalAssistant?.Timestamp,
+            CountCompletedContent(scoped, AgentContentKind.User),
+            CountCompletedContent(scoped, AgentContentKind.Assistant),
+            toolCallCount,
+            finalAnswer.Length,
+            CountWords(finalAnswer),
+            TokenEstimator.Estimate(finalAnswer),
+            finalUsage,
+            providerTotals,
+            ToModelSelectionPayload(CreateModelSelection(info.Thread, info.Preference)));
+    }
+
+    private static IReadOnlyList<AgentEvent> SelectMetricScope(IReadOnlyList<AgentEvent> history, SessionMetricsScope scope)
+    {
+        if (scope == SessionMetricsScope.Session || history.Count == 0)
+        {
+            return history;
+        }
+
+        var lastRunId = history.OfType<AgentContentCompletedEvent>()
+            .Where(static content => content.Kind == AgentContentKind.Assistant && content.RunId is not null)
+            .Select(static content => content.RunId!.Value.Value)
+            .LastOrDefault();
+        if (string.IsNullOrWhiteSpace(lastRunId))
+        {
+            lastRunId = history.Where(static agentEvent => agentEvent.RunId is not null)
+                .Select(static agentEvent => agentEvent.RunId!.Value.Value)
+                .LastOrDefault();
+        }
+
+        return string.IsNullOrWhiteSpace(lastRunId)
+            ? history
+            : history.Where(agentEvent => string.Equals(agentEvent.RunId?.Value, lastRunId, StringComparison.Ordinal)).ToArray();
+    }
+
+    private static int CountCompletedContent(IReadOnlyList<AgentEvent> events, AgentContentKind kind)
+        => events.OfType<AgentContentCompletedEvent>().Count(content => content.Kind == kind);
+
+    private static ProviderOperationTotals BuildProviderOperationTotals(IReadOnlyList<AgentSessionUpdateEvent> usageUpdates)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        long inputTokens = 0;
+        long outputTokens = 0;
+        long cachedInputTokens = 0;
+        long reasoningTokens = 0;
+        var operationCount = 0;
+
+        foreach (var usage in usageUpdates)
+        {
+            if (usage.Usage?.LastOperation is not { } operation)
+            {
+                continue;
+            }
+
+            var signature = string.Join('\u001f', usage.RunId?.Value, operation.Model, operation.InputTokens, operation.OutputTokens, operation.CachedInputTokens, operation.CacheReadTokens, operation.CacheWriteTokens, operation.ReasoningTokens, operation.ParentToolCallId, operation.Initiator);
+            if (!seen.Add(signature))
+            {
+                continue;
+            }
+
+            operationCount++;
+            inputTokens += operation.InputTokens ?? 0;
+            outputTokens += operation.OutputTokens ?? 0;
+            cachedInputTokens += operation.CachedInputTokens ?? 0;
+            reasoningTokens += operation.ReasoningTokens ?? 0;
+        }
+
+        return new ProviderOperationTotals(operationCount, inputTokens, outputTokens, cachedInputTokens, reasoningTokens);
+    }
+
+    private static int CountWords(string text)
+    {
+        var count = 0;
+        var inWord = false;
+        foreach (var c in text)
+        {
+            if (char.IsWhiteSpace(c))
+            {
+                inWord = false;
+                continue;
+            }
+
+            if (!inWord)
+            {
+                count++;
+                inWord = true;
+            }
+        }
+
+        return count;
+    }
+
+    private static bool IsToolLikeActivity(AgentActivityKind kind)
+        => kind is AgentActivityKind.ToolCall or AgentActivityKind.CommandExecution or AgentActivityKind.FileChange or AgentActivityKind.McpToolCall or AgentActivityKind.DynamicToolCall or AgentActivityKind.CollabAgentToolCall;
 
     private static async ValueTask<int> HandleSessionCreateAsync(AltaCommandContext context, SessionCreateOptions options)
     {
@@ -2229,7 +2475,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         });
     }
 
-    private static void WriteSession(AltaCommandContext context, string type, AltaSessionInfo info, bool includeChildren, IReadOnlyList<AltaSessionInfo> infos)
+    private static void WriteSession(AltaCommandContext context, string type, AltaSessionInfo info, bool includeChildren, IReadOnlyList<AltaSessionInfo> infos, SessionMetrics? metrics = null)
     {
         var children = includeChildren ? GetChildren(infos, info, recursive: false).ToArray() : [];
         AltaJsonlWriter.WriteRecord(context.Stdout, new
@@ -2260,10 +2506,117 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             lastActiveAt = info.Thread.LastActiveAt,
             startedAt = info.Thread.StartedAt,
             sourcePath = info.Thread.SourcePath,
+            metrics = metrics is null ? null : ToCompactMetricsPayload(metrics),
             childCount = includeChildren ? children.Length : (int?)null,
             childThreadIds = includeChildren ? children.Select(static child => child.Thread.ThreadId).ToArray() : null,
         });
     }
+
+    private static void WriteSessionMetrics(AltaCommandContext context, string type, AltaSessionInfo info, SessionMetrics metrics)
+    {
+        AltaJsonlWriter.WriteRecord(context.Stdout, new
+        {
+            type,
+            version = 1,
+            correlationId = context.CorrelationId,
+            threadId = info.Thread.ThreadId,
+            backendId = info.Thread.BackendId,
+            providerKey = info.Thread.ResolvedProviderKey,
+            backendSessionId = info.Thread.BackendSessionId,
+            metrics = ToDetailedMetricsPayload(metrics),
+        });
+    }
+
+    private static object ToCompactMetricsPayload(SessionMetrics metrics)
+        => new
+        {
+            scope = MetricsScopeWire(metrics.Scope),
+            metrics.EventCount,
+            metrics.StartedAt,
+            metrics.CompletedAt,
+            durationMs = ToMilliseconds(metrics.Duration),
+            metrics.ToolCallCount,
+            finalAnswer = new
+            {
+                metrics.FinalAnswerCharacters,
+                metrics.FinalAnswerWords,
+                estimatedTokens = metrics.FinalAnswerEstimatedTokens,
+            },
+            usage = ToUsagePayload(metrics.FinalUsage),
+            providerOperations = ToProviderOperationTotalsPayload(metrics.ProviderOperations),
+        };
+
+    private static object ToDetailedMetricsPayload(SessionMetrics metrics)
+        => new
+        {
+            scope = MetricsScopeWire(metrics.Scope),
+            metrics.EventCount,
+            metrics.RunCount,
+            metrics.StartedAt,
+            metrics.CompletedAt,
+            durationMs = ToMilliseconds(metrics.Duration),
+            metrics.FinalAssistantAt,
+            metrics.UserMessageCount,
+            metrics.AssistantMessageCount,
+            metrics.ToolCallCount,
+            finalAnswer = new
+            {
+                metrics.FinalAnswerCharacters,
+                metrics.FinalAnswerWords,
+                estimatedTokens = metrics.FinalAnswerEstimatedTokens,
+            },
+            currentUsage = ToUsagePayload(metrics.FinalUsage),
+            providerOperations = ToProviderOperationTotalsPayload(metrics.ProviderOperations),
+            metrics.ModelSelection,
+        };
+
+    private static object? ToUsagePayload(AgentSessionUsage? usage)
+        => usage is null ? null : new
+        {
+            window = usage.Window is null ? null : new
+            {
+                usage.Window.CurrentTokens,
+                usage.Window.TokenLimit,
+                usage.Window.MessageCount,
+                usage.Window.Label,
+                usage.WindowUsagePercentage,
+            },
+            lastOperation = usage.LastOperation is null ? null : new
+            {
+                usage.LastOperation.Model,
+                usage.LastOperation.InputTokens,
+                usage.LastOperation.OutputTokens,
+                usage.LastOperation.CachedInputTokens,
+                usage.LastOperation.CacheReadTokens,
+                usage.LastOperation.CacheWriteTokens,
+                usage.LastOperation.ReasoningTokens,
+                usage.LastOperation.DurationMs,
+                usage.LastOperation.Cost,
+                usage.LastOperation.Initiator,
+                usage.LastOperation.ParentToolCallId,
+                usage.LastOperation.ReasoningEffort,
+                usage.LastOperation.Label,
+            },
+            scope = usage.Scope.ToString(),
+            source = usage.Source.ToString(),
+            usage.UpdatedAt,
+        };
+
+    private static object ToProviderOperationTotalsPayload(ProviderOperationTotals totals)
+        => new
+        {
+            totals.OperationCount,
+            totals.InputTokens,
+            totals.OutputTokens,
+            totals.CachedInputTokens,
+            totals.ReasoningTokens,
+        };
+
+    private static double? ToMilliseconds(TimeSpan? value)
+        => value?.TotalMilliseconds;
+
+    private static string MetricsScopeWire(SessionMetricsScope scope)
+        => scope == SessionMetricsScope.LastTurn ? "last-turn" : "session";
 
     private static bool IsPendingQueuedPromptState(string? state)
         => string.Equals(state, "queued", StringComparison.OrdinalIgnoreCase) ||
@@ -2293,9 +2646,15 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             selection.ModelRef,
         };
 
-    private static void WriteAgentEvent(AltaCommandContext context, WorkThreadDescriptor thread, AgentEvent agentEvent, long sequenceNumber)
+    private static void WriteAgentEvent(AltaCommandContext context, WorkThreadDescriptor thread, AgentEvent agentEvent, long sequenceNumber, IReadOnlySet<string>? fields = null)
     {
         var mapped = MapAgentEvent(agentEvent);
+        if (fields is { Count: > 0 })
+        {
+            AltaJsonlWriter.WriteRecord(context.Stdout, CreateAgentEventFieldsRecord(context, thread, agentEvent, sequenceNumber, mapped, fields));
+            return;
+        }
+
         AltaJsonlWriter.WriteRecord(context.Stdout, new
         {
             type = "alta.session.event",
@@ -2317,6 +2676,78 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             metadata = mapped.Metadata,
         });
     }
+
+    private static Dictionary<string, object?> CreateAgentEventFieldsRecord(
+        AltaCommandContext context,
+        WorkThreadDescriptor thread,
+        AgentEvent agentEvent,
+        long sequenceNumber,
+        MappedEvent mapped,
+        IReadOnlySet<string> fields)
+    {
+        var record = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["type"] = "alta.session.event",
+            ["version"] = 1,
+            ["correlationId"] = context.CorrelationId,
+        };
+
+        if (ContainsField(fields, "threadId"))
+        {
+            record["threadId"] = thread.ThreadId;
+        }
+
+        if (ContainsField(fields, "sequenceNumber") || ContainsField(fields, "sequence"))
+        {
+            record["sequenceNumber"] = sequenceNumber;
+        }
+
+        if (ContainsField(fields, "timestamp"))
+        {
+            record["timestamp"] = agentEvent.Timestamp;
+        }
+
+        if (ContainsField(fields, "kind"))
+        {
+            record["kind"] = mapped.Kind;
+        }
+
+        if (ContainsField(fields, "role"))
+        {
+            record["role"] = mapped.Role;
+        }
+
+        if (ContainsField(fields, "source"))
+        {
+            record["source"] = new
+            {
+                kind = "backend",
+                backendId = agentEvent.BackendId.Value,
+                backendSessionId = agentEvent.SessionId,
+                runId = agentEvent.RunId?.Value,
+            };
+        }
+
+        if (ContainsField(fields, "content"))
+        {
+            record["content"] = string.IsNullOrEmpty(mapped.Text) ? [] : new[] { new { type = "text", text = mapped.Text } };
+        }
+
+        if (ContainsField(fields, "text"))
+        {
+            record["text"] = mapped.Text;
+        }
+
+        if (ContainsField(fields, "metadata"))
+        {
+            record["metadata"] = mapped.Metadata;
+        }
+
+        return record;
+    }
+
+    private static bool ContainsField(IReadOnlySet<string> fields, string field)
+        => fields.Contains(field);
 
     private static MappedEvent MapAgentEvent(AgentEvent agentEvent)
         => agentEvent switch
@@ -2359,28 +2790,38 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             _ => "event",
         };
 
-    private static bool IncludesEvent(AgentEvent agentEvent, IReadOnlySet<string> includes)
+    private static bool IncludesEvent(AgentEvent agentEvent, IReadOnlySet<string> includes, IReadOnlySet<string> kinds, bool noToolOutput)
     {
+        var mapped = MapAgentEvent(agentEvent);
+        if (noToolOutput && mapped.Role == "tool")
+        {
+            return false;
+        }
+
+        if (kinds.Count > 0 && !kinds.Contains(mapped.Kind))
+        {
+            return false;
+        }
+
         if (includes.Count == 0)
         {
             return true;
         }
 
-        var mapped = MapAgentEvent(agentEvent);
         return includes.Contains(mapped.Role) ||
                mapped.Kind.Split('.', 2)[0] is { } prefix && includes.Contains(prefix) ||
                (mapped.Role == "host" && includes.Contains("event"));
     }
 
-    private static IReadOnlySet<string> ParseIncludes(string? include)
+    private static IReadOnlySet<string> ParseSet(string? value)
     {
-        if (string.IsNullOrWhiteSpace(include))
+        if (string.IsNullOrWhiteSpace(value))
         {
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
 
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var part in include.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        foreach (var part in value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
         {
             set.Add(part);
         }
@@ -2597,6 +3038,48 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
         public bool NoParent { get; set; }
     }
+
+    private sealed class SessionEventsOptions
+    {
+        public string? Include { get; set; }
+
+        public string? Kind { get; set; }
+
+        public string? Fields { get; set; }
+
+        public bool NoToolOutput { get; set; }
+    }
+
+    private enum SessionMetricsScope
+    {
+        LastTurn,
+        Session,
+    }
+
+    private sealed record ProviderOperationTotals(
+        int OperationCount,
+        long InputTokens,
+        long OutputTokens,
+        long CachedInputTokens,
+        long ReasoningTokens);
+
+    private sealed record SessionMetrics(
+        SessionMetricsScope Scope,
+        int EventCount,
+        int RunCount,
+        DateTimeOffset? StartedAt,
+        DateTimeOffset? CompletedAt,
+        TimeSpan? Duration,
+        DateTimeOffset? FinalAssistantAt,
+        int UserMessageCount,
+        int AssistantMessageCount,
+        int ToolCallCount,
+        int FinalAnswerCharacters,
+        int FinalAnswerWords,
+        long FinalAnswerEstimatedTokens,
+        AgentSessionUsage? FinalUsage,
+        ProviderOperationTotals ProviderOperations,
+        object ModelSelection);
 
     private sealed class PromptOptions
     {

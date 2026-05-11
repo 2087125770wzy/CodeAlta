@@ -318,13 +318,14 @@ Returned fields should include:
 ### 6.3 Session/thread discovery commands
 
 ```text
-alta session list [--project <id|slug|path>] [--state running|idle|inactive|archived|all] [--backend <id>] [--limit <n>]
+alta session list [--project <id|slug|path>] [--state running|idle|inactive|archived|all] [--backend <id>] [--limit <n>] [--metrics]
 alta session show <thread-id>
 alta session status <thread-id>
 alta session children <thread-id> [--recursive]
 alta session model <thread-id>
-alta session tail <thread-id> [--last <n>] [--include user,assistant,reasoning,tool,host,event]
-alta session events <thread-id> [--since <sequence>] [--limit <n>] [--include ...]
+alta session metrics <thread-id> [--scope last-turn|session]
+alta session tail <thread-id> [--last <n>] [--include user,assistant,reasoning,tool,host,event] [--kind <event-kind>[,...]] [--fields <field>[,...]] [--no-tool-output]
+alta session events <thread-id> [--since <sequence>] [--limit <n>] [--include ...] [--kind ...] [--fields ...] [--no-tool-output]
 ```
 
 State semantics:
@@ -342,12 +343,12 @@ Implementation source:
 - `WorkThreadCatalog.LoadInternalAsync` for legacy host-owned internal thread metadata;
 - `IWorkThreadOrchestrator.GetThreadSnapshotAsync` for a live snapshot when a thread id is known;
 - thread view state, execution options, and backend/session metadata for `session model` and model selection fields;
-- CodeAlta event projections or normalized stored events for `tail` and `events` when available;
+- CodeAlta event projections or normalized stored events for `tail`, `events`, and `metrics` when available;
 - backend `GetHistoryAsync` only as a fallback when CodeAlta projections are unavailable, such as during early bootstrap or migration.
 
-`session list`, `show`, and `status` should include `providerKey`, `modelId`, `reasoningEffort`, `modelRef`, `parentThreadId`, and `createdBy` when known. `session show` should also include direct child counts/ids when cheap to compute. `session children` should emit child `alta.session.item` records. `session model` should emit one `alta.model.selection` JSONL record so another command can reuse its `modelRef` field easily.
+`session list`, `show`, and `status` should include `providerKey`, `modelId`, `reasoningEffort`, `modelRef`, `parentThreadId`, and `createdBy` when known. `session show` should also include direct child counts/ids when cheap to compute and compact last-turn metrics when stored history is available. `session list --metrics` may read stored history for each emitted row and include compact last-turn metrics; callers should keep limits small when requesting metrics. `session children` should emit child `alta.session.item` records. `session model` should emit one `alta.model.selection` JSONL record so another command can reuse its `modelRef` field easily. `session metrics` should emit one `alta.session.metrics` record with timing, message/tool counts, final-answer characters/words/estimated tokens, current usage, provider operation totals, and model selection for either the last turn or the whole session.
 
-`tail` and `events` return finite snapshots only; they must not wait for future messages. Reads should prefer CodeAlta-owned event projections so they do not race with backend files that another active session may be writing. Backend-history fallback must be best-effort and tolerant of locked/partially written files; it should return available data plus an `alta.warning` record rather than fail the whole command when a transient read conflict occurs. The current implementation reads CodeAlta local-runtime normalized event journals first via `WorkThreadRuntimeService.TryReadStoredHistoryAsync`; transient/corrupt local journal reads emit `session.historyStoreUnavailable`, then the command falls back to the active runtime session history when available. They should expose only sanitized visible content:
+`tail` and `events` return finite snapshots only; they must not wait for future messages. Reads should prefer CodeAlta-owned event projections so they do not race with backend files that another active session may be writing. Backend-history fallback must be best-effort and tolerant of locked/partially written files; it should return available data plus an `alta.warning` record rather than fail the whole command when a transient read conflict occurs. The current implementation reads CodeAlta local-runtime normalized event journals first via `WorkThreadRuntimeService.TryReadStoredHistoryAsync`; transient/corrupt local journal reads emit `session.historyStoreUnavailable`, then the command falls back to the active runtime session history when available. Callers can narrow event payloads with category `--include`, exact mapped `--kind` values such as `assistant.message`, `--fields` projections, and `--no-tool-output` for compact diagnostics. They should expose only sanitized visible content:
 
 - user/delegated-agent messages;
 - assistant messages;
@@ -744,7 +745,7 @@ Plugins invoking `alta` must not get a privileged bypass by default. A plugin ca
 
 Commands must be classified. Initial v1 classifications:
 
-- read-only: `--help`, `version`, `project list/show/resolve`, `session list/show/status/children/model/tail/events/join`, `skill list/show`, `provider list`, `provider model list`, `model list/show/resolve`, `plugin list/status`, `tool status`, `tool list`, `tool capability list`;
+- read-only: `--help`, `version`, `project list/show/resolve`, `session list/show/status/children/model/metrics/tail/events/join`, `skill list/show`, `provider list`, `provider model list`, `model list/show/resolve`, `plugin list/status`, `tool status`, `tool list`, `tool capability list`;
 - mutating: `project upsert`, `session create`, `session send`, `session steer`, `session queue`, `session compact`, `session message`, `session request`, `skill activate`;
 - disruptive: `session abort`, future delete/archive operations.
 
@@ -984,6 +985,7 @@ If a backend cannot store metadata, CodeAlta should render a visible header and 
 
 - [x] Implement `session tail` from CodeAlta event projections / normalized stored events first, with backend history only as a best-effort fallback.
 - [x] Implement `session events` as a finite snapshot over currently buffered/stored events, with `--since` and `--limit` filters.
+- [x] Implement `session metrics` plus compact event filters/field projections for model-friendly session analysis.
 - [x] Enforce sanitized visible content only.
 - [x] Add tests for locked/partially written backend-history fallback returning warnings instead of failing the command.
 - [x] Add truncation, `--last`, `--since`, `--limit`, `--include`, JSONL record, and timeout tests.

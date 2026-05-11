@@ -68,8 +68,9 @@ public sealed class AltaCommandRegistry
         app.Add("Use small limits for snapshots. Common examples:");
         app.Add("  `alta project list`");
         app.Add("  `alta session list --project <project> --state all --limit 20`");
+        app.Add("  `alta session metrics <thread-id>`");
         app.Add("  `alta session status <thread-id>`");
-        app.Add("  `alta session tail <thread-id> --last 10`");
+        app.Add("  `alta session tail <thread-id> --last 10 --include assistant`");
         app.Add("  `alta session create --project <project> --reasoning low`");
         app.Add("  `alta session create --project <project> --same-model-as <thread-id>`");
         app.Add("  `alta session send <thread-id> --stdin`");
