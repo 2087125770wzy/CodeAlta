@@ -137,11 +137,13 @@ public sealed class AgentBackendFactoryTests
             return Task.FromResult<IReadOnlyList<AgentModelInfo>>([]);
         }
 
-        public Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+        public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
             AgentSessionListFilter? filter = null,
-            CancellationToken cancellationToken = default)
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<AgentSessionMetadata>>([]);
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.CompletedTask;
+            yield break;
         }
 
         public Task<IAgentSession> CreateSessionAsync(

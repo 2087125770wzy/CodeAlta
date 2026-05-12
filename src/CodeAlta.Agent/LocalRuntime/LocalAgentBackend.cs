@@ -118,43 +118,34 @@ public sealed class LocalAgentBackend : IAgentBackend, IAgentSharedSessionMetada
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+    public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
         AgentSessionListFilter? filter = null,
-        CancellationToken cancellationToken = default)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await StartAsync(cancellationToken).ConfigureAwait(false);
 
-        var results = new List<AgentSessionMetadata>();
-        foreach (var provider in _options.Providers)
+        await foreach (var summary in _store.ListSessionsAsync(cancellationToken).ConfigureAwait(false))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var summaries = await _store.ListSessionsAsync(
-                    provider.Provider.ProtocolFamily,
-                    provider.Provider.ProviderKey,
+            if (!_providersByKey.TryGetValue(summary.ProviderKey, out var provider) ||
+                !string.Equals(summary.ProtocolFamily, provider.Provider.ProtocolFamily, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!MatchesFilter(summary, filter))
+            {
+                continue;
+            }
+
+            var state = await _store.GetStateAsync(
+                    summary.ProtocolFamily,
+                    summary.ProviderKey,
+                    summary.SessionId,
                     cancellationToken)
                 .ConfigureAwait(false);
-
-            foreach (var summary in summaries)
-            {
-                if (!MatchesFilter(summary, filter))
-                {
-                    continue;
-                }
-
-                var state = await _store.GetStateAsync(
-                        summary.ProtocolFamily,
-                        summary.ProviderKey,
-                        summary.SessionId,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-                results.Add(ToMetadata(summary, state, provider.Provider));
-            }
+            yield return ToMetadata(summary, state, provider.Provider);
         }
-
-        return results
-            .OrderByDescending(static session => session.UpdatedAt)
-            .ThenByDescending(static session => session.CreatedAt)
-            .ToArray();
     }
 
     /// <inheritdoc />

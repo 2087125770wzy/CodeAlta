@@ -54,8 +54,15 @@ internal static class Program
         IAgentBackend backend,
         string sessionId)
     {
-        var sessions = await backend.ListSessionsAsync().ConfigureAwait(false);
-        return sessions.FirstOrDefault(session => string.Equals(session.SessionId, sessionId, StringComparison.OrdinalIgnoreCase));
+        await foreach (var session in backend.ListSessionsAsync().ConfigureAwait(false))
+        {
+            if (string.Equals(session.SessionId, sessionId, StringComparison.OrdinalIgnoreCase))
+            {
+                return session;
+            }
+        }
+
+        return null;
     }
 
     private static void WriteSessionHeader(DiagnosticCliOptions options, AgentSessionMetadata? metadata)

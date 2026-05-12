@@ -74,10 +74,14 @@ public sealed class CodeAltaHostTests
         public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<AgentModelInfo>>(Array.Empty<AgentModelInfo>());
 
-        public Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+        public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
             AgentSessionListFilter? filter = null,
-            CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<AgentSessionMetadata>>(Array.Empty<AgentSessionMetadata>());
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.CompletedTask;
+            yield break;
+        }
 
         public Task<IAgentSession> CreateSessionAsync(
             AgentSessionCreateOptions options,

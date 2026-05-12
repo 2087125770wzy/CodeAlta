@@ -123,7 +123,7 @@ public sealed class OpenAIRawApiAgentBackendTests
         Assert.AreEqual(200000L, usageEvent.Usage.TokenLimit);
         Assert.AreEqual(4, usageEvent.Usage.MessageCount);
 
-        var metadata = (await backend.ListSessionsAsync().ConfigureAwait(false)).Single();
+        var metadata = (await backend.ListSessionsAsync().ToArrayAsync().ConfigureAwait(false)).Single();
         var details = Assert.IsInstanceOfType<RawApiSessionMetadataDetails>(metadata.Details);
         Assert.AreEqual("response-2", details.ProviderSessionId);
     }
@@ -210,7 +210,7 @@ public sealed class OpenAIRawApiAgentBackendTests
         Assert.AreEqual(128000L, usageEvent.Usage.TokenLimit);
         Assert.AreEqual(2, usageEvent.Usage.MessageCount);
 
-        var metadata = (await backend.ListSessionsAsync().ConfigureAwait(false)).Single();
+        var metadata = (await backend.ListSessionsAsync().ToArrayAsync().ConfigureAwait(false)).Single();
         var details = Assert.IsInstanceOfType<RawApiSessionMetadataDetails>(metadata.Details);
         Assert.AreEqual("chatcmpl-1", details.ProviderSessionId);
     }

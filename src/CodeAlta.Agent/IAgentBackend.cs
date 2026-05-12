@@ -38,7 +38,7 @@ public interface IAgentBackend : IAsyncDisposable
     /// </summary>
     /// <param name="filter">Optional filter.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+    IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
         AgentSessionListFilter? filter = null,
         CancellationToken cancellationToken = default);
 

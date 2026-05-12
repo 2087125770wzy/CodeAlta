@@ -45,10 +45,15 @@ internal sealed class ThreadInfoService
         AgentSessionMetadata? metadata = null;
         try
         {
-            var sessions = await _agentHub
-                .ListSessionsAsync(new AgentBackendId(snapshot.Value.Thread.BackendId), cancellationToken: cancellationToken);
-            metadata = sessions.FirstOrDefault(
-                session => string.Equals(session.SessionId, snapshot.Value.Thread.ThreadId, StringComparison.Ordinal));
+            await foreach (var session in _agentHub
+                .ListSessionsAsync(new AgentBackendId(snapshot.Value.Thread.BackendId), cancellationToken: cancellationToken))
+            {
+                if (string.Equals(session.SessionId, snapshot.Value.Thread.ThreadId, StringComparison.Ordinal))
+                {
+                    metadata = session;
+                    break;
+                }
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

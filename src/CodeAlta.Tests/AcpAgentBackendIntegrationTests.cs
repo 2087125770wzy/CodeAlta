@@ -138,11 +138,11 @@ public sealed class AcpAgentBackendIntegrationTests
         };
 
         var backend = new AcpAgentBackend(CreateBackendOptions(harness));
-        var sessions = await backend.ListSessionsAsync(cancellationToken: cancellationTokenSource.Token).ConfigureAwait(false);
+        var sessions = await backend.ListSessionsAsync(cancellationToken: cancellationTokenSource.Token).ToArrayAsync().ConfigureAwait(false);
 
         Assert.AreEqual("initialize", (await harness.ReadObservedMessageAsync(cancellationTokenSource.Token).ConfigureAwait(false)).Method);
         Assert.AreEqual("session/list", (await harness.ReadObservedMessageAsync(cancellationTokenSource.Token).ConfigureAwait(false)).Method);
-        Assert.AreEqual(2, sessions.Count);
+        Assert.AreEqual(2, sessions.Length);
         Assert.AreEqual("session-a", sessions[0].SessionId);
         Assert.AreEqual(@"C:\repo-a", sessions[0].Context?.Cwd);
         Assert.AreEqual("Session B", sessions[1].Summary);

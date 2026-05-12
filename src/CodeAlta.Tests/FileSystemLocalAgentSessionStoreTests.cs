@@ -32,7 +32,7 @@ public sealed class FileSystemLocalAgentSessionStoreTests
 
         var persistedSession = await store.GetSessionAsync("openai", "openai", "session-2").ConfigureAwait(false);
         var persistedState = await store.GetStateAsync("openai", "openai", "session-2").ConfigureAwait(false);
-        var sessions = await store.ListSessionsAsync("openai", "openai").ConfigureAwait(false);
+        var sessions = await store.ListSessionsAsync("openai", "openai").ToArrayAsync().ConfigureAwait(false);
 
         Assert.IsNotNull(persistedSession);
         Assert.AreEqual("gpt-5.4", persistedSession.ModelId);
@@ -127,7 +127,7 @@ public sealed class FileSystemLocalAgentSessionStoreTests
         var session = CreateSession("session-cache", createdAt: "2026-04-06T10:00:00+00:00", updatedAt: "2026-04-06T10:00:00+00:00");
 
         await firstStore.UpsertSessionAsync(session).ConfigureAwait(false);
-        _ = await firstStore.ListSessionsAsync("openai", "openai").ConfigureAwait(false);
+        _ = await firstStore.ListSessionsAsync("openai", "openai").ToArrayAsync().ConfigureAwait(false);
 
         await secondStore.UpsertStateAsync(
                 new LocalAgentSessionState
@@ -170,9 +170,9 @@ public sealed class FileSystemLocalAgentSessionStoreTests
         var updatedSession = session with { UpdatedAt = DateTimeOffset.Parse("2026-04-06T12:00:00+00:00") };
         await store.UpsertSessionAsync(updatedSession).ConfigureAwait(false);
 
-        var sessions = await store.ListSessionsAsync("openai", "openai").ConfigureAwait(false);
+        var sessions = await store.ListSessionsAsync("openai", "openai").ToArrayAsync().ConfigureAwait(false);
 
-        Assert.AreEqual(1, sessions.Count);
+        Assert.AreEqual(1, sessions.Length);
         Assert.AreEqual("session-metadata-probe", sessions[0].SessionId);
         Assert.AreEqual(DateTimeOffset.Parse("2026-04-06T12:00:00+00:00"), sessions[0].UpdatedAt);
     }

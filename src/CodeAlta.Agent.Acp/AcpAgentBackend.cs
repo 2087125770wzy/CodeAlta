@@ -125,17 +125,16 @@ public sealed partial class AcpAgentBackend : IAgentBackend
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+    public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
         AgentSessionListFilter? filter = null,
-        CancellationToken cancellationToken = default)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var client = await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
         if (!_canListSessions)
         {
-            return [];
+            yield break;
         }
 
-        var sessions = new List<AgentSessionMetadata>();
         string? cursor = null;
         do
         {
@@ -147,11 +146,13 @@ public sealed partial class AcpAgentBackend : IAgentBackend
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
-            sessions.AddRange(response.Sessions.Select(AcpAgentMapper.ToSessionMetadata));
+            foreach (var session in response.Sessions)
+            {
+                yield return AcpAgentMapper.ToSessionMetadata(session);
+            }
+
             cursor = response.NextCursor;
         } while (cursor is not null);
-
-        return sessions;
     }
 
     /// <inheritdoc />

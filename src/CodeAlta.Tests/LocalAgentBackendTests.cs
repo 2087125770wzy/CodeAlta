@@ -31,8 +31,8 @@ public sealed class LocalAgentBackendTests
                     Input = AgentInput.Text("First prompt"),
                 }).ConfigureAwait(false);
 
-        var sessions = await backend.ListSessionsAsync().ConfigureAwait(false);
-        Assert.AreEqual(1, sessions.Count);
+        var sessions = await backend.ListSessionsAsync().ToArrayAsync().ConfigureAwait(false);
+        Assert.AreEqual(1, sessions.Length);
         Assert.AreEqual(createdSession.SessionId, sessions[0].SessionId);
         Assert.AreEqual("openai-responses", sessions[0].ProtocolFamily);
         Assert.AreEqual("openai", sessions[0].ProviderKey);
@@ -61,7 +61,7 @@ public sealed class LocalAgentBackendTests
         Assert.AreEqual(3, executor.Requests[1].Conversation.Count);
 
         Assert.IsTrue(await backend.DeleteSessionAsync(createdSession.SessionId).ConfigureAwait(false));
-        Assert.AreEqual(0, (await backend.ListSessionsAsync().ConfigureAwait(false)).Count);
+        Assert.AreEqual(0, (await backend.ListSessionsAsync().ToArrayAsync().ConfigureAwait(false)).Length);
     }
 
     [TestMethod]
@@ -78,7 +78,7 @@ public sealed class LocalAgentBackendTests
                     OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
                 }).ConfigureAwait(false);
 
-        var sessions = await backend.ListSessionsAsync().ConfigureAwait(false);
+        var sessions = await backend.ListSessionsAsync().ToArrayAsync().ConfigureAwait(false);
         Assert.AreEqual("openai", sessions.Single().ProviderKey);
         Assert.AreEqual(session.SessionId, sessions.Single().SessionId);
     }

@@ -247,7 +247,7 @@ internal sealed class LocalAgentSessionJournalFile
             {
                 await Task.Delay(LockRetryDelay, cancellationToken).ConfigureAwait(false);
             }
-            catch (UnauthorizedAccessException) when (File.Exists(lockPath))
+            catch (UnauthorizedAccessException)
             {
                 await Task.Delay(LockRetryDelay, cancellationToken).ConfigureAwait(false);
             }

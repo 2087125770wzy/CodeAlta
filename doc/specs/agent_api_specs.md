@@ -96,7 +96,7 @@ public interface IAgentBackend : IAsyncDisposable
     Task StopAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+    IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
         AgentSessionListFilter? filter = null,
         CancellationToken cancellationToken = default);
 
@@ -520,7 +520,9 @@ Mapping notes:
 | Shared API | Copilot API |
 |---|---|
 | `ListModelsAsync()` | `CopilotClient.ListModelsAsync()` |
-| `ListSessionsAsync(filter)` | `CopilotClient.ListSessionsAsync(SessionListFilter)` |
+| `ListSessionsAsync(filter)` streams `AgentSessionMetadata` | `CopilotClient.ListSessionsAsync(SessionListFilter)` |
+
+Session listing streams results so callers can begin processing metadata before every backend/page has completed. Backends should yield sessions in the most useful order exposed by the provider; local runtime stores enumerate recently written session journals first.
 
 Model mapping notes (Copilot):
 - `AgentModelInfo.Description` is `null` (Copilot model payload does not expose a description field).

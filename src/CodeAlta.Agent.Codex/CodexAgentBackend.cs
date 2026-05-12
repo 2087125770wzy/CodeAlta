@@ -107,13 +107,12 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+    public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
         AgentSessionListFilter? filter = null,
-        CancellationToken cancellationToken = default)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var client = await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
 
-        var sessions = new List<AgentSessionMetadata>();
         string? cursor = null;
         do
         {
@@ -132,13 +131,11 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
                 if (!CodexAgentMapper.MatchesFilter(thread, filter))
                     continue;
 
-                sessions.Add(CodexAgentMapper.ToAgentSessionMetadata(thread));
+                yield return CodexAgentMapper.ToAgentSessionMetadata(thread);
             }
 
             cursor = response.NextCursor;
         } while (cursor is not null);
-
-        return sessions;
     }
 
     /// <inheritdoc />

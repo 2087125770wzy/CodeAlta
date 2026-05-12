@@ -35,10 +35,17 @@ public interface ILocalAgentSessionStore
     /// <param name="providerKey">Provider key.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Session summaries ordered by most recent update first.</returns>
-    Task<IReadOnlyList<LocalAgentSessionSummary>> ListSessionsAsync(
+    IAsyncEnumerable<LocalAgentSessionSummary> ListSessionsAsync(
         string protocolFamily,
         string providerKey,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists sessions across configured providers.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Session summaries ordered by most recent update first.</returns>
+    IAsyncEnumerable<LocalAgentSessionSummary> ListSessionsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Appends canonical events to the session event log.

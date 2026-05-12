@@ -77,15 +77,18 @@ public sealed class FileSystemLocalAgentSessionStore : ILocalAgentSessionStore
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<LocalAgentSessionSummary>> ListSessionsAsync(
+    public async IAsyncEnumerable<LocalAgentSessionSummary> ListSessionsAsync(
         string protocolFamily,
         string providerKey,
-        CancellationToken cancellationToken = default)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var sessions = await ListSessionsAsync(cancellationToken).ConfigureAwait(false);
-        return sessions
-            .Where(session => MatchesScope(session, protocolFamily, providerKey))
-            .ToArray();
+        await foreach (var session in ListSessionsAsync(cancellationToken).ConfigureAwait(false))
+        {
+            if (MatchesScope(session, protocolFamily, providerKey))
+            {
+                yield return session;
+            }
+        }
     }
 
     /// <summary>
@@ -93,29 +96,28 @@ public sealed class FileSystemLocalAgentSessionStore : ILocalAgentSessionStore
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Session summaries ordered by most recent update first.</returns>
-    public async Task<IReadOnlyList<LocalAgentSessionSummary>> ListSessionsAsync(CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<LocalAgentSessionSummary> ListSessionsAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(_layout.SessionsRootPath))
         {
-            return [];
+            yield break;
         }
 
-        var results = new List<LocalAgentSessionSummary>();
-        foreach (var sessionFile in Directory.EnumerateFiles(_layout.SessionsRootPath, "*.jsonl", SearchOption.AllDirectories))
+        var sessionFiles = Directory
+            .EnumerateFiles(_layout.SessionsRootPath, "*.jsonl", SearchOption.AllDirectories)
+            .OrderByDescending(static sessionFile => File.GetLastWriteTimeUtc(sessionFile))
+            .ThenByDescending(static sessionFile => sessionFile, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        foreach (var sessionFile in sessionFiles)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            LocalAgentSessionSummary? summary = null;
             try
             {
                 var projection = await ProjectSessionFileAsync(sessionFile, includeHistory: false, cancellationToken).ConfigureAwait(false);
-                var summary = projection.Summary;
-                if (summary is null)
-                {
-                    continue;
-                }
-
-                results.Add(summary);
-                _sessionFiles[summary.SessionId] = sessionFile;
+                summary = projection.Summary;
             }
             catch (IOException)
             {
@@ -123,12 +125,15 @@ public sealed class FileSystemLocalAgentSessionStore : ILocalAgentSessionStore
             catch (JsonException)
             {
             }
-        }
 
-        return results
-            .OrderByDescending(static session => session.UpdatedAt)
-            .ThenByDescending(static session => session.CreatedAt)
-            .ToArray();
+            if (summary is null)
+            {
+                continue;
+            }
+
+            _sessionFiles[summary.SessionId] = sessionFile;
+            yield return summary;
+        }
     }
 
     /// <inheritdoc />

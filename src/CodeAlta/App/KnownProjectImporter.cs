@@ -57,9 +57,8 @@ internal sealed class KnownProjectImporter : IKnownProjectImporterWithProgress
                 return;
             }
 
-            var sessions = await _agentHub.ListSessionsAsync(descriptor.BackendId, cancellationToken: cancellationToken).ConfigureAwait(false);
             var workingDirectories = new List<string?>();
-            foreach (var session in sessions)
+            await foreach (var session in _agentHub.ListSessionsAsync(descriptor.BackendId, cancellationToken: cancellationToken).ConfigureAwait(false))
             {
                 workingDirectories.Add(session.Context?.Cwd ?? session.WorkspacePath);
             }
@@ -96,9 +95,8 @@ internal sealed class KnownProjectImporter : IKnownProjectImporterWithProgress
             .Select(static descriptor => descriptor.BackendId.Value)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(catalogOptions.GlobalRoot));
-        var sessions = await store.ListSessionsAsync(cancellationToken).ConfigureAwait(false);
         var workingDirectories = new List<string?>();
-        foreach (var session in sessions)
+        await foreach (var session in store.ListSessionsAsync(cancellationToken).ConfigureAwait(false))
         {
             if (string.IsNullOrWhiteSpace(session.ProviderKey) ||
                 !backendIds.Contains(session.ProviderKey) ||

@@ -159,12 +159,12 @@ public sealed class AgentHubBackendReloadTests
 
         await using var hub = new AgentHub(backendFactory);
 
-        var first = await hub.ListSessionsAsync(AgentBackendIds.Codex).ConfigureAwait(false);
-        var filtered = await hub.ListSessionsAsync(
+        var first = await CollectSessionsAsync(hub.ListSessionsAsync(AgentBackendIds.Codex)).ConfigureAwait(false);
+        var filtered = await CollectSessionsAsync(hub.ListSessionsAsync(
                 AgentBackendIds.Codex,
-                new AgentSessionListFilter(Cwd: @"C:\repo-b"))
+                new AgentSessionListFilter(Cwd: @"C:\repo-b")))
             .ConfigureAwait(false);
-        var second = await hub.ListSessionsAsync(AgentBackendIds.Codex).ConfigureAwait(false);
+        var second = await CollectSessionsAsync(hub.ListSessionsAsync(AgentBackendIds.Codex)).ConfigureAwait(false);
 
         Assert.AreEqual(1, backend.ListSessionsCount);
         Assert.AreEqual(2, first.Count);
@@ -187,8 +187,8 @@ public sealed class AgentHubBackendReloadTests
 
         await using var hub = new AgentHub(backendFactory);
 
-        _ = await hub.ListSessionsAsync(backendId).ConfigureAwait(false);
-        _ = await hub.ListSessionsAsync(backendId).ConfigureAwait(false);
+        _ = await CollectSessionsAsync(hub.ListSessionsAsync(backendId)).ConfigureAwait(false);
+        _ = await CollectSessionsAsync(hub.ListSessionsAsync(backendId)).ConfigureAwait(false);
 
         Assert.AreEqual(2, backend.ListSessionsCount);
     }
@@ -210,9 +210,9 @@ public sealed class AgentHubBackendReloadTests
 
         await using var hub = new AgentHub(backendFactory);
 
-        _ = await hub.ListSessionsAsync(AgentBackendIds.Copilot).ConfigureAwait(false);
+        _ = await CollectSessionsAsync(hub.ListSessionsAsync(AgentBackendIds.Copilot)).ConfigureAwait(false);
         var deleted = await hub.DeleteSessionAsync(AgentBackendIds.Copilot, "session-a").ConfigureAwait(false);
-        var afterDelete = await hub.ListSessionsAsync(AgentBackendIds.Copilot).ConfigureAwait(false);
+        var afterDelete = await CollectSessionsAsync(hub.ListSessionsAsync(AgentBackendIds.Copilot)).ConfigureAwait(false);
 
         Assert.IsTrue(deleted);
         Assert.AreEqual(2, backend.ListSessionsCount);
@@ -236,6 +236,18 @@ public sealed class AgentHubBackendReloadTests
                 Branch: branch),
             WorkspacePath: cwd);
 
+    private static async Task<IReadOnlyList<AgentSessionMetadata>> CollectSessionsAsync(
+        IAsyncEnumerable<AgentSessionMetadata> sessions)
+    {
+        var results = new List<AgentSessionMetadata>();
+        await foreach (var session in sessions.ConfigureAwait(false))
+        {
+            results.Add(session);
+        }
+
+        return results;
+    }
+
     private sealed class ReloadableBackend : IAgentBackend
     {
         public AgentBackendId BackendId => new("reloadable");
@@ -257,10 +269,14 @@ public sealed class AgentHubBackendReloadTests
         public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<AgentModelInfo>>([new AgentModelInfo("model-a")]);
 
-        public Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+        public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
             AgentSessionListFilter? filter = null,
-            CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<AgentSessionMetadata>>([]);
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.CompletedTask;
+            yield break;
+        }
 
         public Task<IAgentSession> CreateSessionAsync(
             AgentSessionCreateOptions options,
@@ -340,10 +356,14 @@ public sealed class AgentHubBackendReloadTests
         public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<AgentModelInfo>>([new AgentModelInfo("model-a")]);
 
-        public Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+        public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
             AgentSessionListFilter? filter = null,
-            CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<AgentSessionMetadata>>([]);
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.CompletedTask;
+            yield break;
+        }
 
         public Task<IAgentSession> CreateSessionAsync(
             AgentSessionCreateOptions options,
@@ -432,12 +452,17 @@ public sealed class AgentHubBackendReloadTests
         public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<AgentModelInfo>>([]);
 
-        public Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+        public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
             AgentSessionListFilter? filter = null,
-            CancellationToken cancellationToken = default)
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             ListSessionsCount++;
-            return Task.FromResult<IReadOnlyList<AgentSessionMetadata>>([.. Sessions]);
+            await Task.CompletedTask;
+            foreach (var session in Sessions)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return session;
+            }
         }
 
         public Task<bool> DeleteSessionAsync(string sessionId, CancellationToken cancellationToken = default)

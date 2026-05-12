@@ -233,15 +233,20 @@ public sealed class AgentHub : IAsyncDisposable
     /// <param name="filter">Optional backend session filter.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The backend session metadata.</returns>
-    public async Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+    public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
         AgentBackendId backendId,
         AgentSessionListFilter? filter = null,
-        CancellationToken cancellationToken = default)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var backend = await GetOrCreateBackendAsync(backendId, cancellationToken).ConfigureAwait(false);
         if (!CanCacheSessionMetadata(backendId))
         {
-            return await backend.ListSessionsAsync(filter, cancellationToken).ConfigureAwait(false);
+            await foreach (var session in backend.ListSessionsAsync(filter, cancellationToken).ConfigureAwait(false))
+            {
+                yield return session;
+            }
+
+            yield break;
         }
 
         var key = backendId.Value;
@@ -249,32 +254,45 @@ public sealed class AgentHub : IAsyncDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_sessionMetadataCache.TryGetValue(key, out sessions))
-            {
-                return FilterSessionMetadata(sessions, filter);
-            }
+            _sessionMetadataCache.TryGetValue(key, out sessions);
         }
         finally
         {
             _gate.Release();
         }
 
-        var loadedSessions = (await backend.ListSessionsAsync(filter: null, cancellationToken).ConfigureAwait(false)).ToArray();
+        if (sessions is not null)
+        {
+            foreach (var session in FilterSessionMetadata(sessions, filter))
+            {
+                yield return session;
+            }
+
+            yield break;
+        }
+
+        var loadedSessions = new List<AgentSessionMetadata>();
+        await foreach (var session in backend.ListSessionsAsync(filter: null, cancellationToken).ConfigureAwait(false))
+        {
+            loadedSessions.Add(session);
+            if (filter is null || MatchesSessionFilter(session, filter))
+            {
+                yield return session;
+            }
+        }
+
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!_sessionMetadataCache.TryGetValue(key, out sessions))
+            if (!_sessionMetadataCache.ContainsKey(key))
             {
-                sessions = loadedSessions;
-                _sessionMetadataCache[key] = sessions;
+                _sessionMetadataCache[key] = loadedSessions.ToArray();
             }
         }
         finally
         {
             _gate.Release();
         }
-
-        return FilterSessionMetadata(sessions, filter);
     }
 
     /// <summary>

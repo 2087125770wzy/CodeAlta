@@ -97,9 +97,9 @@ public sealed partial class CopilotAgentBackend : ICopilotAgentBackend
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+    public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
         AgentSessionListFilter? filter = null,
-        CancellationToken cancellationToken = default)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var client = await EnsureStartedAsync(cancellationToken).ConfigureAwait(false);
         var copilotFilter = filter is null
@@ -113,7 +113,10 @@ public sealed partial class CopilotAgentBackend : ICopilotAgentBackend
             };
 
         var sessions = await client.ListSessionsAsync(copilotFilter, cancellationToken).ConfigureAwait(false);
-        return sessions.Select(CopilotAgentMapper.ToAgentSessionMetadata).ToArray();
+        foreach (var session in sessions)
+        {
+            yield return CopilotAgentMapper.ToAgentSessionMetadata(session);
+        }
     }
 
     /// <inheritdoc />

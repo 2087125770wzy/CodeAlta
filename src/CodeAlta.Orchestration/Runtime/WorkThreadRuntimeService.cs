@@ -162,7 +162,12 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
         {
             try
             {
-                var sessions = await _agentHub.ListSessionsAsync(backendId, cancellationToken: cancellationToken).ConfigureAwait(false);
+                var sessions = new List<AgentSessionMetadata>();
+                await foreach (var session in _agentHub.ListSessionsAsync(backendId, cancellationToken: cancellationToken).ConfigureAwait(false))
+                {
+                    sessions.Add(session);
+                }
+
                 return (backendId, sessions);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -292,7 +297,7 @@ public sealed class WorkThreadRuntimeService : IAsyncDisposable
 
         var store = new FileSystemLocalAgentSessionStore(new LocalAgentRuntimePathLayout(_catalogOptions.GlobalRoot));
         var results = new List<RecoverableThreadCandidate>();
-        foreach (var session in await store.ListSessionsAsync(cancellationToken).ConfigureAwait(false))
+        await foreach (var session in store.ListSessionsAsync(cancellationToken).ConfigureAwait(false))
         {
             if (string.IsNullOrWhiteSpace(session.ProviderKey) || !loadableBackendIds.Contains(session.ProviderKey))
             {

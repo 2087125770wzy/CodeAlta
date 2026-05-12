@@ -34,7 +34,7 @@ public sealed class OpenAIResponsesAgentBackend : IAgentBackend, IAgentSharedSes
         => _inner.ListModelsAsync(cancellationToken);
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<AgentSessionMetadata>> ListSessionsAsync(
+    public IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
         AgentSessionListFilter? filter = null,
         CancellationToken cancellationToken = default)
         => _inner.ListSessionsAsync(filter, cancellationToken);
