@@ -2771,6 +2771,50 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public async Task PromptDraftUiCoordinator_ClearDraftPromptTextClearsProjectDraftAfterThreadSelection()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"CodeAlta.Tests.{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var selection = ShellSelection.ProjectDraft("project-1");
+        try
+        {
+            var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+            var coordinator = new PromptDraftUiCoordinator(
+                new PromptDraftCoordinator(),
+                new CatalogOptions { GlobalRoot = root },
+                () => selection,
+                publisher);
+
+            coordinator.SyncPromptText(session: null);
+            coordinator.PromptText = "used project draft";
+            selection = ShellSelection.Thread("thread-1", "project-1");
+
+            coordinator.ClearDraftPromptText();
+
+            Assert.IsFalse(coordinator.HasDraftPrompt("project-1", isGlobal: false));
+            await coordinator.DisposeAsync().ConfigureAwait(false);
+
+            selection = ShellSelection.ProjectDraft("project-1");
+            var reloaded = new PromptDraftUiCoordinator(
+                new PromptDraftCoordinator(),
+                new CatalogOptions { GlobalRoot = root },
+                () => selection,
+                publisher);
+
+            reloaded.SyncPromptText(session: null);
+            Assert.AreEqual(string.Empty, reloaded.PromptText);
+            await reloaded.DisposeAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void PromptDraftUiCoordinator_FirstThreadPromptCharacterPublishesPromptDraftEvent()
     {
         var publisher = new FrontendEventPublisher(new InlineUiDispatcher());

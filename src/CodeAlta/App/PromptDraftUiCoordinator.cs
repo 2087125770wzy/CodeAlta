@@ -91,7 +91,7 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
     public void ClearDraftPromptText()
     {
         var state = GetOrCreatePromptState(DraftPromptSessionId, session: null);
-        var draftScopeKey = ResolveCurrentDraftScopeKey();
+        var draftScopeKey = state.DraftScopeKey;
         _promptDrafts.RememberPrompt(null, string.Empty, draftScopeKey);
         _promptDraftPersistence.ObservePromptDraft(draftScopeKey, string.Empty);
         ClearPromptText(state);
@@ -183,6 +183,12 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
             state.ThreadSession = session;
         }
 
+        if (session is null && string.Equals(promptSessionId, DraftPromptSessionId, StringComparison.OrdinalIgnoreCase) &&
+            TryResolveSelectedDraftScopeKey(out var draftScopeKey))
+        {
+            state.DraftScopeKey = draftScopeKey;
+        }
+
         SyncPromptTextFromSession(state);
         return state;
     }
@@ -214,6 +220,18 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
             : GlobalDraftScopeKey;
     }
 
+    private bool TryResolveSelectedDraftScopeKey(out string draftScopeKey)
+    {
+        if (_getSelection().Target is WorkspaceTarget.Draft draft)
+        {
+            draftScopeKey = ResolveDraftScopeKey(draft.ProjectId, draft.IsGlobal);
+            return true;
+        }
+
+        draftScopeKey = string.Empty;
+        return false;
+    }
+
     private static string ResolveDraftScopeKey(string? projectId, bool isGlobal)
         => !isGlobal && !string.IsNullOrWhiteSpace(projectId)
             ? ProjectDraftScopeKeyPrefix + projectId.Trim()
@@ -222,7 +240,7 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
     private void SyncPromptTextFromSession(PromptDraftSessionState state)
     {
         var promptText = state.ThreadSession is null
-            ? GetDraftPrompt(ResolveCurrentDraftScopeKey())
+            ? GetDraftPrompt(state.DraftScopeKey)
             : _promptDrafts.GetPrompt(state.ThreadSession);
         if (string.Equals(state.ViewModel.PromptText, promptText, StringComparison.Ordinal))
         {
@@ -349,7 +367,7 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
         }
         else if (state.ThreadSession is null && editedStateChanged)
         {
-            PublishThreadPromptEditedStateChanged(ResolveCurrentDraftScopeKey());
+            PublishThreadPromptEditedStateChanged(state.DraftScopeKey);
         }
     }
 
@@ -360,7 +378,7 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
             return;
         }
 
-        var draftScopeKey = state.ThreadSession is null ? ResolveCurrentDraftScopeKey() : null;
+        var draftScopeKey = state.ThreadSession is null ? state.DraftScopeKey : null;
         var change = _promptDrafts.RememberPrompt(state.ThreadSession, value, draftScopeKey);
         if (state.ThreadSession is not null)
         {
@@ -414,6 +432,8 @@ internal sealed class PromptDraftUiCoordinator : IAsyncDisposable
         public ThreadSessionState? ThreadSession { get; set; }
 
         public List<PromptImageAttachment> DraftPromptImages { get; } = [];
+
+        public string DraftScopeKey { get; set; } = GlobalDraftScopeKey;
 
         public bool SyncingPromptText { get; set; }
     }
