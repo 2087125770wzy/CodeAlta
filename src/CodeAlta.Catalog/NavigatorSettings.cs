@@ -10,13 +10,13 @@ public sealed class NavigatorSettings
     /// <summary>
     /// Gets the default number of recent threads shown per project.
     /// </summary>
-    public const int DefaultRecentThreadsPerProject = 3;
+    public const int DefaultRecentThreadsPerProject = 10;
 
     /// <summary>
     /// Gets or sets the project sort mode.
     /// </summary>
     [JsonPropertyName("sort_mode")]
-    public NavigatorProjectSortMode SortMode { get; set; } = NavigatorProjectSortMode.Name;
+    public NavigatorProjectSortMode SortMode { get; set; } = NavigatorProjectSortMode.Date;
 
     /// <summary>
     /// Gets or sets the number of recent threads shown per project.
