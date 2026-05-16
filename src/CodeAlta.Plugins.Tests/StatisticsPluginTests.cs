@@ -289,7 +289,7 @@ public sealed class StatisticsPluginTests
     }
 
     [TestMethod]
-    public async Task Projection_OmitsSpeedWhenOnlyCompletedContentTimestampsAreAvailable()
+    public async Task Projection_EstimatesSpeedWhenOnlyCompletedContentTimestampsAreAvailable()
     {
         var plugin = new StatisticsPlugin();
         var contribution = plugin.GetThreadEventProjections().Single();
@@ -309,9 +309,12 @@ public sealed class StatisticsPluginTests
 
         var card = await WaitForDynamicProjectionAsync(result.Single());
         var detailsMarkdown = card.DetailSections.Single().Markdown;
-        StringAssert.Contains(detailsMarkdown, "Assistant speed | n/a");
-        StringAssert.Contains(detailsMarkdown, "Reasoning speed | n/a");
-        StringAssert.Contains(detailsMarkdown, "Generated output speed | n/a");
+        Assert.IsFalse(detailsMarkdown.Contains("Assistant speed | n/a", StringComparison.Ordinal), detailsMarkdown);
+        Assert.IsFalse(detailsMarkdown.Contains("Reasoning speed | n/a", StringComparison.Ordinal), detailsMarkdown);
+        Assert.IsFalse(detailsMarkdown.Contains("Generated output speed | n/a", StringComparison.Ordinal), detailsMarkdown);
+        StringAssert.Contains(detailsMarkdown, "Assistant speed | ");
+        StringAssert.Contains(detailsMarkdown, "Reasoning speed | ");
+        StringAssert.Contains(detailsMarkdown, "Generated output speed | ");
     }
 
     [TestMethod]

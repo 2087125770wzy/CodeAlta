@@ -795,9 +795,9 @@ public sealed class StatisticsPlugin : PluginBase
                 LongestGap(BuildInterestingTimestamps()),
                 toolSpan,
                 tools.Sum(static item => item.Duration?.Ticks ?? 0) is var ticks ? TimeSpan.FromTicks(ticks) : TimeSpan.Zero,
-                ResolveStreamDuration(_assistantDeltaTimestamps),
-                ResolveStreamDuration(_reasoningDeltaTimestamps),
-                ResolveStreamDuration(_generatedOutputDeltaTimestamps),
+                ResolveStreamDuration(_assistantDeltaTimestamps, StartedAt ?? FirstEventAt),
+                ResolveStreamDuration(_reasoningDeltaTimestamps, StartedAt ?? FirstEventAt),
+                ResolveStreamDuration(_generatedOutputDeltaTimestamps, StartedAt ?? FirstEventAt),
                 prompt,
                 assistant,
                 reasoning,
@@ -834,36 +834,38 @@ public sealed class StatisticsPlugin : PluginBase
             if (IsModelGeneratedContent(delta.Kind))
             {
                 _modelOutputTimestamps.Add(delta.Timestamp);
-                _generatedOutputDeltaTimestamps.Add(delta.Timestamp);
-                if (delta.Kind == AgentContentKind.Assistant)
-                {
-                    FirstAssistantAt = Min(FirstAssistantAt, delta.Timestamp);
-                    _assistantDeltaTimestamps.Add(delta.Timestamp);
-                }
-                else if (delta.Kind == AgentContentKind.Reasoning)
-                {
-                    FirstReasoningAt = Min(FirstReasoningAt, delta.Timestamp);
-                    _reasoningDeltaTimestamps.Add(delta.Timestamp);
-                }
+                AddGeneratedOutputTimestamp(delta.Kind, delta.Timestamp);
             }
         }
 
         private void AddCompleted(AgentContentCompletedEvent completed)
         {
             var content = GetContent(completed.Kind, completed.ContentId, completed.ParentActivityId);
+            var hadDeltas = content.HasDeltas;
             content.SetCompleted(completed.Content);
             AddContentMessageCount(completed.Kind);
             if (IsModelGeneratedContent(completed.Kind))
             {
                 _modelOutputTimestamps.Add(completed.Timestamp);
-                if (completed.Kind == AgentContentKind.Assistant)
+                if (!hadDeltas)
                 {
-                    FirstAssistantAt = Min(FirstAssistantAt, completed.Timestamp);
+                    AddGeneratedOutputTimestamp(completed.Kind, completed.Timestamp);
                 }
-                else if (completed.Kind == AgentContentKind.Reasoning)
-                {
-                    FirstReasoningAt = Min(FirstReasoningAt, completed.Timestamp);
-                }
+            }
+        }
+
+        private void AddGeneratedOutputTimestamp(AgentContentKind kind, DateTimeOffset timestamp)
+        {
+            _generatedOutputDeltaTimestamps.Add(timestamp);
+            if (kind == AgentContentKind.Assistant)
+            {
+                FirstAssistantAt = Min(FirstAssistantAt, timestamp);
+                _assistantDeltaTimestamps.Add(timestamp);
+            }
+            else if (kind == AgentContentKind.Reasoning)
+            {
+                FirstReasoningAt = Min(FirstReasoningAt, timestamp);
+                _reasoningDeltaTimestamps.Add(timestamp);
             }
         }
 
@@ -1072,15 +1074,21 @@ public sealed class StatisticsPlugin : PluginBase
             return longest;
         }
 
-        private static TimeSpan? ResolveStreamDuration(IReadOnlyList<DateTimeOffset> timestamps)
+        private static TimeSpan? ResolveStreamDuration(IReadOnlyList<DateTimeOffset> timestamps, DateTimeOffset? fallbackStart)
         {
-            if (timestamps.Count < 2)
+            if (timestamps.Count == 0)
             {
                 return null;
             }
 
             var ordered = timestamps.Order().ToArray();
-            var duration = ordered[^1] - ordered[0];
+            var start = timestamps.Count > 1 ? ordered[0] : fallbackStart;
+            if (start is null)
+            {
+                return null;
+            }
+
+            var duration = ordered[^1] - start.Value;
             return duration > TimeSpan.Zero ? duration : null;
         }
 
@@ -1113,6 +1121,8 @@ public sealed class StatisticsPlugin : PluginBase
 
         public void AddDelta(string delta)
             => _deltas.Append(delta);
+
+        public bool HasDeltas => _deltas.Length > 0;
 
         public void SetCompleted(string completed)
             => _completed = completed;
