@@ -790,18 +790,12 @@ internal static class CopilotAgentMapper
 
     private static void LogCallbackDebug(string message)
     {
-        if (LogManager.IsInitialized && CallbackLogger.IsEnabled(LogLevel.Debug))
-        {
-            CallbackLogger.Debug(message);
-        }
+        CallbackLogger.Debug(message);
     }
 
     private static void LogCallbackError(string message, Exception exception)
     {
-        if (LogManager.IsInitialized && CallbackLogger.IsEnabled(LogLevel.Error))
-        {
-            CallbackLogger.Error(exception, message);
-        }
+        CallbackLogger.Error(exception, message);
     }
 
     private static GitHub.Copilot.SDK.PermissionRequestResult ToPermissionResult(AgentPermissionDecision decision)

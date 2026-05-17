@@ -289,10 +289,7 @@ public sealed class AnthropicAgentBackend : IAgentBackend, IAgentSharedSessionMe
 
     private static void LogInfo(string message)
     {
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
-        {
-            Logger.Info(message);
-        }
+        Logger.Info(message);
     }
 
     private static AgentModelInfo CreateSingleModelInfo(

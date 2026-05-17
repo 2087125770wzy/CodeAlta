@@ -183,10 +183,7 @@ public static class CoordinatorAgentsBootstrapper
 
     private static void LogWarning(string message)
     {
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Warn))
-        {
-            Logger.Warn(message);
-        }
+        Logger.Warn(message);
     }
 
     private sealed record MarkerInfo(

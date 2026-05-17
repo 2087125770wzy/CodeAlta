@@ -26,10 +26,7 @@ internal sealed class ThreadViewStateCoordinator
         }
         catch (Exception ex)
         {
-            if (LogManager.IsInitialized && CodeAlta.Views.CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-            {
-                CodeAlta.Views.CodeAltaApp.UiLogger.Error(ex, "Failed to persist thread view state.");
-            }
+            CodeAlta.Views.CodeAltaApp.UiLogger.Error(ex, "Failed to persist thread view state.");
         }
     }
 
@@ -134,10 +131,7 @@ internal sealed class ThreadViewStateCoordinator
 
     private static void LogFailure(Exception ex, string message)
     {
-        if (LogManager.IsInitialized && CodeAlta.Views.CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-        {
-            CodeAlta.Views.CodeAltaApp.UiLogger.Error(ex, message);
-        }
+        CodeAlta.Views.CodeAltaApp.UiLogger.Error(ex, message);
     }
 
     public NavigatorSettings GetNavigatorSettingsSnapshot(WorkThreadViewState viewState)

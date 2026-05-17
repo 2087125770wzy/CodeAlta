@@ -456,10 +456,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         catch (Exception ex)
         {
             await SetProviderSessionLoadStatusAsync(null).ConfigureAwait(false);
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-            {
-                CodeAltaApp.UiLogger.Error(ex, "Failed to refresh backend startup state.");
-            }
+            CodeAltaApp.UiLogger.Error(ex, "Failed to refresh backend startup state.");
         }
     }
 
@@ -542,10 +539,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         catch (Exception ex)
         {
             await SetProviderSessionLoadStatusAsync(null).ConfigureAwait(false);
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-            {
-                CodeAltaApp.UiLogger.Error(ex, "Failed to refresh backend startup state.");
-            }
+            CodeAltaApp.UiLogger.Error(ex, "Failed to refresh backend startup state.");
         }
     }
 
@@ -578,10 +572,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         }
         catch (Exception ex)
         {
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Debug))
-            {
-                CodeAltaApp.UiLogger.Debug(ex, $"Failed to progressively recover sessions for backend '{backendId.Value}'.");
-            }
+            CodeAltaApp.UiLogger.Debug(ex, $"Failed to progressively recover sessions for backend '{backendId.Value}'.");
 
             return;
         }
@@ -601,10 +592,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         }
         catch (Exception ex)
         {
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Debug))
-            {
-                CodeAltaApp.UiLogger.Debug(ex, "Failed to load complete recovered session catalog after provider startup; using progressive startup snapshot.");
-            }
+            CodeAltaApp.UiLogger.Debug(ex, "Failed to load complete recovered session catalog after provider startup; using progressive startup snapshot.");
 
             return recoveredThreads.Values
                 .OrderByDescending(static thread => thread.LastActiveAt)

@@ -102,10 +102,7 @@ internal sealed class CopilotDirectAuthManager
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Warn))
-                {
-                    Logger.Warn(ex, $"Cached GitHub Copilot token refresh failed; starting device flow provider={_provider.ProviderKey}");
-                }
+                Logger.Warn(ex, $"Cached GitHub Copilot token refresh failed; starting device flow provider={_provider.ProviderKey}");
             }
         }
 
@@ -148,10 +145,7 @@ internal sealed class CopilotDirectAuthManager
             throw new InvalidOperationException("GitHub device authorization response was missing required fields.");
         }
 
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
-        {
-            Logger.Info($"Copilot login required. Open {device.VerificationUri} and enter code {device.UserCode}. Waiting for authorization; cancel the operation to stop polling.");
-        }
+        Logger.Info($"Copilot login required. Open {device.VerificationUri} and enter code {device.UserCode}. Waiting for authorization; cancel the operation to stop polling.");
 
         var deadline = DateTimeOffset.UtcNow.AddSeconds(Math.Max(1, device.ExpiresIn)).Subtract(TimeSpan.FromSeconds(3));
         var interval = TimeSpan.FromSeconds(Math.Max(5, device.Interval ?? 5));
@@ -234,10 +228,7 @@ internal sealed class CopilotDirectAuthManager
             ? DateTimeOffset.FromUnixTimeSeconds(token.ExpiresAt.Value)
             : (DateTimeOffset?)null;
         var baseUri = CopilotDirectBaseUriResolver.Resolve(_provider.BaseUri, token.Token, _provider.Auth.EnterpriseDomain, token.Endpoints?.Api);
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
-        {
-            Logger.Info($"Resolved GitHub Copilot direct credential provider={_provider.ProviderKey} baseUri={baseUri.ToString()}");
-        }
+        Logger.Info($"Resolved GitHub Copilot direct credential provider={_provider.ProviderKey} baseUri={baseUri.ToString()}");
 
         if (persistCache)
         {
@@ -319,10 +310,7 @@ internal sealed class CopilotDirectCredentialStore
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            if (LogManager.IsInitialized && LogManager.GetLogger("CodeAlta.Agent.CopilotDirect").IsEnabled(LogLevel.Warn))
-            {
-                LogManager.GetLogger("CodeAlta.Agent.CopilotDirect").Warn(ex, "Unable to read GitHub Copilot direct credential cache.");
-            }
+            LogManager.GetLogger("CodeAlta.Agent.CopilotDirect").Warn(ex, "Unable to read GitHub Copilot direct credential cache.");
 
             return null;
         }

@@ -42,10 +42,7 @@ internal sealed class PluginAgentEventObserver : IPluginAgentEventObserver
         }
         catch (Exception ex)
         {
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-            {
-                CodeAltaApp.UiLogger.Error(ex, $"Plugin agent event observer failed for thread {thread.ThreadId}");
-            }
+            CodeAltaApp.UiLogger.Error(ex, $"Plugin agent event observer failed for thread {thread.ThreadId}");
         }
     }
 
@@ -71,10 +68,7 @@ internal sealed class PluginAgentEventObserver : IPluginAgentEventObserver
         }
         catch (Exception ex)
         {
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-            {
-                CodeAltaApp.UiLogger.Error(ex, $"Plugin thread event projection failed for thread {thread.ThreadId}");
-            }
+            CodeAltaApp.UiLogger.Error(ex, $"Plugin thread event projection failed for thread {thread.ThreadId}");
 
             return new WorkThreadPluginDerivedEventProjectionResult([], []);
         }

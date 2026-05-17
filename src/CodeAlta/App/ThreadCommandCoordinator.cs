@@ -281,10 +281,7 @@ internal sealed class ThreadCommandCoordinator
                 await _pluginHostBridge.AfterCompactionAsync(thread, tab, succeeded: false, summary: ex.Message, CancellationToken.None);
             }
 
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-            {
-                CodeAltaApp.UiLogger.Error(ex, $"Failed to compact thread {thread.ThreadId}");
-            }
+            CodeAltaApp.UiLogger.Error(ex, $"Failed to compact thread {thread.ThreadId}");
 
             _commandContext.SetThreadStatus(tab, $"Failed to compact '{thread.Title}': {ex.Message}", false, StatusTone.Error);
         }

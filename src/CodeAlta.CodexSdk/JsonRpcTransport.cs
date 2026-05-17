@@ -283,11 +283,7 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
             writer.WriteEndObject();
         }
 
-        if (_logger is not null && _logger.IsEnabled(LogLevel.Trace))
-        {
-            var json = Encoding.UTF8.GetString(bufferWriter.WrittenMemory.Span);
-            _logger.Trace($"Send: {json}");
-        }
+        _logger?.Trace($"Send: {Encoding.UTF8.GetString(bufferWriter.WrittenMemory.Span)}");
 
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -318,11 +314,7 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
             writer.WriteEndObject();
         }
 
-        if (_logger is not null && _logger.IsEnabled(LogLevel.Trace))
-        {
-            var json = Encoding.UTF8.GetString(bufferWriter.WrittenMemory.Span);
-            _logger.Trace($"Send Response: {json}");
-        }
+        _logger?.Trace($"Send Response: {Encoding.UTF8.GetString(bufferWriter.WrittenMemory.Span)}");
 
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -364,11 +356,7 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
             writer.WriteEndObject();
         }
 
-        if (_logger is not null && _logger.IsEnabled(LogLevel.Trace))
-        {
-            var json = Encoding.UTF8.GetString(bufferWriter.WrittenMemory.Span);
-            _logger.Trace($"Send Error Response: {json}");
-        }
+        _logger?.Trace($"Send Error Response: {Encoding.UTF8.GetString(bufferWriter.WrittenMemory.Span)}");
 
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -444,11 +432,7 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
 
         var reader = new Utf8JsonReader(lineBytes);
 
-        if (_logger is not null && _logger.IsEnabled(LogLevel.Trace))
-        {
-            var json = Encoding.UTF8.GetString(lineBytes);
-            _logger.Trace($"Received: {json}");
-        }
+        _logger?.Trace($"Received: {Encoding.UTF8.GetString(lineBytes)}");
 
         JsonElement element;
         try
@@ -522,10 +506,7 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
 
     private void LogError(Exception exception, string message)
     {
-        if (_logger is not null && _logger.IsEnabled(LogLevel.Error))
-        {
-            _logger.Error(exception, message);
-        }
+        _logger?.Error(exception, message);
     }
 
     private static string GetPayloadText(ReadOnlySequence<byte> payload)

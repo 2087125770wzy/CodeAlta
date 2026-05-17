@@ -261,22 +261,21 @@ internal static class CodexMessageParser
         string message,
         Exception? exception = null)
     {
-        if (logger is null || !logger.IsEnabled(LogLevel.Error))
-        {
-            return;
-        }
-
-        var payload = parameters.ValueKind == JsonValueKind.Undefined
-            ? "<undefined>"
-            : parameters.GetRawText();
-        var trimmedPayload = payload.Length <= 2048 ? payload : payload[..2048] + "...";
         if (exception is null)
         {
-            logger.Error($"{message} Method: {method}. Payload: {trimmedPayload}");
+            logger?.Error($"{message} Method: {method}. Payload: {GetTrimmedPayload(parameters)}");
         }
         else
         {
-            logger.Error(exception, $"{message} Method: {method}. Payload: {trimmedPayload}");
+            logger?.Error(exception, $"{message} Method: {method}. Payload: {GetTrimmedPayload(parameters)}");
+        }
+
+        static string GetTrimmedPayload(JsonElement parameters)
+        {
+            var payload = parameters.ValueKind == JsonValueKind.Undefined
+                ? "<undefined>"
+                : parameters.GetRawText();
+            return payload.Length <= 2048 ? payload : payload[..2048] + "...";
         }
     }
 }

@@ -835,10 +835,7 @@ public sealed class PluginContributionAdapterService
 
     private static void LogCallbackFailure(ActivePluginInstance active, string message, Exception exception)
     {
-        if (LogManager.IsInitialized && active.RuntimeContext.Logger.IsEnabled(LogLevel.Error))
-        {
-            active.RuntimeContext.Logger.Error(exception, message);
-        }
+        active.RuntimeContext.Logger.Error(exception, message);
     }
 
     private static PluginPromptResult MergePromptResult(PluginPromptResult current, PluginPromptResult next)

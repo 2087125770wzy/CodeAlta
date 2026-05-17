@@ -78,10 +78,7 @@ public sealed class CodexProcess : IAsyncDisposable
                 exePath);
         }
 
-        if (logger is not null && logger.IsEnabled(LogLevel.Debug))
-        {
-            logger.Debug($"Starting codex process with executable: {exePath}");
-        }
+        logger?.Debug($"Starting codex process with executable: {exePath}");
 
         var psi = CodexProcessHelper.CreateCommandProcessStartInfo(
             exePath,

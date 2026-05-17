@@ -66,10 +66,7 @@ internal static class UiTaskDiagnostics
         catch (Exception ex)
         {
             var message = $"Unexpected failure while trying to {operation}.";
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-            {
-                CodeAltaApp.UiLogger.Error(ex, message);
-            }
+            CodeAltaApp.UiLogger.Error(ex, message);
 
             try
             {

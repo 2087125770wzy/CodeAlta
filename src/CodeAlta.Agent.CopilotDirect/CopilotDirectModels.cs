@@ -60,10 +60,7 @@ internal sealed class CopilotModelDiscoveryClient
                 .Where(IsAllowed)
                 .Select(model => MapModel(model, providerDescriptor))
                 .ToArray();
-            if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
-            {
-                Logger.Info($"Using GitHub Copilot direct model catalog provider={providerDescriptor.ProviderKey} models={models.Length}");
-            }
+            Logger.Info($"Using GitHub Copilot direct model catalog provider={providerDescriptor.ProviderKey} models={models.Length}");
             return ApplyOverrides(models);
         }
         catch (OperationCanceledException)
@@ -72,10 +69,7 @@ internal sealed class CopilotModelDiscoveryClient
         }
         catch (Exception ex) when (string.Equals(_provider.ModelDiscovery, CopilotDirectModelDiscoveryModes.EndpointWithStaticFallback, StringComparison.OrdinalIgnoreCase))
         {
-            if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Warn))
-            {
-                Logger.Warn(ex, $"GitHub Copilot model discovery failed; using static fallback provider={providerDescriptor.ProviderKey}");
-            }
+            Logger.Warn(ex, $"GitHub Copilot model discovery failed; using static fallback provider={providerDescriptor.ProviderKey}");
             return ApplyOverrides(CopilotStaticModelFallbackCatalog.List(providerDescriptor));
         }
     }
@@ -127,17 +121,14 @@ internal sealed class CopilotModelDiscoveryClient
                 request.Headers.TryAddWithoutValidation("x-interaction-type", "chat-policy");
                 request.Content = new StringContent("{\"state\":\"enabled\"}", System.Text.Encoding.UTF8, "application/json");
                 using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-                if (!response.IsSuccessStatusCode && LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Warn))
+                if (!response.IsSuccessStatusCode)
                 {
                     Logger.Warn($"GitHub Copilot model policy enablement failed provider={_provider.ProviderKey} model={model.Id} status={(int)response.StatusCode}");
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Warn))
-                {
-                    Logger.Warn(ex, $"GitHub Copilot model policy enablement failed provider={_provider.ProviderKey} model={model.Id}");
-                }
+                Logger.Warn(ex, $"GitHub Copilot model policy enablement failed provider={_provider.ProviderKey} model={model.Id}");
             }
         }
     }

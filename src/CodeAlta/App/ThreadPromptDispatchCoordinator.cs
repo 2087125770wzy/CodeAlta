@@ -238,10 +238,7 @@ internal sealed class ThreadPromptDispatchCoordinator
                 false,
                 StatusTone.Warning);
 
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Debug))
-            {
-                CodeAltaApp.UiLogger.Debug(ex, $"Queued prompt after unsupported steering attempt for thread {thread.ThreadId}");
-            }
+            CodeAltaApp.UiLogger.Debug(ex, $"Queued prompt after unsupported steering attempt for thread {thread.ThreadId}");
         }
         catch (OperationCanceledException ex)
         {
@@ -255,10 +252,7 @@ internal sealed class ThreadPromptDispatchCoordinator
                 _queueCoordinator.RemovePendingSteer(tab, pendingSteerId);
             }
 
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Debug))
-            {
-                CodeAltaApp.UiLogger.Debug(ex, $"Cancelled prompt dispatch for thread {thread.ThreadId}");
-            }
+            CodeAltaApp.UiLogger.Debug(ex, $"Cancelled prompt dispatch for thread {thread.ThreadId}");
 
             tab.ActiveRunId = null;
             tab.ActiveRunStartedAt = null;
@@ -276,10 +270,7 @@ internal sealed class ThreadPromptDispatchCoordinator
                 _queueCoordinator.RemovePendingSteer(tab, pendingSteerId);
             }
 
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-            {
-                CodeAltaApp.UiLogger.Error(ex, $"Failed to send prompt for thread {thread.ThreadId}");
-            }
+            CodeAltaApp.UiLogger.Error(ex, $"Failed to send prompt for thread {thread.ThreadId}");
 
             var restoredToDraft = false;
             if (_commandContext.IsThreadInputEmpty())

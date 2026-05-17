@@ -83,14 +83,8 @@ internal static class CodeAltaCrashReporter
     {
         try
         {
-            if (LogManager.IsInitialized)
-            {
-                var logger = LogManager.GetLogger("CodeAlta.Crash");
-                if (logger.IsEnabled(LogLevel.Error))
-                {
-                    logger.Error(exception, source);
-                }
-            }
+            var logger = LogManager.GetLogger("CodeAlta.Crash");
+            logger.Error(exception, source);
         }
         catch
         {

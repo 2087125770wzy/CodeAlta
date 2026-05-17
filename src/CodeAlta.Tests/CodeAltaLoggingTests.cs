@@ -105,6 +105,7 @@ public sealed class CodeAltaLoggingTests
     {
         CodeAltaCrashReporter.SetProcessTerminatorForTesting(null);
         LogManager.Shutdown();
+        CodeAltaTestLogging.InitializeFallback();
     }
 
     [TestMethod]

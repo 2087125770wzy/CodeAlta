@@ -473,10 +473,7 @@ internal sealed class ThreadHistoryCoordinator
         }
         catch (Exception ex)
         {
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-            {
-                CodeAltaApp.UiLogger.Error(ex, $"Failed to load history for thread {thread.ThreadId}");
-            }
+            CodeAltaApp.UiLogger.Error(ex, $"Failed to load history for thread {thread.ThreadId}");
 
             await _dispatchToUiAsync(
                     () =>

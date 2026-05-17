@@ -169,17 +169,11 @@ internal sealed class AgentSessionConnection : IAsyncDisposable
 
     private static void LogDebug(string message)
     {
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Debug))
-        {
-            Logger.Debug(message);
-        }
+        Logger.Debug(message);
     }
 
     private static void LogInfo(string message)
     {
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
-        {
-            Logger.Info(message);
-        }
+        Logger.Info(message);
     }
 }

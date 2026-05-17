@@ -231,10 +231,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         }
         catch (Exception ex)
         {
-            if (LogManager.IsInitialized && CodeAltaApp.UiLogger.IsEnabled(LogLevel.Error))
-            {
-                CodeAltaApp.UiLogger.Error(ex, $"Failed to render thread {context}");
-            }
+            CodeAltaApp.UiLogger.Error(ex, $"Failed to render thread {context}");
 
             _statusPort.SetShellStatus(new ShellStatusUpdate($"Failed to render thread {context}: {ex.Message}", false, StatusTone.Error));
             tab.Timeline.ClearPendingAssistant();

@@ -589,18 +589,12 @@ public sealed class CodexAgentBackend : ICodexAgentBackend
 
     private static void LogDebug(string message)
     {
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Debug))
-        {
-            Logger.Debug(message);
-        }
+        Logger.Debug(message);
     }
 
     private static void LogWarn(string message)
     {
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Warn))
-        {
-            Logger.Warn(message);
-        }
+        Logger.Warn(message);
     }
 
     private async Task StopCoreAsync()

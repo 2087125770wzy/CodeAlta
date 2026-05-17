@@ -882,21 +882,19 @@ internal sealed class OpenAIResponsesTurnExecutor(
         System.Net.HttpStatusCode? httpStatus = null,
         string? errorType = null)
     {
-        if (provider.CodexSubscription is null ||
-            !LogManager.IsInitialized ||
-            !Logger.IsEnabled(LogLevel.Debug))
+        if (provider.CodexSubscription is null)
         {
             return;
         }
 
-        Logger.Debug(OpenAICodexSubscriptionDiagnostics.CreateRequestShape(
+        Logger.Debug($"{OpenAICodexSubscriptionDiagnostics.CreateRequestShape(
             provider,
             request,
             Math.Max(attempt - 1, 0),
             eventName,
             responseId,
             httpStatus,
-            errorType));
+            errorType)}");
     }
 
     private static void WriteCodexConsoleDiagnostic(OpenAIProviderOptions provider, string message)

@@ -13,6 +13,9 @@ using XenoAtom.Terminal;
 var mainThreadId = Environment.CurrentManagedThreadId;
 try
 {
+    var homeRoot = Program.GetDefaultHomeRoot();
+    CodeAltaLogging.Initialize(homeRoot);
+
     // Plugin runtime startup ordering: register MSBuild before any plugin build service, pipe-logger
     // event payload, or Microsoft.Build type can be touched. Safe-mode raw args/environment are
     // still read by host-owned code before dynamic plugins are built or loaded.
@@ -35,11 +38,6 @@ try
         {
             commandLinePluginRuntime.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
-
-        if (LogManager.IsInitialized)
-        {
-            LogManager.Shutdown();
-        }
     }
 }
 catch (CodeAltaAlreadyRunningException ex)
@@ -52,6 +50,10 @@ catch (Exception ex)
     CodeAltaCrashReporter.ReportFatalException("Top-level exception", ex);
     Terminal.WriteLine(ex.ToString());
     return 1;
+}
+finally
+{
+    LogManager.Shutdown();
 }
 
 internal partial class Program
@@ -77,10 +79,7 @@ internal partial class Program
         {
             var logger = LogManager.GetLogger("CodeAlta.Program");
             var testDurationText = options.TestDuration!.Value.TotalSeconds.ToString("0", System.Globalization.CultureInfo.InvariantCulture);
-            if (LogManager.IsInitialized && logger.IsEnabled(LogLevel.Debug))
-            {
-                logger.Debug($"Starting CodeAlta terminal smoke test for {testDurationText}s.");
-            }
+            logger.Debug($"Starting CodeAlta terminal smoke test for {testDurationText}s.");
 
             Terminal.WriteLine($"[CodeAlta] Starting terminal smoke test for {testDurationText}s.");
         }
@@ -93,10 +92,7 @@ internal partial class Program
         if (options.TestMode)
         {
             var logger = LogManager.GetLogger("CodeAlta.Program");
-            if (LogManager.IsInitialized && logger.IsEnabled(LogLevel.Debug))
-            {
-                logger.Debug("CodeAlta terminal smoke test exited cleanly.");
-            }
+            logger.Debug("CodeAlta terminal smoke test exited cleanly.");
 
             Terminal.WriteLine("[CodeAlta] Terminal smoke test exited cleanly.");
         }
@@ -114,7 +110,7 @@ internal partial class Program
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(args);
-        var homeRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".alta");
+        var homeRoot = GetDefaultHomeRoot();
         Directory.CreateDirectory(homeRoot);
         CodeAltaLogging.Initialize(homeRoot);
         var currentDirectory = Environment.CurrentDirectory;
@@ -153,7 +149,7 @@ internal partial class Program
     internal static void ReportCommandLinePluginStartup(PluginRuntimeManagerStartResult result, TimeSpan elapsed, CodeAltaPluginBootstrapOptions pluginBootstrapOptions)
     {
         ArgumentNullException.ThrowIfNull(result);
-        var homeRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".alta");
+        var homeRoot = GetDefaultHomeRoot();
         var checkedPackageCount = result.BuildResults.Count;
         var builtPackageCount = result.BuildResults.Count(static build => build.Succeeded && !build.IsUpToDate);
         var upToDatePackageCount = result.BuildResults.Count(static build => build.Succeeded && build.IsUpToDate);
@@ -205,11 +201,6 @@ internal partial class Program
 
     private static void LogPluginStartup(PluginRuntimeManagerStartResult result, TimeSpan elapsed, string homeRoot)
     {
-        if (!LogManager.IsInitialized)
-        {
-            return;
-        }
-
         var logger = LogManager.GetLogger("CodeAlta.Plugins");
         var checkedPackageCount = result.BuildResults.Count;
         var builtPackageCount = result.BuildResults.Count(static build => build.Succeeded && !build.IsUpToDate);
@@ -228,6 +219,9 @@ internal partial class Program
             logger.Error(FormatPluginBuildFailureForLog(build));
         }
     }
+
+    private static string GetDefaultHomeRoot()
+        => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".alta");
 
     private static void LogRuntimeDiagnostic(Logger logger, PluginRuntimeDiagnostic diagnostic)
     {

@@ -174,10 +174,7 @@ internal sealed class AcpJsonRpcTransport : IAsyncDisposable
 
     private async Task WriteBufferAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
     {
-        if (_logger is not null && _logger.IsEnabled(LogLevel.Trace))
-        {
-            _logger.Trace($"ACP Send: {Encoding.UTF8.GetString(buffer.Span)}");
-        }
+        _logger?.Trace($"ACP Send: {Encoding.UTF8.GetString(buffer.Span)}");
 
         await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -244,10 +241,7 @@ internal sealed class AcpJsonRpcTransport : IAsyncDisposable
             return;
         }
 
-        if (_logger is not null && _logger.IsEnabled(LogLevel.Trace))
-        {
-            _logger.Trace($"ACP Receive: {Encoding.UTF8.GetString(lineBytes)}");
-        }
+        _logger?.Trace($"ACP Receive: {Encoding.UTF8.GetString(lineBytes)}");
 
         var reader = new Utf8JsonReader(lineBytes);
         JsonElement element;

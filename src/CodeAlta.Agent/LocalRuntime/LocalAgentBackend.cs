@@ -504,17 +504,11 @@ public sealed class LocalAgentBackend : IAgentBackend, IAgentSharedSessionMetada
 
     private static void LogInfo(string message)
     {
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Info))
-        {
-            Logger.Info(message);
-        }
+        Logger.Info(message);
     }
 
     private static void LogWarn(Exception exception, string message)
     {
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Warn))
-        {
-            Logger.Warn(exception, message);
-        }
+        Logger.Warn(exception, message);
     }
 }

@@ -323,18 +323,12 @@ public sealed class CopilotAgentSession : ICopilotAgentSession, IAgentCompaction
 
     private static void LogDebug(string message)
     {
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Debug))
-        {
-            Logger.Debug(message);
-        }
+        Logger.Debug(message);
     }
 
     private static void LogError(string message, Exception exception)
     {
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Error))
-        {
-            Logger.Error(exception, message);
-        }
+        Logger.Error(exception, message);
     }
 
     private static string SafeToJson(SessionEvent sessionEvent)

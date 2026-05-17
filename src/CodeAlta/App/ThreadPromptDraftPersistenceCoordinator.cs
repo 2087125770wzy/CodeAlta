@@ -209,10 +209,7 @@ internal sealed class ThreadPromptDraftPersistenceCoordinator : IAsyncDisposable
 
     private static void LogFailure(Exception ex, string message)
     {
-        if (LogManager.IsInitialized && Logger.IsEnabled(LogLevel.Error))
-        {
-            Logger.Error(ex, message);
-        }
+        Logger.Error(ex, message);
     }
 
     private sealed record PendingPromptDraftSave(string PromptText, CancellationTokenSource CancellationSource);
