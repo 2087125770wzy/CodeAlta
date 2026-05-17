@@ -423,7 +423,12 @@ internal static class ModelProviderEditorDiagnostics
     private static bool IsCodexSubscription(ModelProviderEditorItemViewModel item)
         => string.Equals(item.ProviderType, "codex", StringComparison.Ordinal);
 
+    private static bool IsCopilotDirect(ModelProviderEditorItemViewModel item)
+        => string.Equals(item.ProviderType, "copilot", StringComparison.Ordinal);
+
     private static bool IsStatusNeutralDiagnostic(ModelProviderEditorItemViewModel item, ModelProviderDiagnosticEntry entry)
-        => IsCodexSubscription(item) &&
-           entry.Message.StartsWith("Experimental ChatGPT/Codex subscription access", StringComparison.Ordinal);
+        => (IsCodexSubscription(item) &&
+            entry.Message.StartsWith("Experimental ChatGPT/Codex subscription access", StringComparison.Ordinal)) ||
+           (IsCopilotDirect(item) &&
+            entry.Message.StartsWith("Experimental Copilot access", StringComparison.Ordinal));
 }

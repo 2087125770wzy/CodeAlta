@@ -133,6 +133,26 @@ public sealed class ModelProviderEditorDiagnosticsTests
     }
 
     [TestMethod]
+    public void Analyze_CopilotExperimentalAdvisory_DoesNotWarnInProviderStatus()
+    {
+        var item = CreateCopilotDirectItem(enabled: true, experimental: true);
+
+        var snapshot = ModelProviderEditorDiagnostics.Analyze(item, [item]);
+
+        Assert.AreEqual(ModelProviderUiStatusKind.Configured, snapshot.StatusKind);
+        Assert.AreEqual("Ready to test", snapshot.StatusText);
+        Assert.IsTrue(snapshot.Entries.Any(static entry =>
+            entry.Severity == ValidationSeverity.Warning &&
+            entry.Message.Contains("Experimental Copilot access", StringComparison.Ordinal)));
+
+        item.SetTestResult(success: true, "Connected successfully · 5 model(s) discovered.");
+        var testedSnapshot = ModelProviderEditorDiagnostics.Analyze(item, [item]);
+
+        Assert.AreEqual(ModelProviderUiStatusKind.Success, testedSnapshot.StatusKind);
+        Assert.AreEqual("Tested successfully", testedSnapshot.StatusText);
+    }
+
+    [TestMethod]
     public void Analyze_CodexSubscriptionActionFailure_IsWarningNotError()
     {
         var item = CreateCodexSubscriptionItem(enabled: true, experimental: true);
@@ -242,6 +262,15 @@ public sealed class ModelProviderEditorDiagnosticsTests
             ProviderKey = "codex",
             Enabled = enabled,
             ProviderType = "codex",
+            Experimental = experimental,
+        });
+
+    private static ModelProviderEditorItemViewModel CreateCopilotDirectItem(bool enabled, bool experimental)
+        => ModelProviderEditorItemViewModel.FromDocument(new CodeAlta.Catalog.CodeAltaProviderDocument
+        {
+            ProviderKey = "copilot",
+            Enabled = enabled,
+            ProviderType = "copilot",
             Experimental = experimental,
         });
 }

@@ -2878,6 +2878,7 @@ public sealed class CodeAltaAppTests
         Assert.IsFalse(editor.Highlighter.IsEmpty);
         Assert.IsTrue(editor.EnableWordHints);
         Assert.AreEqual(PromptEditorEscapeBehavior.CancelCompletionOnly, editor.EscapeBehavior);
+        Assert.AreEqual(PromptEditorEnterMode.EnterAccepts, editor.EnterMode);
     }
 
     [TestMethod]
@@ -2917,14 +2918,16 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
-    public void ChatPromptEditor_CurrentPlatformSendShortcut_AcceptsPrompt()
+    public void ChatPromptEditor_DefaultEnterBehavior_AcceptsPrompt()
     {
         string? acceptedText = null;
-        var editor = new ChatPromptEditor(text => acceptedText = text)
-            .EnterMode(PromptEditorEnterMode.EnterInsertsNewLine);
+        var editor = new ChatPromptEditor(text => acceptedText = text);
         var root = new VStack { editor };
 
-        using var session = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(80, 20)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        using var session = Terminal.Open(
+            new InMemoryTerminalBackend(new TerminalSize(80, 20)),
+            new TerminalOptions { ImplicitStartInput = true },
+            force: true);
         var app = new TerminalApp(
             root,
             session.Instance,
@@ -2943,18 +2946,7 @@ public sealed class CodeAltaAppTests
             backend.PushEvent(new TerminalTextEvent { Text = "hello" });
             TickTerminalApp(app);
 
-            backend.PushEvent(OperatingSystem.IsWindows()
-                ? new TerminalKeyEvent
-                {
-                    Key = TerminalKey.Enter,
-                    Modifiers = TerminalModifiers.Ctrl,
-                }
-                : new TerminalKeyEvent
-                {
-                    Key = TerminalKey.Unknown,
-                    Char = TerminalChar.CtrlJ,
-                    Modifiers = TerminalModifiers.Ctrl,
-                });
+            backend.PushEvent(new TerminalKeyEvent { Key = TerminalKey.Enter });
             TickTerminalApp(app);
 
             Assert.AreEqual("hello", acceptedText);

@@ -147,13 +147,10 @@ namespace CodeAlta.Presentation.Prompting
                 segments.Add("[@] to reference a project file");
             }
 
-            segments.Add("[ENTER] for new line");
-            segments.Add($"[{GetPromptSendShortcutLabel().ToUpperInvariant()}] to send");
+            segments.Add("[ENTER] to send");
+            segments.Add("[SHIFT+ENTER] for new line");
             segments.Add("[F5] to steer");
             return string.Join(", ", segments) + ".";
         }
-
-        private static string GetPromptSendShortcutLabel()
-            => OperatingSystem.IsWindows() ? "Ctrl+Enter" : "Ctrl+J";
     }
 }

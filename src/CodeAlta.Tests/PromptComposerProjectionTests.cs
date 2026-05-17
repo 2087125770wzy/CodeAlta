@@ -68,7 +68,7 @@ public sealed class PromptComposerProjectionTests
             selectedThreadCanAbort: false);
 
         Assert.AreEqual(
-            $"Start a thread. [/] commands, [?] help, [@] to reference a project file, [ENTER] for new line, [{GetSendShortcutLabel().ToUpperInvariant()}] to send, [F5] to steer.",
+            "Start a thread. [/] commands, [?] help, [@] to reference a project file, [ENTER] to send, [SHIFT+ENTER] for new line, [F5] to steer.",
             projection.Placeholder);
         Assert.IsTrue(projection.IsEnabled);
         Assert.IsTrue(projection.CanSend);
@@ -126,7 +126,7 @@ public sealed class PromptComposerProjectionTests
             selectedThreadCanAbort: false);
 
         Assert.AreEqual(
-            $"Continue the selected thread. [/] commands, [?] help, [@] to reference a project file, [ENTER] for new line, [{GetSendShortcutLabel().ToUpperInvariant()}] to send, [F5] to steer.",
+            "Continue the selected thread. [/] commands, [?] help, [@] to reference a project file, [ENTER] to send, [SHIFT+ENTER] for new line, [F5] to steer.",
             projection.Placeholder);
         Assert.IsTrue(projection.CanSend);
         Assert.IsTrue(projection.CanSteer);
@@ -216,13 +216,10 @@ public sealed class PromptComposerProjectionTests
             selectedThreadCanAbort: false);
 
         Assert.AreEqual(
-            $"Start a thread. [/] commands, [?] help, [ENTER] for new line, [{GetSendShortcutLabel().ToUpperInvariant()}] to send, [F5] to steer.",
+            "Start a thread. [/] commands, [?] help, [ENTER] to send, [SHIFT+ENTER] for new line, [F5] to steer.",
             projection.Placeholder);
         Assert.IsTrue(projection.CanCloseTab);
     }
-
-    private static string GetSendShortcutLabel()
-        => OperatingSystem.IsWindows() ? "Ctrl+Enter" : "Ctrl+J";
 
     private static WorkThreadDescriptor CreateThread(string title)
     {

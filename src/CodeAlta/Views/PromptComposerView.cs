@@ -105,7 +105,7 @@ internal sealed class PromptComposerView
         var dialog = new Dialog()
             .Title("Edit Prompt")
             .TopRightText(closeButton)
-            .BottomRightText(new Markup("[dim]Esc/Ctrl+Enter Close · draft preserved[/]"))
+            .BottomRightText(new Markup("[dim]Enter/Esc/Ctrl+Enter Close · Shift+Enter New line · draft preserved[/]"))
             .IsModal(true)
             .Padding(1)
             .Content(editor.Scrollable().IsTabStop(false));
@@ -189,7 +189,6 @@ internal sealed class PromptComposerView
             .ContinuationPromptMarkup("[muted]·[/] ")
             .Placeholder(placeholder)
             .EscapeBehavior(PromptEditorEscapeBehavior.CancelCompletionOnly)
-            .EnterMode(PromptEditorEnterMode.EnterInsertsNewLine)
             .EnableWordHints(true)
             .Highlighter(HighlightMarkdown)
             .MinHeight(3)
