@@ -25,31 +25,39 @@
     <File Path="dotnet-releaser.toml" />
     <File Path="global.json" />
   </Folder>
-  <Project Path="CodeAlta.CodexSdk.Generator/CodeAlta.CodexSdk.Generator.csproj" Id="5e0c386b-10bd-4af7-a98e-5b18779aa19e" />
-  <Project Path="CodeAlta.Acp.Generator/CodeAlta.Acp.Generator.csproj" />
-  <Project Path="CodeAlta.Agent/CodeAlta.Agent.csproj" />
-  <Project Path="CodeAlta.Agent.ModelsDev.Updater/CodeAlta.Agent.ModelsDev.Updater.csproj" />
-  <Project Path="CodeAlta.Acp/CodeAlta.Acp.csproj" />
-  <Project Path="AgentMessageDiagnosticApp/AgentMessageDiagnosticApp.csproj" />
-  <Project Path="CodeAlta.Agent.Acp/CodeAlta.Agent.Acp.csproj" />
-  <Project Path="CodeAlta.Agent.Anthropic/CodeAlta.Agent.Anthropic.csproj" />
-  <Project Path="CodeAlta.Agent.Codex/CodeAlta.Agent.Codex.csproj" />
-  <Project Path="CodeAlta.Agent.Copilot/CodeAlta.Agent.Copilot.csproj" />
-  <Project Path="CodeAlta.Agent.CopilotDirect/CodeAlta.Agent.CopilotDirect.csproj" />
-  <Project Path="CodeAlta.Agent.GoogleGenAI/CodeAlta.Agent.GoogleGenAI.csproj" />
-  <Project Path="CodeAlta.Agent.OpenAI/CodeAlta.Agent.OpenAI.csproj" />
-  <Project Path="CodeAlta.CodexSdk/CodeAlta.CodexSdk.csproj" Id="4507c156-d675-4280-bd1c-2a5d8285c07f" />
-  <Project Path="CodeAlta.Orchestration/CodeAlta.Orchestration.csproj" />
-  <Project Path="CodeAlta.Orchestration.Tests/CodeAlta.Orchestration.Tests.csproj" />
-  <Project Path="CodeAlta.Tests/CodeAlta.Tests.csproj" />
-  <Project Path="CodeAlta.Catalog.Tests/CodeAlta.Catalog.Tests.csproj" />
-  <Project Path="CodeAlta.Catalog/CodeAlta.Catalog.csproj" />
-  <Project Path="CodeAlta.LiveTool/CodeAlta.LiveTool.csproj" />
-  <Project Path="CodeAlta.Plugin.Statistics/CodeAlta.Plugin.Statistics.csproj" />
-  <Project Path="CodeAlta.Plugins.Abstractions/CodeAlta.Plugins.Abstractions.csproj" />
-  <Project Path="CodeAlta.Plugins.Abstractions.Tests/CodeAlta.Plugins.Abstractions.Tests.csproj" />
-  <Project Path="CodeAlta.Plugins/CodeAlta.Plugins.csproj" />
-  <Project Path="CodeAlta.Plugins.Tests/CodeAlta.Plugins.Tests.csproj" />
-  <Project Path="CodeAlta/CodeAlta.csproj" />
-  <Project Path="RawCaptureApp/RawCaptureApp.csproj" /></Solution>
+  <Folder Name="/libs/">
+    <Project Path="CodeAlta.Acp/CodeAlta.Acp.csproj" />
+    <Project Path="CodeAlta.Agent.Acp/CodeAlta.Agent.Acp.csproj" />
+    <Project Path="CodeAlta.Agent.Anthropic/CodeAlta.Agent.Anthropic.csproj" />
+    <Project Path="CodeAlta.Agent.Codex/CodeAlta.Agent.Codex.csproj" />
+    <Project Path="CodeAlta.Agent.Copilot/CodeAlta.Agent.Copilot.csproj" />
+    <Project Path="CodeAlta.Agent.CopilotDirect/CodeAlta.Agent.CopilotDirect.csproj" />
+    <Project Path="CodeAlta.Agent.GoogleGenAI/CodeAlta.Agent.GoogleGenAI.csproj" />
+    <Project Path="CodeAlta.Agent.OpenAI/CodeAlta.Agent.OpenAI.csproj" />
+    <Project Path="CodeAlta.Agent/CodeAlta.Agent.csproj" />
+    <Project Path="CodeAlta.Catalog/CodeAlta.Catalog.csproj" />
+    <Project Path="CodeAlta.CodexSdk/CodeAlta.CodexSdk.csproj" Id="4507c156-d675-4280-bd1c-2a5d8285c07f" />
+    <Project Path="CodeAlta.LiveTool/CodeAlta.LiveTool.csproj" />
+    <Project Path="CodeAlta.Orchestration/CodeAlta.Orchestration.csproj" />
+    <Project Path="CodeAlta.Plugin.Statistics/CodeAlta.Plugin.Statistics.csproj" />
+    <Project Path="CodeAlta.Plugins.Abstractions/CodeAlta.Plugins.Abstractions.csproj" />
+    <Project Path="CodeAlta.Plugins/CodeAlta.Plugins.csproj" />
+  </Folder>
+  <Folder Name="/main/">
+    <Project Path="CodeAlta/CodeAlta.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="CodeAlta.Catalog.Tests/CodeAlta.Catalog.Tests.csproj" />
+    <Project Path="CodeAlta.Orchestration.Tests/CodeAlta.Orchestration.Tests.csproj" />
+    <Project Path="CodeAlta.Plugins.Abstractions.Tests/CodeAlta.Plugins.Abstractions.Tests.csproj" />
+    <Project Path="CodeAlta.Plugins.Tests/CodeAlta.Plugins.Tests.csproj" />
+    <Project Path="CodeAlta.Tests/CodeAlta.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="AgentMessageDiagnosticApp/AgentMessageDiagnosticApp.csproj" />
+    <Project Path="CodeAlta.Acp.Generator/CodeAlta.Acp.Generator.csproj" />
+    <Project Path="CodeAlta.Agent.ModelsDev.Updater/CodeAlta.Agent.ModelsDev.Updater.csproj" />
+    <Project Path="CodeAlta.CodexSdk.Generator/CodeAlta.CodexSdk.Generator.csproj" Id="5e0c386b-10bd-4af7-a98e-5b18779aa19e" />
+    <Project Path="RawCaptureApp/RawCaptureApp.csproj" />
+  </Folder></Solution>
 
