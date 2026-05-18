@@ -22,8 +22,6 @@ internal enum ThreadMessageScrollTarget
     Last,
 }
 
-internal sealed record ShowQueueStatusCommand : ShellCommand;
-
 internal sealed record OpenHelpCommand(string? FilterText = null) : ShellCommand;
 
 internal sealed record OpenCommandPaletteCommand : ShellCommand;

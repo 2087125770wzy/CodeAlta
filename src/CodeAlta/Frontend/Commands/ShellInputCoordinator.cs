@@ -36,9 +36,6 @@ internal sealed class ShellInputCoordinator
     public Task ShowHelpAsync(string? filterText = null, CancellationToken cancellationToken = default)
         => DispatchAsync(new OpenHelpCommand(filterText), cancellationToken);
 
-    public Task ShowQueueStatusAsync(CancellationToken cancellationToken = default)
-        => DispatchAsync(new ShowQueueStatusCommand(), cancellationToken);
-
     public Task CloseCurrentTabAsync(CancellationToken cancellationToken = default)
         => DispatchAsync(new CloseCurrentTabCommand(), cancellationToken);
 
@@ -76,7 +73,6 @@ internal sealed class ShellInputCoordinator
             MessageNextIntent => new ScrollSelectedThreadMessageCommand(ThreadMessageScrollTarget.Next),
             MessageFirstIntent => new ScrollSelectedThreadMessageCommand(ThreadMessageScrollTarget.First),
             MessageLastIntent => new ScrollSelectedThreadMessageCommand(ThreadMessageScrollTarget.Last),
-            QueueStatusIntent => new ShowQueueStatusCommand(),
             OpenHelpIntent help => new OpenHelpCommand(help.FilterText),
             OpenCommandPaletteIntent => new OpenCommandPaletteCommand(),
             ExitAppIntent => new ExitAppCommand(),

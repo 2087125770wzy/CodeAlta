@@ -25,42 +25,14 @@ internal static class ThreadCommandHandlers
 {
     public static void Register(
         ShellCommandRegistry registry,
-        ThreadCommandCoordinator threadCommands,
-        IShellThreadCommandService threadCommandService,
-        IShellStatusService statusService)
+        ThreadCommandCoordinator threadCommands)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(threadCommands);
-        ArgumentNullException.ThrowIfNull(threadCommandService);
-        ArgumentNullException.ThrowIfNull(statusService);
 
         registry.Register<AbortSelectedThreadCommand>((_, _) => ToValueTask(threadCommands.AbortSelectedThreadAsync()));
         registry.Register<CompactSelectedThreadCommand>((_, _) => ToValueTask(threadCommands.CompactSelectedThreadAsync()));
-        registry.Register<ShowQueueStatusCommand>((_, _) => ToValueTask(ShowSelectedThreadQueueStatusAsync(threadCommandService, statusService)));
         registry.Register<ClearSelectedThreadQueueCommand>((_, _) => ToValueTask(threadCommands.ClearSelectedThreadQueueAsync()));
-    }
-
-    private static Task ShowSelectedThreadQueueStatusAsync(
-        IShellThreadCommandService threadCommandService,
-        IShellStatusService statusService)
-    {
-        if (threadCommandService.GetSelectedThread() is not { } thread)
-        {
-            statusService.SetStatus("Open a thread before inspecting its queue.", tone: StatusTone.Warning);
-            return Task.CompletedTask;
-        }
-
-        var tab = threadCommandService.EnsureThreadTab(thread);
-        var queuedCount = tab.QueuedPrompts.Count;
-        var tone = queuedCount == 0
-            ? StatusTone.Ready
-            : tab.StatusBusy ? StatusTone.Info : StatusTone.Warning;
-        var message = queuedCount == 0
-            ? $"Queue empty · {thread.Title}"
-            : $"{queuedCount} queued prompt(s) waiting in '{thread.Title}'.";
-
-        statusService.SetStatus(message, tone: tone);
-        return Task.CompletedTask;
     }
 
     private static ValueTask ToValueTask(Task task)

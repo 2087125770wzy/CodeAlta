@@ -74,7 +74,6 @@ internal sealed class ShellInputRouter
             { Id: "CodeAlta.Thread.MessageFirst" } => new MessageFirstIntent(),
             { Id: "CodeAlta.Thread.MessageLast" } => new MessageLastIntent(),
             { Id: "CodeAlta.Thread.ClearQueue" } => new ClearQueueIntent(),
-            { Id: "CodeAlta.Thread.Queue" } => new QueueStatusIntent(),
             _ => new UnknownTextCommandIntent(commandName, arguments)
         };
     }

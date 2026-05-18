@@ -149,7 +149,7 @@ namespace CodeAlta.Presentation.Prompting
 
             segments.Add("[ENTER] to send");
             segments.Add("[SHIFT+ENTER] for new line");
-            segments.Add("[F5] to steer");
+            segments.Add("[CTRL+ENTER] to steer");
             return string.Join(", ", segments) + ".";
         }
     }

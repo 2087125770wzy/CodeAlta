@@ -66,6 +66,4 @@ internal sealed record MessageLastIntent : ShellInputIntent;
 
 internal sealed record ClearQueueIntent : ShellInputIntent;
 
-internal sealed record QueueStatusIntent : ShellInputIntent;
-
 internal sealed record UnknownTextCommandIntent(string CommandName, string? Arguments = null) : ShellInputIntent;

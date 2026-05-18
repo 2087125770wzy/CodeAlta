@@ -33,7 +33,6 @@ internal static class ShellCommandSurfaceComposition
         var commandPalettePresenter = new ShellCommandPalettePresenter(dialogCommandService);
         var shellCommandRegistry = new ShellCommandRegistryFactory(
             threadCommandCoordinator,
-            threadCommandService,
             dialogCommandService,
             navigationCommandService,
             tabCommandService,

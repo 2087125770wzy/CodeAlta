@@ -292,7 +292,6 @@ internal static class ShellCommandCatalog
             ShellCommandHelpCategory.Prompt,
             ShellCommandScope.DraftOrThread,
             ShellCommandAvailability.CanSend,
-            Gesture: new KeyGesture(TerminalKey.F5, TerminalModifiers.Ctrl),
             ShowInCommandBar: false),
         new(
             "CodeAlta.Thread.Steer",
@@ -301,7 +300,7 @@ internal static class ShellCommandCatalog
             ShellCommandHelpCategory.Prompt,
             ShellCommandScope.ThreadOnly,
             ShellCommandAvailability.CanSteer,
-            Gesture: new KeyGesture(TerminalKey.F5),
+            Gesture: new KeyGesture(TerminalKey.Enter, TerminalModifiers.Ctrl),
             ShowInCommandPalette: false,
             SupportsTextCommand: false),
         new(
@@ -357,16 +356,6 @@ internal static class ShellCommandCatalog
             ShellCommandAvailability.CanCompact,
             Gesture: new KeyGesture(TerminalKey.F11, TerminalModifiers.Ctrl),
             Aliases: ["compact"]),
-        new(
-            "CodeAlta.Thread.Queue",
-            "Queue",
-            "Show the current queued prompt count for the selected thread.",
-            ShellCommandHelpCategory.Thread,
-            ShellCommandScope.ThreadOnly,
-            ShellCommandAvailability.CanCloseTab,
-            Gesture: new KeyGesture(TerminalKey.F5, TerminalModifiers.Ctrl | TerminalModifiers.Shift),
-            Aliases: ["queue"],
-            ShowInCommandBar: false)
     ];
 
     public static ShellCommandMetadata? FindByAlias(string alias)

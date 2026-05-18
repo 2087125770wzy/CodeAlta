@@ -16,7 +16,6 @@ public sealed class ShellInputCoordinatorTests
     [DataRow("/close", typeof(CloseCurrentTabCommand))]
     [DataRow("/tab_left", typeof(SelectRelativeTabCommand))]
     [DataRow("/msg_next", typeof(ScrollSelectedThreadMessageCommand))]
-    [DataRow("/queue", typeof(ShowQueueStatusCommand))]
     [DataRow("/does_not_exist arg", typeof(ExecutePluginTextCommand))]
     public async Task HandleInputAsync_DispatchesRoutedCommand(string input, Type expectedCommandType)
     {

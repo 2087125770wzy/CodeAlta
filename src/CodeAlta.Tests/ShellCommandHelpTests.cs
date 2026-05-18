@@ -26,7 +26,6 @@ public sealed class ShellCommandHelpTests
         var modelCommand = ShellCommandCatalog.Get("CodeAlta.Shell.FocusModelProvider");
         var fullPromptCommand = ShellCommandCatalog.Get("CodeAlta.Thread.ExpandPrompt");
         var sendCommand = ShellCommandCatalog.Get("CodeAlta.Thread.Send");
-        var queueCommand = ShellCommandCatalog.Get("CodeAlta.Thread.Queue");
         var compactCommand = ShellCommandCatalog.Get("CodeAlta.Thread.Compact");
 
         var sections = ShellHelpContentBuilder.BuildSections();
@@ -75,9 +74,6 @@ public sealed class ShellCommandHelpTests
         var sendEntry = sections
             .SelectMany(static section => section.Entries)
             .Single(candidate => string.Equals(candidate.Label, sendCommand.Label, StringComparison.Ordinal));
-        var queueEntry = sections
-            .SelectMany(static section => section.Entries)
-            .Single(candidate => string.Equals(candidate.Label, queueCommand.Label, StringComparison.Ordinal));
         var compactEntry = sections
             .SelectMany(static section => section.Entries)
             .Single(candidate => string.Equals(candidate.Label, compactCommand.Label, StringComparison.Ordinal));
@@ -107,10 +103,8 @@ public sealed class ShellCommandHelpTests
         CollectionAssert.Contains(goToPromptEntry.Bindings.ToArray(), "/prompt");
         CollectionAssert.Contains(modelEntry.Bindings.ToArray(), "/model");
         CollectionAssert.Contains(fullPromptEntry.Bindings.ToArray(), "/full_prompt");
-        CollectionAssert.Contains(sendEntry.Bindings.ToArray(), new KeyGesture(TerminalKey.F5, TerminalModifiers.Ctrl).ToString()!);
+        CollectionAssert.DoesNotContain(sendEntry.Bindings.ToArray(), new KeyGesture(TerminalKey.F5, TerminalModifiers.Ctrl).ToString()!);
         CollectionAssert.Contains(sendEntry.Bindings.ToArray(), "/send");
-        CollectionAssert.Contains(queueEntry.Bindings.ToArray(), new KeyGesture(TerminalKey.F5, TerminalModifiers.Ctrl | TerminalModifiers.Shift).ToString()!);
-        CollectionAssert.Contains(queueEntry.Bindings.ToArray(), "/queue");
         CollectionAssert.Contains(compactEntry.Bindings.ToArray(), new KeyGesture(TerminalKey.F11, TerminalModifiers.Ctrl).ToString()!);
     }
 
@@ -148,7 +142,7 @@ public sealed class ShellCommandHelpTests
             .Single(candidate => string.Equals(candidate.Label, "Steer", StringComparison.Ordinal));
 
         CollectionAssert.DoesNotContain(steerEntry.Bindings.ToArray(), "/steer");
-        CollectionAssert.Contains(steerEntry.Bindings.ToArray(), new KeyGesture(TerminalKey.F5).ToString()!);
+        CollectionAssert.Contains(steerEntry.Bindings.ToArray(), new KeyGesture(TerminalKey.Enter, TerminalModifiers.Ctrl).ToString()!);
     }
 
     [TestMethod]

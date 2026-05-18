@@ -14,7 +14,6 @@ internal interface IShellCommandSurfacePresenter
 internal sealed class ShellCommandRegistryFactory
 {
     private readonly ThreadCommandCoordinator _threadCommands;
-    private readonly IShellThreadCommandService _threadCommandService;
     private readonly IShellDialogCommandService _dialogCommandService;
     private readonly IShellNavigationCommandService _navigationCommandService;
     private readonly IShellTabCommandService _tabCommandService;
@@ -23,7 +22,6 @@ internal sealed class ShellCommandRegistryFactory
 
     public ShellCommandRegistryFactory(
         ThreadCommandCoordinator threadCommands,
-        IShellThreadCommandService threadCommandService,
         IShellDialogCommandService dialogCommandService,
         IShellNavigationCommandService navigationCommandService,
         IShellTabCommandService tabCommandService,
@@ -31,14 +29,12 @@ internal sealed class ShellCommandRegistryFactory
         IPluginCommandService pluginCommandService)
     {
         ArgumentNullException.ThrowIfNull(threadCommands);
-        ArgumentNullException.ThrowIfNull(threadCommandService);
         ArgumentNullException.ThrowIfNull(dialogCommandService);
         ArgumentNullException.ThrowIfNull(navigationCommandService);
         ArgumentNullException.ThrowIfNull(tabCommandService);
         ArgumentNullException.ThrowIfNull(statusService);
         ArgumentNullException.ThrowIfNull(pluginCommandService);
         _threadCommands = threadCommands;
-        _threadCommandService = threadCommandService;
         _dialogCommandService = dialogCommandService;
         _navigationCommandService = navigationCommandService;
         _tabCommandService = tabCommandService;
@@ -68,7 +64,6 @@ internal sealed class ShellCommandRegistryFactory
         registry.RegisterFactory("CodeAlta.Thread.Send", static () => new SubmitPromptCommand(null, Steer: false));
         registry.RegisterFactory("CodeAlta.Thread.Steer", static () => new SubmitPromptCommand(null, Steer: true));
         registry.RegisterFactory("CodeAlta.Thread.Abort", static () => new AbortSelectedThreadCommand());
-        registry.RegisterFactory("CodeAlta.Thread.Queue", static () => new ShowQueueStatusCommand());
         registry.RegisterFactory("CodeAlta.Thread.ClearQueue", static () => new ClearSelectedThreadQueueCommand());
         registry.RegisterFactory("CodeAlta.Thread.Compact", static () => new CompactSelectedThreadCommand());
         registry.RegisterFactory("CodeAlta.Thread.CloseTab", static () => new CloseCurrentTabCommand());
@@ -80,7 +75,7 @@ internal sealed class ShellCommandRegistryFactory
         registry.RegisterFactory("CodeAlta.Thread.MessageLast", static () => new ScrollSelectedThreadMessageCommand(ThreadMessageScrollTarget.Last));
 
         PromptCommandHandlers.Register(registry, _threadCommands);
-        ThreadCommandHandlers.Register(registry, _threadCommands, _threadCommandService, _statusService);
+        ThreadCommandHandlers.Register(registry, _threadCommands);
         NavigationCommandHandlers.Register(registry, _navigationCommandService);
         DialogCommandHandlers.Register(
             registry,
