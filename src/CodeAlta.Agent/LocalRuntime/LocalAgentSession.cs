@@ -1213,9 +1213,9 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             .Append(string.IsNullOrWhiteSpace(modelId) ? "provider default" : $"`{modelId}`");
         if (reasoningEffort is { } effort)
         {
-            builder.Append(" (reasoning: `")
+            builder.Append(", reasoning: `")
                 .Append(effort)
-                .Append("`)");
+                .Append('`');
         }
 
         builder.Append('.');

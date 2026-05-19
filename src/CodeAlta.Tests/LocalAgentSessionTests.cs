@@ -161,6 +161,7 @@ public sealed class LocalAgentSessionTests
             {
                 ProviderKey = provider.ProviderKey,
                 Model = "gpt-5.4",
+                ReasoningEffort = AgentReasoningEffort.High,
                 WorkingDirectory = temp.Path,
                 OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
                 Tools =
@@ -197,9 +198,10 @@ public sealed class LocalAgentSessionTests
         var firstUserIndex = FindEventIndex(history, static evt => evt is AgentRawEvent { BackendEventType: "local.userMessage" });
         Assert.IsTrue(modelChangedIndex >= 0 && systemPromptIndex >= 0 && firstUserIndex >= 0 && modelChangedIndex < systemPromptIndex && systemPromptIndex < firstUserIndex);
         var modelChangedEvent = (AgentSessionUpdateEvent)history[modelChangedIndex];
-        Assert.AreEqual("Model used: provider `openai`, model `gpt-5.4`.", modelChangedEvent.Message);
+        Assert.AreEqual("Model used: provider `openai`, model `gpt-5.4`, reasoning: `High`.", modelChangedEvent.Message);
         Assert.AreEqual("openai", modelChangedEvent.Details?.GetProperty("providerKey").GetString());
         Assert.AreEqual("gpt-5.4", modelChangedEvent.Details?.GetProperty("modelId").GetString());
+        Assert.AreEqual("High", modelChangedEvent.Details?.GetProperty("reasoningEffort").GetString());
         var systemPromptEvent = (AgentSystemPromptEvent)history[systemPromptIndex];
         Assert.AreEqual("session_start", systemPromptEvent.Reason);
         Assert.AreEqual("native-system-and-developer", systemPromptEvent.ProviderPayloadSummary.ChannelMapping);
