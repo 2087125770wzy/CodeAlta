@@ -476,7 +476,7 @@ internal static class ChatMarkdownFormatter
             AgentSessionUpdateKind.Info => $"{NerdFont.CodInfo} Info",
             AgentSessionUpdateKind.Warning => $"{NerdFont.CodWarning} Warning",
             AgentSessionUpdateKind.Reconnecting => $"{NerdFont.MdServerNetwork} Reconnecting",
-            AgentSessionUpdateKind.ModelChanged => $"{NerdFont.MdChat} Model Changed",
+            AgentSessionUpdateKind.ModelChanged => $"{NerdFont.MdChat} Model Used",
             AgentSessionUpdateKind.ModeChanged => $"{NerdFont.MdCubeOutline} Mode Changed",
             AgentSessionUpdateKind.TitleChanged => $"{NerdFont.MdRenameBox} Title Changed",
             AgentSessionUpdateKind.ContextChanged => $"{NerdFont.MdFolder} Context Changed",

@@ -192,9 +192,14 @@ public sealed class LocalAgentSessionTests
         Assert.AreEqual("sample.txt", toolInvocations[0].Arguments.GetProperty("path").GetString());
 
         var history = await session.GetHistoryAsync().ConfigureAwait(false);
+        var modelChangedIndex = FindEventIndex(history, static evt => evt is AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.ModelChanged });
         var systemPromptIndex = FindEventIndex(history, static evt => evt is AgentSystemPromptEvent);
         var firstUserIndex = FindEventIndex(history, static evt => evt is AgentRawEvent { BackendEventType: "local.userMessage" });
-        Assert.IsTrue(systemPromptIndex >= 0 && firstUserIndex >= 0 && systemPromptIndex < firstUserIndex);
+        Assert.IsTrue(modelChangedIndex >= 0 && systemPromptIndex >= 0 && firstUserIndex >= 0 && modelChangedIndex < systemPromptIndex && systemPromptIndex < firstUserIndex);
+        var modelChangedEvent = (AgentSessionUpdateEvent)history[modelChangedIndex];
+        Assert.AreEqual("Model used: provider `openai`, model `gpt-5.4`.", modelChangedEvent.Message);
+        Assert.AreEqual("openai", modelChangedEvent.Details?.GetProperty("providerKey").GetString());
+        Assert.AreEqual("gpt-5.4", modelChangedEvent.Details?.GetProperty("modelId").GetString());
         var systemPromptEvent = (AgentSystemPromptEvent)history[systemPromptIndex];
         Assert.AreEqual("session_start", systemPromptEvent.Reason);
         Assert.AreEqual("native-system-and-developer", systemPromptEvent.ProviderPayloadSummary.ChannelMapping);
@@ -221,6 +226,7 @@ public sealed class LocalAgentSessionTests
 
         var persistedHistory = await store.ReadEventsAsync(provider.ProtocolFamily, provider.ProviderKey, summary.SessionId).ConfigureAwait(false);
         Assert.IsFalse(persistedHistory.OfType<AgentContentDeltaEvent>().Any());
+        Assert.IsTrue(persistedHistory.OfType<AgentSessionUpdateEvent>().Any(static evt => evt.Kind == AgentSessionUpdateKind.ModelChanged));
         Assert.IsTrue(persistedHistory.OfType<AgentSystemPromptEvent>().Any());
         Assert.IsTrue(persistedHistory.OfType<AgentContentCompletedEvent>().Any(static evt => evt.Kind == AgentContentKind.Assistant));
 

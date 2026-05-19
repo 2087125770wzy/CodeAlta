@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodeAlta.App.State;
 using CodeAlta.Agent;
 using CodeAlta.Catalog;
@@ -156,6 +157,110 @@ internal sealed class ThreadHistoryCoordinator
         }
 
         return usage;
+    }
+
+    public static ModelProviderPreference? RecoverModelProviderPreferenceFromHistory(IReadOnlyList<AgentEvent> history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+
+        for (var index = history.Count - 1; index >= 0; index--)
+        {
+            if (history[index] is AgentSessionUpdateEvent { Kind: AgentSessionUpdateKind.ModelChanged } update &&
+                TryReadModelSelection(update, out var modelId, out var reasoningEffort))
+            {
+                return new ModelProviderPreference(
+                    new ModelProviderId(update.BackendId.Value),
+                    modelId,
+                    reasoningEffort);
+            }
+        }
+
+        return null;
+    }
+
+    private static bool ApplyRecoveredModelProviderPreference(
+        WorkThreadDescriptor thread,
+        OpenThreadState tab,
+        ModelProviderPreference? preference)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(tab);
+
+        if (preference is null)
+        {
+            return false;
+        }
+
+        var normalized = preference.Normalize();
+        var changed = false;
+        if (!string.Equals(tab.BackendId.Value, normalized.ModelProviderId.Value, StringComparison.OrdinalIgnoreCase))
+        {
+            tab.BackendId = new AgentBackendId(normalized.ModelProviderId.Value);
+            changed = true;
+        }
+
+        if (!string.Equals(thread.ProviderKey, normalized.ModelProviderId.Value, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(thread.BackendId, normalized.ModelProviderId.Value, StringComparison.OrdinalIgnoreCase))
+        {
+            thread.ProviderKey = normalized.ModelProviderId.Value;
+            thread.BackendId = normalized.ModelProviderId.Value;
+            changed = true;
+        }
+
+        if (!string.Equals(tab.ModelId, normalized.ModelId, StringComparison.Ordinal))
+        {
+            tab.ModelId = normalized.ModelId;
+            changed = true;
+        }
+
+        if (!string.Equals(thread.ModelId, normalized.ModelId, StringComparison.Ordinal))
+        {
+            thread.ModelId = normalized.ModelId;
+            changed = true;
+        }
+
+        if (tab.ReasoningEffort != normalized.ReasoningEffort)
+        {
+            tab.ReasoningEffort = normalized.ReasoningEffort;
+            changed = true;
+        }
+
+        if (thread.ReasoningEffort != normalized.ReasoningEffort)
+        {
+            thread.ReasoningEffort = normalized.ReasoningEffort;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool TryReadModelSelection(
+        AgentSessionUpdateEvent update,
+        out string? modelId,
+        out AgentReasoningEffort? reasoningEffort)
+    {
+        modelId = null;
+        reasoningEffort = null;
+        if (update.Details is not { ValueKind: JsonValueKind.Object } details)
+        {
+            return false;
+        }
+
+        if (details.TryGetProperty("modelId", out var modelProperty) &&
+            modelProperty.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(modelProperty.GetString()))
+        {
+            modelId = modelProperty.GetString()!.Trim();
+        }
+
+        if (details.TryGetProperty("reasoningEffort", out var reasoningProperty) &&
+            reasoningProperty.ValueKind == JsonValueKind.String &&
+            Enum.TryParse<AgentReasoningEffort>(reasoningProperty.GetString(), ignoreCase: true, out var parsedReasoningEffort))
+        {
+            reasoningEffort = parsedReasoningEffort;
+        }
+
+        return !string.IsNullOrWhiteSpace(modelId) || reasoningEffort is not null;
     }
 
     private static IReadOnlyList<int> FindPinnedPrefixEventIndexes(IReadOnlyList<AgentEvent> history, int endIndex)
@@ -425,12 +530,15 @@ internal sealed class ThreadHistoryCoordinator
             thread.MessageCount = CountRenderableMessages(history);
             await _persistThreadLocalStateAsync(thread).ConfigureAwait(false);
             var recoveredUsage = RecoverUsageFromHistory(history);
+            var recoveredModelPreference = RecoverModelProviderPreferenceFromHistory(history);
             var plan = loadOnlyFromLastUserPrompt
                 ? CreateInitialLoadPlan(history)
                 : new ThreadHistoryLoadPlan(history, OmittedMessageCount: 0);
+            var recoveredModelPreferenceChanged = false;
             await _dispatchToUiAsync(
                     async () =>
                     {
+                        recoveredModelPreferenceChanged = ApplyRecoveredModelProviderPreference(thread, tab, recoveredModelPreference);
                         tab.HistoryEvents = history.ToList();
                         var previousUsage = tab.Usage;
                         _resetThreadTab(tab);
@@ -469,6 +577,11 @@ internal sealed class ThreadHistoryCoordinator
                         _clearThreadStatus(tab);
                     })
                 .ConfigureAwait(false);
+            if (recoveredModelPreferenceChanged)
+            {
+                await _persistThreadLocalStateAsync(thread).ConfigureAwait(false);
+            }
+
             _projectLoadedHistory(thread, tab, plan.EventsToRender);
         }
         catch (Exception ex)

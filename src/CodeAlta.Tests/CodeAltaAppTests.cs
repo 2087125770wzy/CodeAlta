@@ -481,6 +481,7 @@ public sealed class CodeAltaAppTests
 
         Assert.AreEqual("13116/128000 tokens", markdown);
         StringAssert.Contains(ChatMarkdownFormatter.GetSessionUpdateHeader(AgentSessionUpdateKind.UsageUpdated), "Usage Updated");
+        StringAssert.Contains(ChatMarkdownFormatter.GetSessionUpdateHeader(AgentSessionUpdateKind.ModelChanged), "Model Used");
     }
 
     [TestMethod]
@@ -678,6 +679,39 @@ public sealed class CodeAltaAppTests
         Assert.AreEqual(203_533L, recovered.CurrentTokens);
         Assert.AreEqual(272_000L, recovered.TokenLimit);
         Assert.AreEqual(202_752L, recovered.LastOperation?.CachedInputTokens);
+    }
+
+    [TestMethod]
+    public void RecoverModelProviderPreferenceFromHistory_UsesLatestModelChangedEvent()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        AgentEvent[] history =
+        [
+            new AgentSessionUpdateEvent(
+                AgentBackendIds.OpenAIResponses,
+                "session-1",
+                timestamp,
+                null,
+                AgentSessionUpdateKind.ModelChanged,
+                "Model selected: `gpt-5`.",
+                JsonSerializer.SerializeToElement(new { modelId = "gpt-5", reasoningEffort = "Medium" })),
+            new AgentContentCompletedEvent(AgentBackendIds.OpenAIResponses, "session-1", timestamp.AddSeconds(1), null, AgentContentKind.User, "user-1", null, "Prompt"),
+            new AgentSessionUpdateEvent(
+                AgentBackendIds.OpenAIResponses,
+                "session-1",
+                timestamp.AddSeconds(2),
+                null,
+                AgentSessionUpdateKind.ModelChanged,
+                "Model selected: `gpt-5.5`.",
+                JsonSerializer.SerializeToElement(new { modelId = "gpt-5.5", reasoningEffort = "High" })),
+        ];
+
+        var preference = ThreadHistoryCoordinator.RecoverModelProviderPreferenceFromHistory(history);
+
+        Assert.IsNotNull(preference);
+        Assert.AreEqual(AgentBackendIds.OpenAIResponses.Value, preference.ModelProviderId.Value);
+        Assert.AreEqual("gpt-5.5", preference.ModelId);
+        Assert.AreEqual(AgentReasoningEffort.High, preference.ReasoningEffort);
     }
 
     [TestMethod]

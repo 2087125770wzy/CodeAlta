@@ -173,6 +173,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             var requestDeveloperInstructions = CombineDeveloperInstructions(
                 instructionBundle.DeveloperInstructions,
                 instructionBundle.RuntimeContext);
+            await AppendModelSelectionEventAsync(runId, linkedCts.Token).ConfigureAwait(false);
             await AppendSystemPromptEventIfChangedAsync(
                     runId,
                     instructionBundle.SystemMessage,
@@ -1161,6 +1162,68 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         value = false;
         return false;
     }
+
+    private async Task AppendModelSelectionEventAsync(AgentRunId runId, CancellationToken cancellationToken)
+    {
+        var modelId = NormalizeOptionalText(_options.Model) ?? NormalizeOptionalText(_summary.ModelId);
+        var update = new AgentSessionUpdateEvent(
+            BackendId,
+            SessionId,
+            DateTimeOffset.UtcNow,
+            runId,
+            AgentSessionUpdateKind.ModelChanged,
+            FormatModelSelectionMessage(_providerKey, modelId, _options.ReasoningEffort),
+            CreateModelSelectionDetails(modelId, _options.ReasoningEffort));
+        await AppendEventsAsync([update], cancellationToken).ConfigureAwait(false);
+    }
+
+    private JsonElement CreateModelSelectionDetails(string? modelId, AgentReasoningEffort? reasoningEffort)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("providerKey", _providerKey);
+            if (string.IsNullOrWhiteSpace(modelId))
+            {
+                writer.WriteNull("modelId");
+            }
+            else
+            {
+                writer.WriteString("modelId", modelId);
+            }
+
+            if (reasoningEffort is { } effort)
+            {
+                writer.WriteString("reasoningEffort", effort.ToString());
+            }
+
+            writer.WriteEndObject();
+        }
+
+        return JsonDocument.Parse(stream.ToArray()).RootElement.Clone();
+    }
+
+    private static string FormatModelSelectionMessage(string providerKey, string? modelId, AgentReasoningEffort? reasoningEffort)
+    {
+        var builder = new StringBuilder();
+        builder.Append("Model used: provider `")
+            .Append(providerKey)
+            .Append("`, model ")
+            .Append(string.IsNullOrWhiteSpace(modelId) ? "provider default" : $"`{modelId}`");
+        if (reasoningEffort is { } effort)
+        {
+            builder.Append(" (reasoning: `")
+                .Append(effort)
+                .Append("`)");
+        }
+
+        builder.Append('.');
+        return builder.ToString();
+    }
+
+    private static string? NormalizeOptionalText(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private async Task AppendSystemPromptEventIfChangedAsync(
         AgentRunId runId,
