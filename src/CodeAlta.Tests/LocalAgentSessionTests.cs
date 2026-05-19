@@ -2,6 +2,7 @@ using System.Text.Json;
 using CodeAlta.Agent;
 using CodeAlta.Agent.LocalRuntime;
 using CodeAlta.Agent.LocalRuntime.Compaction;
+using CodeAlta.Presentation.Formatting;
 
 namespace CodeAlta.Tests;
 
@@ -198,10 +199,11 @@ public sealed class LocalAgentSessionTests
         var firstUserIndex = FindEventIndex(history, static evt => evt is AgentRawEvent { BackendEventType: "local.userMessage" });
         Assert.IsTrue(modelChangedIndex >= 0 && systemPromptIndex >= 0 && firstUserIndex >= 0 && modelChangedIndex < systemPromptIndex && systemPromptIndex < firstUserIndex);
         var modelChangedEvent = (AgentSessionUpdateEvent)history[modelChangedIndex];
-        Assert.AreEqual("Model used: provider `openai`, model `gpt-5.4`, reasoning: `High`.", modelChangedEvent.Message);
+        Assert.IsNull(modelChangedEvent.Message);
         Assert.AreEqual("openai", modelChangedEvent.Details?.GetProperty("providerKey").GetString());
         Assert.AreEqual("gpt-5.4", modelChangedEvent.Details?.GetProperty("modelId").GetString());
         Assert.AreEqual("High", modelChangedEvent.Details?.GetProperty("reasoningEffort").GetString());
+        Assert.AreEqual("Model used: provider `openai`, model `gpt-5.4`, reasoning: `High`.", ChatMarkdownFormatter.FormatChatSessionUpdateMarkdown(modelChangedEvent));
         var systemPromptEvent = (AgentSystemPromptEvent)history[systemPromptIndex];
         Assert.AreEqual("session_start", systemPromptEvent.Reason);
         Assert.AreEqual("native-system-and-developer", systemPromptEvent.ProviderPayloadSummary.ChannelMapping);

@@ -485,6 +485,40 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void FormatChatSessionUpdateMarkdown_RebuildsModelUsedMessageFromDetails()
+    {
+        var update = new AgentSessionUpdateEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            DateTimeOffset.UtcNow,
+            null,
+            AgentSessionUpdateKind.ModelChanged,
+            "stale model message",
+            JsonSerializer.SerializeToElement(new { providerKey = "codex", modelId = "gpt-5.5", reasoningEffort = "High" }));
+
+        var markdown = ChatMarkdownFormatter.FormatChatSessionUpdateMarkdown(update);
+
+        Assert.AreEqual("Model used: provider `codex`, model `gpt-5.5`, reasoning: `High`.", markdown);
+    }
+
+    [TestMethod]
+    public void FormatChatSessionUpdateMarkdown_UsesLegacyModelUsedMessageWithoutStructuredKeys()
+    {
+        var update = new AgentSessionUpdateEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            DateTimeOffset.UtcNow,
+            null,
+            AgentSessionUpdateKind.ModelChanged,
+            "Model used: provider `codex`, model `gpt-5.5` (reasoning: `High`).",
+            JsonSerializer.SerializeToElement(new { modelId = "gpt-5.5", reasoningEffort = "High" }));
+
+        var markdown = ChatMarkdownFormatter.FormatChatSessionUpdateMarkdown(update);
+
+        Assert.AreEqual("Model used: provider `codex`, model `gpt-5.5` (reasoning: `High`).", markdown);
+    }
+
+    [TestMethod]
     public void BuildDraftPromptMessage_ReflectsSelectedScope()
     {
         Assert.AreEqual("Send the first prompt to start a global thread.", ShellTextFormatter.BuildDraftPromptMessage(globalScopeSelected: true));

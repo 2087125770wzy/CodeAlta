@@ -99,12 +99,91 @@ internal static class ChatMarkdownFormatter
     public static string FormatChatSessionUpdateMarkdown(AgentSessionUpdateEvent update)
     {
         ArgumentNullException.ThrowIfNull(update);
+        if (TryGetModelSelectionMarkdown(update, out var modelSelectionMarkdown))
+        {
+            return modelSelectionMarkdown;
+        }
+
         if (TryGetLocalCompactionDetails(update, out var details))
         {
             return FormatLocalCompactionMarkdown(update.Message, details);
         }
 
         return update.Message ?? string.Empty;
+    }
+
+    private static bool TryGetModelSelectionMarkdown(AgentSessionUpdateEvent update, out string markdown)
+    {
+        markdown = string.Empty;
+        if (update.Kind != AgentSessionUpdateKind.ModelChanged ||
+            update.Details is not { } details ||
+            !TryGetStringProperty(details, "providerKey", out var providerKey) ||
+            !TryGetModelId(details, out var modelId))
+        {
+            return false;
+        }
+
+        _ = TryGetStringProperty(details, "reasoningEffort", out var reasoningEffort);
+        markdown = FormatModelSelectionMarkdown(providerKey!, modelId, NormalizeReasoningEffort(reasoningEffort));
+        return true;
+    }
+
+    private static bool TryGetModelId(JsonElement details, out string? modelId)
+    {
+        modelId = null;
+        if (details.ValueKind != JsonValueKind.Object ||
+            !details.TryGetProperty("modelId", out var property))
+        {
+            return false;
+        }
+
+        if (property.ValueKind == JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        if (property.ValueKind == JsonValueKind.String)
+        {
+            modelId = property.GetString()?.Trim();
+            if (string.IsNullOrWhiteSpace(modelId))
+            {
+                modelId = null;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string? NormalizeReasoningEffort(string? reasoningEffort)
+    {
+        if (string.IsNullOrWhiteSpace(reasoningEffort))
+        {
+            return null;
+        }
+
+        return Enum.TryParse<AgentReasoningEffort>(reasoningEffort, ignoreCase: true, out var parsed)
+            ? parsed.ToString()
+            : reasoningEffort.Trim();
+    }
+
+    private static string FormatModelSelectionMarkdown(string providerKey, string? modelId, string? reasoningEffort)
+    {
+        var builder = new StringBuilder();
+        builder.Append("Model used: provider `")
+            .Append(providerKey)
+            .Append("`, model ")
+            .Append(string.IsNullOrWhiteSpace(modelId) ? "provider default" : $"`{modelId}`");
+        if (!string.IsNullOrWhiteSpace(reasoningEffort))
+        {
+            builder.Append(", reasoning: `")
+                .Append(reasoningEffort)
+                .Append('`');
+        }
+
+        builder.Append('.');
+        return builder.ToString();
     }
 
     public static string FormatSystemPromptSummaryMarkdown(AgentSystemPromptEvent promptEvent)

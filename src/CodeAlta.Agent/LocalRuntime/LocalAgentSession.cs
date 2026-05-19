@@ -1172,7 +1172,7 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
             DateTimeOffset.UtcNow,
             runId,
             AgentSessionUpdateKind.ModelChanged,
-            FormatModelSelectionMessage(_providerKey, modelId, _options.ReasoningEffort),
+            null,
             CreateModelSelectionDetails(modelId, _options.ReasoningEffort));
         await AppendEventsAsync([update], cancellationToken).ConfigureAwait(false);
     }
@@ -1202,24 +1202,6 @@ public sealed class LocalAgentSession : IAgentSession, IAgentCompactionOutcomePr
         }
 
         return JsonDocument.Parse(stream.ToArray()).RootElement.Clone();
-    }
-
-    private static string FormatModelSelectionMessage(string providerKey, string? modelId, AgentReasoningEffort? reasoningEffort)
-    {
-        var builder = new StringBuilder();
-        builder.Append("Model used: provider `")
-            .Append(providerKey)
-            .Append("`, model ")
-            .Append(string.IsNullOrWhiteSpace(modelId) ? "provider default" : $"`{modelId}`");
-        if (reasoningEffort is { } effort)
-        {
-            builder.Append(", reasoning: `")
-                .Append(effort)
-                .Append('`');
-        }
-
-        builder.Append('.');
-        return builder.ToString();
     }
 
     private static string? NormalizeOptionalText(string? value)
