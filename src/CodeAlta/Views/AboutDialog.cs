@@ -51,6 +51,14 @@ internal sealed class AboutDialog
     private Dialog BuildDialog()
     {
         var version = CodeAltaApplicationInfo.GetVersionInfo();
+        var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"))
+        {
+            HorizontalAlignment = Align.End,
+            VerticalAlignment = Align.Start,
+            Tone = ControlTone.Default,
+        };
+        closeButton.Click(Close);
+
         var updateNote = new Markup(BuildUpdateStatusMarkup)
         {
             HorizontalAlignment = Align.Center,
@@ -98,6 +106,7 @@ internal sealed class AboutDialog
 
         var dialog = new Dialog()
             .Title("About CodeAlta")
+            .TopRightText(closeButton)
             .BottomRightText(new Markup("[dim]Esc Close[/]"))
             .IsModal(true)
             .Padding(1)
@@ -112,6 +121,16 @@ internal sealed class AboutDialog
             Gesture = new KeyGesture(TerminalKey.Escape),
             Importance = CommandImportance.Primary,
             Execute = _ => Close(),
+        });
+        dialog.KeyDown((_, e) =>
+        {
+            if (e.Key != TerminalKey.Escape)
+            {
+                return;
+            }
+
+            Close();
+            e.Handled = true;
         });
         return dialog;
     }
