@@ -62,6 +62,24 @@ public sealed class AboutDialogInteractionTests
         Assert.IsInstanceOfType<Button>(GetDialog(dialog).TopRightText);
     }
 
+    [TestMethod]
+    public void AboutDialog_IncludesProjectAndWebsiteLinks()
+    {
+        var dialog = new AboutDialog(
+            () => new Rectangle(0, 0, 120, 40),
+            () => null,
+            new State<float>(0f));
+
+        var links = FindLinks(GetDialog(dialog).Content).ToArray();
+
+        Assert.IsTrue(links.Any(link =>
+            link.Uri == AboutDialog.GitHubProjectUri &&
+            link.Text?.Contains("GitHub", StringComparison.Ordinal) == true));
+        Assert.IsTrue(links.Any(link =>
+            link.Uri == AboutDialog.WebsiteUri &&
+            link.Text?.Contains("Website", StringComparison.Ordinal) == true));
+    }
+
     private static bool IsDialogOpen(AboutDialog dialog)
         => GetDialog(dialog).App is not null;
 
@@ -69,6 +87,38 @@ public sealed class AboutDialogInteractionTests
         => (Dialog)typeof(AboutDialog)
             .GetField("_dialog", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(dialog)!;
+
+    private static IEnumerable<Link> FindLinks(Visual? visual)
+    {
+        if (visual is null)
+        {
+            yield break;
+        }
+
+        if (visual is Link link)
+        {
+            yield return link;
+        }
+
+        if (visual is ContentVisual contentVisual)
+        {
+            foreach (var childLink in FindLinks(contentVisual.Content))
+            {
+                yield return childLink;
+            }
+        }
+
+        if (visual is Panel panel)
+        {
+            foreach (var child in panel)
+            {
+                foreach (var childLink in FindLinks(child))
+                {
+                    yield return childLink;
+                }
+            }
+        }
+    }
 
     private static void TickTerminalApp(TerminalApp app)
         => typeof(TerminalApp).GetMethod("Tick", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(app, [null]);

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CodeAlta.Presentation.Shell;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal;
@@ -12,6 +13,9 @@ namespace CodeAlta.Views;
 
 internal sealed class AboutDialog
 {
+    internal const string GitHubProjectUri = "https://github.com/CodeAlta/CodeAlta";
+    internal const string WebsiteUri = "https://codealta.github.io/";
+
     private readonly Func<Rectangle?> _getBounds;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Func<CodeAltaUpdateCheckSnapshot> _getUpdateSnapshot;
@@ -95,6 +99,7 @@ internal sealed class AboutDialog
                     HorizontalAlignment = Align.Center,
                     Wrap = true,
                 },
+                BuildLinksRow(),
                 updateNote,
             ])
         {
@@ -135,6 +140,28 @@ internal sealed class AboutDialog
         return dialog;
     }
 
+    private static Visual BuildLinksRow()
+    {
+        return new HStack(
+            CreateExternalLink(GitHubProjectUri, $"{NerdFont.FaGithub} GitHub"),
+            CreateExternalLink(WebsiteUri, $"{NerdFont.MdWeb} Website"))
+        {
+            HorizontalAlignment = Align.Center,
+            Spacing = 4,
+        };
+    }
+
+    private static Visual CreateExternalLink(string uri, string text)
+    {
+        return new Link(uri, text)
+            .Opened((_, e) =>
+            {
+                TryOpenBrowser(e.Uri);
+                e.Handled = true;
+            })
+            .Tooltip(new TextBlock($"Open {uri}"));
+    }
+
     private void Close()
     {
         var app = _dialog.App;
@@ -147,6 +174,22 @@ internal sealed class AboutDialog
 
     private static string ShortenBuildMetadata(string buildMetadata)
         => buildMetadata.Length <= 12 ? buildMetadata : buildMetadata[..12];
+
+    private static void TryOpenBrowser(string uri)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = uri,
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception)
+        {
+            // The link still renders as an OSC 8 terminal hyperlink when shell launch is unavailable.
+        }
+    }
 
     private string BuildUpdateStatusMarkup()
     {
