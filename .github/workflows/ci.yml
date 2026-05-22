@@ -4,6 +4,7 @@ on:
   push:
     paths-ignore:
     - 'doc/**'
+    - 'site/**'
     - 'img/**'
     - 'readme.md'
   pull_request:
