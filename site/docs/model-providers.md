@@ -92,6 +92,9 @@ Anthropic-compatible providers can use the same type with a custom `api_url` and
 
 ### Gemini / Google GenAI
 
+> [!WARNING]
+> The Gemini / Google GenAI provider is currently blocked by an upstream .NET GenAI issue. Until [googleapis/dotnet-genai#303](https://github.com/googleapis/dotnet-genai/pull/303) is merged and released, prefer another provider for day-to-day work.
+
 ```toml
 [providers.gemini]
 enabled = true

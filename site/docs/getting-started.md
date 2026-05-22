@@ -47,10 +47,14 @@ You can reopen this dialog any time with `Ctrl+G Ctrl+R` or from the provider su
 
 ## Configure one provider quickly
 
-For OpenAI platform access, set an environment variable and enable the default OpenAI provider:
+The most common first setup is a subscription-backed provider: **Copilot** for GitHub Copilot subscriptions, or **Codex** for ChatGPT/Codex subscriptions. In the Model Providers dialog, enable the matching provider, keep or choose a model, start the browser/device login flow, then click **Test** and **Save** after login completes.
+
+Codex and Copilot credentials are stored in CodeAlta-owned state through their login flows. They are intentionally separate from OpenAI platform API keys.
+
+If you use an API-key provider instead, set the provider's environment variable and enable that provider in the dialog or TOML. For OpenAI platform access:
 
 > [!TIP]
-> Environment variables keep API keys out of `~/.alta/config.toml` and project files. Set the variable in the same shell or profile that launches `alta`.
+> Environment variables keep API keys out of `~/.alta/config.toml` and project files. Set the variable in the same shell or profile that launches `alta`, then restart `alta` so the running process can see the new value.
 
 ```sh
 # macOS/Linux
@@ -77,6 +81,8 @@ api_url = "https://api.openai.com/v1"
 ```
 
 The in-app dialog edits the same file and preserves advanced TOML values.
+
+Other API-key providers use the same pattern with their own environment variables, such as `CODEALTA_ANTHROPIC_API_KEY`, `CODEALTA_DEEPSEEK_API_KEY`, or `CODEALTA_ZAI_API_KEY`.
 
 ## Send a first prompt
 
