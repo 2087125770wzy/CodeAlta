@@ -113,7 +113,7 @@ alta</code></pre>
         <h3><i class="bi bi-life-preserver"></i> Turning failures into repair paths</h3>
       </div>
       <div class="principle-shot principle-shot--image">
-        <img src="{{site.basepath}}/img/alta-context-usage.png" alt="CodeAlta context usage dialog with usage details and compaction pressure" loading="lazy">
+        <img src="{{site.basepath}}/img/alta-config-recovery.png" alt="CodeAlta configuration recovery editor with TOML validation feedback" loading="lazy">
       </div>
     </article>
     <article class="principle-feature" style="--accent: #a3e635; --accent-2: #06b6d4;">

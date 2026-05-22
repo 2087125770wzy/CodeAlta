@@ -134,10 +134,10 @@ CodeAlta should stay native to C#/.NET and keep the runtime and dependency surfa
 CodeAlta should turn setup and runtime failures into visible repair paths. Errors should appear close to the workflow that produced them, with enough context to fix or investigate.
 
 <figure class="principle-doc-shot">
-  <a href="{{site.basepath}}/img/alta-context-usage.png" target="_blank" rel="noopener">
-    <img src="{{site.basepath}}/img/alta-context-usage.png" alt="CodeAlta context usage dialog with usage details and compaction pressure" loading="lazy">
+  <a href="{{site.basepath}}/img/alta-config-recovery.png" target="_blank" rel="noopener">
+    <img src="{{site.basepath}}/img/alta-config-recovery.png" alt="CodeAlta configuration recovery editor with TOML validation feedback" loading="lazy">
   </a>
-  <figcaption>Usage and pressure indicators make context problems and recovery options visible before they become hard failures.</figcaption>
+  <figcaption>Configuration recovery opens directly in the terminal with syntax highlighting and validation feedback when startup settings need repair.</figcaption>
 </figure>
 
 **What this means in practice:**

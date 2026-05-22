@@ -228,4 +228,9 @@ Open logs with `Ctrl+G Ctrl+L`, `/logs`, or the navigator footer. The log viewer
 
 ## Config recovery editor
 
+<figure class="my-4">
+  <img class="img-fluid rounded-4 shadow" src="{{site.basepath}}/img/alta-config-recovery.png" alt="CodeAlta configuration recovery editor with TOML validation feedback" loading="lazy">
+  <figcaption class="small text-secondary mt-2">The recovery editor opens before normal startup continues, highlights TOML issues, and lets you save once the configuration is valid.</figcaption>
+</figure>
+
 If `~/.alta/config.toml` is invalid at startup, CodeAlta opens a recovery editor with TOML highlighting, an error marker, live parse feedback, `Ctrl+S` Save and Continue when valid, and `Ctrl+Q` Exit.
