@@ -32,16 +32,16 @@ alta</code></pre>
 
 <section class="container my-5 codealta-workflow-preview">
   <div class="workflow-preview-panel">
-    <div class="workflow-preview-copy">
-      <p class="text-uppercase text-secondary fw-semibold mb-2">Terminal workflow preview</p>
-      <h2 class="display-6 mb-3">One terminal surface for prompts, tools, files, and agent state.</h2>
-      <p class="lead mb-0">Watch CodeAlta coordinate prompts, tools, files, and delegated agents without leaving the terminal workspace.</p>
-    </div>
-    <div class="workflow-demo-video">
-      <video controls muted playsinline preload="metadata" poster="{{site.basepath}}/img/alta-home.png" aria-label="CodeAlta terminal workflow video">
-        <source src="{{site.basepath}}/img/alta-multi-agents.mp4" type="video/mp4">
-        <a href="{{site.basepath}}/img/alta-multi-agents.mp4">Download the CodeAlta terminal workflow video.</a>
-      </video>
+    <div class="workflow-terminal-frame">
+      <div class="workflow-terminal-titlebar" aria-hidden="true">
+        <span></span><span></span><span></span><strong>alta</strong>
+      </div>
+      <div class="workflow-demo-video">
+        <video controls autoplay loop muted playsinline preload="metadata" poster="{{site.basepath}}/img/alta-home.png" aria-label="CodeAlta terminal workflow video">
+          <source src="{{site.basepath}}/img/alta-multi-agents.mp4" type="video/mp4">
+          <a href="{{site.basepath}}/img/alta-multi-agents.mp4">Download the CodeAlta terminal workflow video.</a>
+        </video>
+      </div>
     </div>
   </div>
 </section>
@@ -161,40 +161,80 @@ alta</code></pre>
 }
 .codealta-workflow-preview {
   position: relative;
+  isolation: isolate;
 }
 .workflow-preview-panel {
-  display: grid;
-  grid-template-columns: minmax(0, .82fr) minmax(22rem, 1.18fr);
-  align-items: center;
-  gap: clamp(1.5rem, 4vw, 3rem);
-  padding: clamp(1.5rem, 4vw, 3rem);
-  border: 1px solid rgba(255, 255, 255, .10);
-  border-radius: 2rem;
+  position: relative;
+  max-width: 72rem;
+  margin-inline: auto;
+}
+.workflow-preview-panel::before,
+.workflow-preview-panel::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+  border-radius: 999px;
+}
+.workflow-preview-panel::before {
+  inset: -6rem -4rem -8rem -4rem;
   background:
-    radial-gradient(circle at 10% 15%, rgba(0, 209, 255, .16), transparent 32%),
-    radial-gradient(circle at 92% 84%, rgba(168, 85, 247, .16), transparent 30%),
-    linear-gradient(135deg, rgba(255,255,255,.065), rgba(255,255,255,.02));
-  box-shadow: 0 1.75rem 4rem rgba(0, 0, 0, .24);
+    radial-gradient(circle at 18% 35%, rgba(0, 209, 255, .44), transparent 28%),
+    radial-gradient(circle at 52% 18%, rgba(99, 102, 241, .34), transparent 30%),
+    radial-gradient(circle at 82% 55%, rgba(244, 114, 255, .36), transparent 31%),
+    radial-gradient(circle at 46% 92%, rgba(45, 212, 191, .22), transparent 34%);
+  filter: blur(4.8rem);
+  opacity: .72;
 }
-.workflow-preview-copy {
-  max-width: 32rem;
+.workflow-preview-panel::after {
+  inset: 12% 8% -18% 8%;
+  background: linear-gradient(90deg, rgba(0, 209, 255, .12), rgba(168, 85, 247, .16), rgba(45, 212, 191, .10));
+  filter: blur(3rem);
+  opacity: .78;
 }
-.workflow-preview-copy h2 {
-  font-size: clamp(1.6rem, 2.6vw, 2.45rem);
+.workflow-terminal-frame {
+  position: relative;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 1.35rem;
+  background: linear-gradient(180deg, rgba(12, 23, 40, .98), rgba(3, 10, 19, .98));
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.035),
+    0 1.7rem 4rem rgba(0,0,0,.34),
+    0 0 4rem rgba(0, 209, 255, .10),
+    0 0 5rem rgba(168, 85, 247, .08);
+  overflow: hidden;
+}
+.workflow-terminal-titlebar {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .72rem .95rem;
+  color: rgba(234, 242, 255, .72);
+  background: linear-gradient(90deg, rgba(255,255,255,.105), rgba(255,255,255,.04));
+  border-bottom: 1px solid rgba(255,255,255,.09);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: .86rem;
+}
+.workflow-terminal-titlebar span {
+  display: inline-block;
+  width: .7rem;
+  height: .7rem;
+  border-radius: 50%;
+}
+.workflow-terminal-titlebar span:nth-child(1) { background: #ff5f56; }
+.workflow-terminal-titlebar span:nth-child(2) { background: #ffbd2e; }
+.workflow-terminal-titlebar span:nth-child(3) { background: #27c93f; margin-right: .45rem; }
+.workflow-terminal-titlebar strong {
+  font-weight: 700;
+  letter-spacing: .04em;
 }
 .workflow-demo-video {
-  border-radius: 1.3rem;
-  border: 1px solid rgba(255,255,255,.13);
   background: #07111f;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035), 0 1.25rem 3rem rgba(0,0,0,.28);
-  overflow: hidden;
 }
 .workflow-demo-video video {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 10;
-  object-fit: cover;
-  object-position: center top;
+  height: auto;
 }
 .codealta-principles {
   position: relative;
@@ -317,12 +357,8 @@ alta</code></pre>
   }
 }
 @media (max-width: 991.98px) {
-  .workflow-preview-panel,
   .principle-feature {
     grid-template-columns: 1fr;
-  }
-  .workflow-preview-copy {
-    max-width: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
