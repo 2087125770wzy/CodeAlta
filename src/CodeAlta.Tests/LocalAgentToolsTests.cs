@@ -1031,6 +1031,122 @@ public sealed class LocalAgentToolsTests
     }
 
     [TestMethod]
+    public async Task WriteFileTool_AllowsEmptyAndWhitespaceOnlyContent()
+    {
+        using var temp = TestTempDirectory.Create();
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
+        var tool = tools.Single(static tool => tool.Spec.Name == "write_file");
+
+        using var emptyArgs = JsonDocument.Parse("""{"path":"empty.txt","content":""}""");
+        var emptyResult = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    emptyArgs.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(emptyResult.Success);
+        Assert.AreEqual(string.Empty, await File.ReadAllTextAsync(Path.Combine(temp.Path, "empty.txt")).ConfigureAwait(false));
+
+        using var newlineArgs = JsonDocument.Parse("""{"path":"newlines.txt","content":"\n\n"}""");
+        var newlineResult = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-2",
+                    tool.Spec.Name,
+                    newlineArgs.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(newlineResult.Success);
+        Assert.AreEqual("\n\n", await File.ReadAllTextAsync(Path.Combine(temp.Path, "newlines.txt")).ConfigureAwait(false));
+    }
+
+    [TestMethod]
+    public async Task ReplaceInFileTool_AllowsEmptyAndWhitespaceOnlyTextValues()
+    {
+        using var temp = TestTempDirectory.Create();
+        var tools = LocalAgentBuiltInToolFactory.CreateDefaultTools(CreateOptions(temp.Path));
+        var tool = tools.Single(static tool => tool.Spec.Name == "replace_in_file");
+
+        var emptyReplacementPath = Path.Combine(temp.Path, "empty-replacement.txt");
+        await File.WriteAllTextAsync(emptyReplacementPath, "alpha\nbeta\ngamma\n").ConfigureAwait(false);
+        using var emptyReplacementArgs = JsonDocument.Parse(
+            """
+            {
+              "path": "empty-replacement.txt",
+              "old_string": "beta\n",
+              "new_string": ""
+            }
+            """);
+
+        var emptyReplacementResult = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-1",
+                    tool.Spec.Name,
+                    emptyReplacementArgs.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(emptyReplacementResult.Success);
+        Assert.AreEqual("alpha\ngamma\n", await File.ReadAllTextAsync(emptyReplacementPath).ConfigureAwait(false));
+
+        var newlineReplacementPath = Path.Combine(temp.Path, "newline-replacement.txt");
+        await File.WriteAllTextAsync(newlineReplacementPath, "alpha\nbeta\ngamma\n").ConfigureAwait(false);
+        using var newlineReplacementArgs = JsonDocument.Parse(
+            """
+            {
+              "path": "newline-replacement.txt",
+              "old_string": "beta\n",
+              "new_string": "\n\n"
+            }
+            """);
+
+        var newlineReplacementResult = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-2",
+                    tool.Spec.Name,
+                    newlineReplacementArgs.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(newlineReplacementResult.Success);
+        Assert.AreEqual("alpha\n\n\ngamma\n", await File.ReadAllTextAsync(newlineReplacementPath).ConfigureAwait(false));
+
+        var newlineSearchPath = Path.Combine(temp.Path, "newline-search.txt");
+        await File.WriteAllTextAsync(newlineSearchPath, "alpha\n\nomega\n").ConfigureAwait(false);
+        using var newlineSearchArgs = JsonDocument.Parse(
+            """
+            {
+              "path": "newline-search.txt",
+              "old_string": "\n\n",
+              "new_string": "\n"
+            }
+            """);
+
+        var newlineSearchResult = await tool.Handler(
+                new AgentToolInvocation(
+                    AgentBackendIds.OpenAIResponses,
+                    "session-1",
+                    "tool-3",
+                    tool.Spec.Name,
+                    newlineSearchArgs.RootElement.Clone()),
+                CancellationToken.None)
+            .ConfigureAwait(false);
+
+        Assert.IsTrue(newlineSearchResult.Success);
+        Assert.AreEqual("alpha\nomega\n", await File.ReadAllTextAsync(newlineSearchPath).ConfigureAwait(false));
+    }
+
+    [TestMethod]
     public async Task WriteAndReplaceTools_AcceptAbsolutePathsInsideWorkspace()
     {
         using var temp = TestTempDirectory.Create();

@@ -658,7 +658,7 @@ public static class LocalAgentBuiltInToolFactory
             return Failure($"'{resolution.DisplayPath}' is an existing directory.");
         }
 
-        var content = GetRequiredString(invocation.Arguments, "content");
+        var content = GetRequiredStringValue(invocation.Arguments, "content");
         var permission = await RequestFileChangePermissionAsync(
                 options,
                 invocation,
@@ -710,13 +710,13 @@ public static class LocalAgentBuiltInToolFactory
             return Failure($"replace_in_file does not support binary files: '{resolution.DisplayPath}'.");
         }
 
-        var oldString = GetRequiredString(invocation.Arguments, "old_string");
+        var oldString = GetRequiredStringValue(invocation.Arguments, "old_string");
         if (oldString.Length == 0)
         {
             return Failure("The 'old_string' value must not be empty.");
         }
 
-        var newString = GetRequiredString(invocation.Arguments, "new_string");
+        var newString = GetRequiredStringValue(invocation.Arguments, "new_string");
         var replaceAll = GetOptionalBool(invocation.Arguments, "replace_all") ?? false;
 
         var original = await File.ReadAllTextAsync(resolution.FullPath, cancellationToken).ConfigureAwait(false);
@@ -1623,6 +1623,14 @@ public static class LocalAgentBuiltInToolFactory
     {
         var value = GetOptionalString(element, propertyName);
         return string.IsNullOrWhiteSpace(value)
+            ? throw new ArgumentException($"The '{propertyName}' field is required.")
+            : value;
+    }
+
+    private static string GetRequiredStringValue(JsonElement element, string propertyName)
+    {
+        var value = GetOptionalString(element, propertyName);
+        return value is null
             ? throw new ArgumentException($"The '{propertyName}' field is required.")
             : value;
     }
