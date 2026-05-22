@@ -146,3 +146,12 @@ Paste images with `Ctrl+V` when the selected model supports image input. CodeAlt
 | Clear prompt queue | `F10` |
 | Previous/next user or assistant message | `F3` / `F4` |
 | Switch tabs | `Alt+Left` / `Alt+Right` |
+
+> [!TIP]
+> For the best experience in Windows Terminal, unbind terminal-level shortcuts that CodeAlta needs to receive directly. Other Windows Terminal shortcuts may also conflict with CodeAlta shortcuts, so review your Windows Terminal settings if a key does not behave as expected. Add these entries to the `keybindings` array in Windows Terminal's `settings.json` if they are currently assigned to paste or pane-focus actions:
+>
+> ```json
+> { "keys": "ctrl+v", "id": "unbound" },
+> { "keys": "alt+left", "id": "unbound" },
+> { "keys": "alt+right", "id": "unbound" }
+> ```

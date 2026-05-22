@@ -25,6 +25,9 @@ The main screen has four important areas:
 
 Use `Alt+Left` and `Alt+Right` to move between tabs. Use `Ctrl+G Ctrl+S` to focus the sidebar and `Ctrl+G Ctrl+P` to return to the prompt.
 
+> [!TIP]
+> In Windows Terminal, unbind terminal-level `Ctrl+V`, `Alt+Left`, and `Alt+Right` shortcuts if they are assigned to paste or pane-focus actions so CodeAlta can receive those keys directly. Other Windows Terminal shortcuts may also conflict, so review your terminal settings if a CodeAlta shortcut does not behave as expected.
+
 ## Timeline cards
 
 <div class="row g-3 my-4">
