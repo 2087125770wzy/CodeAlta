@@ -111,14 +111,24 @@ internal sealed class CodeAltaSingleInstanceGuard : IDisposable
     }
 
     private static bool IsProcessRunning(int processId)
+        => IsProcessRunning(processId, Process.GetProcessById, static process => process.HasExited);
+
+    internal static bool IsProcessRunning(
+        int processId,
+        Func<int, Process> getProcessById,
+        Func<Process, bool> hasExited)
     {
+        ArgumentNullException.ThrowIfNull(getProcessById);
+        ArgumentNullException.ThrowIfNull(hasExited);
+
         try
         {
-            using var process = Process.GetProcessById(processId);
-            return !process.HasExited;
+            using var process = getProcessById(processId);
+            return !hasExited(process);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        catch
         {
+            // Process.HasExited can throw (for example, access denied while opening the process).
             return false;
         }
     }

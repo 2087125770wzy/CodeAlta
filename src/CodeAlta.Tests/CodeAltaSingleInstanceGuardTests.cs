@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 
 namespace CodeAlta.Tests;
@@ -96,6 +98,17 @@ public sealed class CodeAltaSingleInstanceGuardTests
         {
             DeleteTemporaryDirectory(directory);
         }
+    }
+
+    [TestMethod]
+    public void IsProcessRunning_WhenHasExitedThrows_ReturnsFalse()
+    {
+        var isRunning = CodeAltaSingleInstanceGuard.IsProcessRunning(
+            123,
+            _ => new Process(),
+            _ => throw new Win32Exception(5));
+
+        Assert.IsFalse(isRunning);
     }
 
     private static string ReadSharedLockFile(string lockFilePath)
