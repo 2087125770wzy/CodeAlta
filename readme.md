@@ -25,6 +25,8 @@ dotnet tool update -g CodeAlta
 
 On first launch, CodeAlta creates `~/.alta/config.toml`. If no provider is enabled yet, the Model Providers dialog opens so you can configure Codex, Copilot, OpenAI/Azure OpenAI APIs, Anthropic, Gemini/Vertex, or custom endpoints.
 
+CodeAlta also expects a current [Nerd Fonts](https://www.nerdfonts.com/) monospace font in your terminal profile. If icons or tree glyphs look wrong, update to the latest Nerd Fonts release, remove stale older font copies, and prefer the `Mono` variant such as `CaskaydiaCove Nerd Font Mono`.
+
 ## ✨ What it gives you
 
 - **Keyboard-first terminal workspace**: tabs, prompt editor, project sidebar, command discovery, model selectors, context status, and inspectable timeline cards stay in one TUI.
