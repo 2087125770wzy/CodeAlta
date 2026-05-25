@@ -29,6 +29,7 @@ internal static class CodeAltaShellViewFactory
         ArgumentNullException.ThrowIfNull(options.ShellCommandSurfaceCoordinator);
         ArgumentNullException.ThrowIfNull(options.OpenAcpManager);
         ArgumentNullException.ThrowIfNull(options.ToggleTerminalLoopCallback);
+        ArgumentNullException.ThrowIfNull(options.ToggleNavigator);
         ArgumentNullException.ThrowIfNull(options.CanUseCommandPalette);
 
         var workspaceView = new ThreadWorkspaceView(
@@ -55,6 +56,7 @@ internal static class CodeAltaShellViewFactory
             options.ShellCommandSurfaceCoordinator,
             options.OpenAcpManager,
             options.ToggleTerminalLoopCallback,
+            options.ToggleNavigator,
             options.CanUseCommandPalette,
             options.ComposePluginFooter?.Invoke(workspaceView.ThreadCommandBar));
 
@@ -68,6 +70,7 @@ internal static class CodeAltaShellViewFactory
         ShellCommandSurfaceCoordinator shellCommandSurfaceCoordinator,
         Action openAcpManager,
         Action toggleTerminalLoopCallback,
+        Action toggleNavigator,
         Func<bool> canUseCommandPalette,
         Visual? pluginFooter = null)
     {
@@ -77,6 +80,7 @@ internal static class CodeAltaShellViewFactory
         ArgumentNullException.ThrowIfNull(shellCommandSurfaceCoordinator);
         ArgumentNullException.ThrowIfNull(openAcpManager);
         ArgumentNullException.ThrowIfNull(toggleTerminalLoopCallback);
+        ArgumentNullException.ThrowIfNull(toggleNavigator);
         ArgumentNullException.ThrowIfNull(canUseCommandPalette);
 
         var shellView = new CodeAltaShellView(
@@ -141,6 +145,9 @@ internal static class CodeAltaShellViewFactory
         shellView.Root.AddCommand(ShellCommandViewFactory.Create(
             ShellCommandCatalog.Get("CodeAlta.Shell.FocusSidebar"),
             () => _ = shellCommandSurfaceCoordinator.FocusSidebarAsync()));
+        shellView.Root.AddCommand(ShellCommandViewFactory.Create(
+            ShellCommandCatalog.Get("CodeAlta.Shell.ToggleNavigator"),
+            toggleNavigator));
         shellView.Root.AddCommand(ShellCommandViewFactory.Create(
             ShellCommandCatalog.Get("CodeAlta.Shell.FocusPrompt"),
             () => _ = shellCommandSurfaceCoordinator.FocusPromptAsync()));

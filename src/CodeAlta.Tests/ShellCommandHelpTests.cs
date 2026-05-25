@@ -21,6 +21,7 @@ public sealed class ShellCommandHelpTests
         var workspaceSettingsCommand = ShellCommandCatalog.Get("CodeAlta.Workspace.Settings");
         var applicationLogsCommand = ShellCommandCatalog.Get("CodeAlta.ApplicationLogs.Open");
         var goToSidebarCommand = ShellCommandCatalog.Get("CodeAlta.Shell.FocusSidebar");
+        var toggleNavigatorCommand = ShellCommandCatalog.Get("CodeAlta.Shell.ToggleNavigator");
         var goToPromptCommand = ShellCommandCatalog.Get("CodeAlta.Shell.FocusPrompt");
         var modelCommand = ShellCommandCatalog.Get("CodeAlta.Shell.FocusModelProvider");
         var fullPromptCommand = ShellCommandCatalog.Get("CodeAlta.Thread.ExpandPrompt");
@@ -58,6 +59,9 @@ public sealed class ShellCommandHelpTests
         var goToSidebarEntry = sections
             .SelectMany(static section => section.Entries)
             .Single(candidate => string.Equals(candidate.Label, goToSidebarCommand.Label, StringComparison.Ordinal));
+        var toggleNavigatorEntry = sections
+            .SelectMany(static section => section.Entries)
+            .Single(candidate => string.Equals(candidate.Label, toggleNavigatorCommand.Label, StringComparison.Ordinal));
         var goToPromptEntry = sections
             .SelectMany(static section => section.Entries)
             .Single(candidate => string.Equals(candidate.Label, goToPromptCommand.Label, StringComparison.Ordinal));
@@ -90,6 +94,7 @@ public sealed class ShellCommandHelpTests
         CollectionAssert.Contains(workspaceSettingsEntry.Bindings.ToArray(), "/settings");
         CollectionAssert.Contains(applicationLogsEntry.Bindings.ToArray(), ShellCommandCatalog.ApplicationLogsShortcutSequence.ToString()!);
         CollectionAssert.Contains(applicationLogsEntry.Bindings.ToArray(), "/logs");
+        CollectionAssert.Contains(toggleNavigatorEntry.Bindings.ToArray(), ShellCommandCatalog.ToggleNavigatorShortcutSequence.ToString()!);
         CollectionAssert.Contains(goToSidebarEntry.Bindings.ToArray(), "/go_to_sidebar");
         CollectionAssert.Contains(goToSidebarEntry.Bindings.ToArray(), "/sidebar");
         CollectionAssert.Contains(goToPromptEntry.Bindings.ToArray(), "/go_to_prompt");
@@ -146,9 +151,13 @@ public sealed class ShellCommandHelpTests
         var steerEntry = sections
             .SelectMany(static section => section.Entries)
             .Single(candidate => string.Equals(candidate.Label, "Steer", StringComparison.Ordinal));
+        var toggleNavigatorEntry = sections
+            .SelectMany(static section => section.Entries)
+            .Single(candidate => string.Equals(candidate.Label, "Toggle Navigator", StringComparison.Ordinal));
 
         CollectionAssert.DoesNotContain(steerEntry.Bindings.ToArray(), "/steer");
         CollectionAssert.Contains(steerEntry.Bindings.ToArray(), new KeyGesture(TerminalKey.Enter, TerminalModifiers.Ctrl).ToString()!);
+        Assert.IsFalse(toggleNavigatorEntry.Bindings.Any(static binding => binding.StartsWith("/", StringComparison.Ordinal)));
     }
 
     [TestMethod]

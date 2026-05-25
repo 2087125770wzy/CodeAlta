@@ -393,6 +393,52 @@ public sealed class CodeAltaAppSidebarTests
     }
 
     [TestMethod]
+    public void SidebarView_SetCollapsedShowsOnlyNavigatorIconAndExpandButton()
+    {
+        var view = new SidebarView(new SidebarViewModel(), static () => { }, static () => { }, static () => { }, static () => { }, static _ => { }, static _ => { }, new CapturingSidebarRowCommandDispatcher(), static _ => { });
+        var group = Assert.IsInstanceOfType<Group>(view.Root);
+        var title = Assert.IsInstanceOfType<Markup>(group.TopLeftText);
+        var toggleHost = Assert.IsInstanceOfType<TooltipHost>(group.TopRightText);
+        var toggleButton = Assert.IsInstanceOfType<Button>(toggleHost.Content);
+        var toggleIcon = Assert.IsInstanceOfType<TextBlock>(toggleButton.Content);
+        bool? observedCollapsed = null;
+        view.CollapsedChanged += isCollapsed => observedCollapsed = isCollapsed;
+
+        Assert.IsNotNull(group.Content);
+        StringAssert.Contains(title.Text ?? string.Empty, "Navigator");
+        Assert.AreEqual("\u25E8", toggleIcon.Text);
+
+        view.SetCollapsed(true);
+
+        Assert.IsTrue(view.IsCollapsed);
+        Assert.AreEqual(true, observedCollapsed);
+        Assert.IsNull(group.Content);
+        Assert.IsFalse(title.Text?.Contains("Navigator", StringComparison.Ordinal) ?? true);
+        Assert.AreEqual("\u25E7", toggleIcon.Text);
+    }
+
+    [TestMethod]
+    public void CodeAltaShellView_SetSidebarCollapsedShrinksAndRestoresSplitter()
+    {
+        var view = new CodeAltaShellView(
+            new TextBlock("sidebar"),
+            new TextBlock("workspace"),
+            new TextBlock("command"),
+            static _ => { });
+        view.SidebarSplitter.Ratio = 0.4d;
+
+        view.SetSidebarCollapsed(true);
+
+        Assert.AreEqual(5, view.SidebarSplitter.MinFirst);
+        Assert.AreEqual(0.0d, view.SidebarSplitter.Ratio);
+
+        view.SetSidebarCollapsed(false);
+
+        Assert.AreEqual(24, view.SidebarSplitter.MinFirst);
+        Assert.AreEqual(0.4d, view.SidebarSplitter.Ratio);
+    }
+
+    [TestMethod]
     public void Build_RunningThreadsPromoteSpinnerStateToThreadAndProjectRows()
     {
         var timestamp = DateTimeOffset.Parse("2026-03-29T10:00:00+00:00");

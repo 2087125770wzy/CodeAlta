@@ -12,6 +12,20 @@ internal static class SidebarUiStateHelpers
     public static string? GetExpandedProjectId(WorkThreadDescriptor? selectedThread)
         => SidebarSelectionResolver.ResolvePreferredExpandedProjectId(selectedThread?.ProjectRef);
 
+    public static void ToggleNavigator(SidebarView sidebarView, Action focusPromptTarget)
+    {
+        ArgumentNullException.ThrowIfNull(sidebarView);
+        ArgumentNullException.ThrowIfNull(focusPromptTarget);
+
+        var collapse = !sidebarView.IsCollapsed;
+        var hadSidebarFocus = sidebarView.Tree.HasFocusWithin;
+        sidebarView.SetCollapsed(collapse);
+        if (collapse && hadSidebarFocus)
+        {
+            focusPromptTarget();
+        }
+    }
+
     public static SidebarSelectionTarget ResolveCurrentTarget(ShellThreadStateCoordinator threadStateCoordinator)
     {
         ArgumentNullException.ThrowIfNull(threadStateCoordinator);

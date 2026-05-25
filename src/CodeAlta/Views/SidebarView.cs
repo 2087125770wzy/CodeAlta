@@ -1,8 +1,8 @@
+using System.Text;
 using CodeAlta.Catalog;
 using CodeAlta.Presentation.Sidebar;
 using CodeAlta.Presentation.Styling;
 using CodeAlta.ViewModels;
-using System.Text;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
@@ -16,9 +16,17 @@ namespace CodeAlta.Views;
 
 internal sealed class SidebarView
 {
+    private const string ExpandNavigatorIcon = "\u25E7";
+    private const string CollapseNavigatorIcon = "\u25E8";
+
     private static readonly ButtonStyle ToolbarButtonStyle = ButtonStyle.Default with
     {
         Padding = new Thickness(1, 0, 1, 0),
+    };
+
+    private static readonly ButtonStyle TitleButtonStyle = ButtonStyle.Default with
+    {
+        Padding = Thickness.Zero,
     };
 
     private readonly Dictionary<SidebarSelectionTarget, TreeNode> _nodesByTarget = new();
@@ -26,6 +34,11 @@ internal sealed class SidebarView
     private readonly ISidebarRowCommandDispatcher _rowCommandDispatcher;
     private readonly Action<SidebarNodeViewModel> _submitInlineRename;
     private readonly Action<SidebarNodeViewModel> _cancelInlineRename;
+    private readonly Grid _contentGrid;
+    private readonly Markup _title;
+    private readonly TextBlock _collapseToggleIcon;
+    private readonly Group _group;
+    private bool _isCollapsed;
 
     public SidebarView(
         SidebarViewModel viewModel,
@@ -108,35 +121,46 @@ internal sealed class SidebarView
                     .Tooltip(new TextBlock("Show application logs")));
         }
 
-        var contentGrid = new Grid
-            {
-                HorizontalAlignment = Align.Stretch,
-                VerticalAlignment = Align.Stretch,
-            }
+        _contentGrid = new Grid
+        {
+            HorizontalAlignment = Align.Stretch,
+            VerticalAlignment = Align.Stretch,
+        }
             .Rows(
                 new RowDefinition { Height = GridLength.Star(1) },
                 new RowDefinition { Height = GridLength.Auto })
             .Columns(
                 new ColumnDefinition { Width = GridLength.Star(1) });
-        contentGrid.Cell(treeHost, 0, 0);
-        contentGrid.Cell(footer, 1, 0);
+        _contentGrid.Cell(treeHost, 0, 0);
+        _contentGrid.Cell(footer, 1, 0);
+
+        _title = new Markup(BuildTitleMarkup());
+        _collapseToggleIcon = new TextBlock(CollapseNavigatorIcon);
+        var collapseToggle = new TitleButton(_collapseToggleIcon)
+            .Style(TitleButtonStyle)
+            .Click(() => SetCollapsed(!_isCollapsed))
+            .Tooltip(new TextBlock(() => _isCollapsed ? "Expand navigator" : "Collapse navigator"));
 
         Group? group = null;
-        group = new Group(
-            new Markup($"[bold]{AnsiMarkup.Escape($"{NerdFont.FaFolderTree} Navigator")}[/]"),
-            contentGrid)
+        group = new Group(_title, _contentGrid)
         {
             HorizontalAlignment = Align.Stretch,
             VerticalAlignment = Align.Stretch,
         }
         .Style(() => UiPalette.GetSidebarGroupStyle(group!.GetTheme()));
+        group.TopRightText = collapseToggle;
 
-        Root = group;
+        _group = group;
+        Root = _group;
     }
 
     public Visual Root { get; }
 
     public TreeView Tree { get; }
+
+    public bool IsCollapsed => _isCollapsed;
+
+    public event Action<bool>? CollapsedChanged;
 
     public SidebarSelectionTarget? SelectedTarget
         => Tree.SelectedNode?.Data is SidebarSelectionTarget target ? target : null;
@@ -177,6 +201,23 @@ internal sealed class SidebarView
             header.RequestEditorFocus();
         }
     }
+
+    public void SetCollapsed(bool isCollapsed)
+    {
+        if (_isCollapsed == isCollapsed)
+        {
+            return;
+        }
+
+        _isCollapsed = isCollapsed;
+        _title.Text = BuildTitleMarkup();
+        _collapseToggleIcon.Text = isCollapsed ? ExpandNavigatorIcon : CollapseNavigatorIcon;
+        _group.Content = isCollapsed ? null : _contentGrid;
+        CollapsedChanged?.Invoke(isCollapsed);
+    }
+
+    private string BuildTitleMarkup() => _isCollapsed ? "" :
+        $"[bold]{NerdFont.FaFolderTree} Navigator[/]";
 
     private TreeNode CreateNode(SidebarTreeNodeProjection projection)
     {
@@ -296,6 +337,15 @@ internal sealed class SidebarView
         Action<SidebarNodeViewModel> cancelInlineRename)
         => new SidebarNodeHeaderView(row, submitInlineRename, cancelInlineRename);
 
+    private sealed class TitleButton : Button
+    {
+        public TitleButton(Visual content)
+           : base(content)
+        {
+            Focusable = false;
+        }
+    }
+
     private Action ResolveRowAction(SidebarSelectionTarget? target, SidebarRowActionKind actionKind)
     {
         return actionKind switch
@@ -312,7 +362,8 @@ internal sealed class SidebarView
                 => () => _rowCommandDispatcher.Dispatch(new SidebarRowCommand.OpenProjectDetails(projectId)),
             SidebarRowActionKind.OpenFolder
                 => () => _rowCommandDispatcher.Dispatch(new SidebarRowCommand.OpenFolder()),
-            _ => static () => { },
+            _ => static () => { }
+            ,
         };
     }
 

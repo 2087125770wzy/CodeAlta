@@ -508,11 +508,14 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             ShellCommandSurfaceCoordinator = _shellCommandSurfaceCoordinator,
             OpenAcpManager = OpenAcp,
             ToggleTerminalLoopCallback = ToggleTerminalLoopCallback,
+            ToggleNavigator = () => SidebarUiStateHelpers.ToggleNavigator(_sidebarCoordinator.View, FocusPromptTarget),
             CanUseCommandPalette = () => _fileEditorWorkspaceCoordinator.SelectedTabId is null,
             ComposePluginFooter = commandBar => ShellPluginFooterComposer.Compose(commandBar, _ownedServices?.PluginHostBridge),
             CommandBarMultiLine = _commandBarMultiLine,
         });
         _threadWorkspaceView = shellSurface.WorkspaceView;
+        _sidebarCoordinator.View.CollapsedChanged += shellSurface.ShellView.SetSidebarCollapsed;
+        shellSurface.ShellView.SetSidebarCollapsed(_sidebarCoordinator.View.IsCollapsed);
         _shellView = UiTheme.Set(shellSurface.ShellView, _threadStateCoordinator);
         _frontendEvents.Publish(new CatalogChangedEvent());
         return _shellView;

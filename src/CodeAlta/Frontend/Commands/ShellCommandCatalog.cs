@@ -57,6 +57,10 @@ internal static class ShellCommandCatalog
         new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
         new KeyGesture(TerminalChar.CtrlT, TerminalModifiers.Ctrl));
 
+    public static readonly KeySequence ToggleNavigatorShortcutSequence = new(
+        new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl),
+        new KeyGesture(TerminalChar.CtrlG, TerminalModifiers.Ctrl));
+
     public static readonly IReadOnlyList<ShellCommandMetadata> Commands =
     [
         new(
@@ -173,6 +177,16 @@ internal static class ShellCommandCatalog
             Sequence: FocusSidebarShortcutSequence,
             Aliases: ["sidebar"],
             ShowInCommandBar: false),
+        new(
+            "CodeAlta.Shell.ToggleNavigator",
+            "Toggle Navigator",
+            "Collapse or expand the navigator sidebar.",
+            ShellCommandHelpCategory.Navigation,
+            ShellCommandScope.AnyShell,
+            ShellCommandAvailability.Always,
+            Sequence: ToggleNavigatorShortcutSequence,
+            ShowInCommandBar: false,
+            SupportsTextCommand: false),
         new(
             "CodeAlta.Shell.FocusPrompt",
             "Go to Prompt",

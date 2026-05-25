@@ -46,6 +46,8 @@ internal sealed class CodeAltaShellSurfaceOptions
 
     public required Action ToggleTerminalLoopCallback { get; init; }
 
+    public required Action ToggleNavigator { get; init; }
+
     public required Func<bool> CanUseCommandPalette { get; init; }
 
     public Func<CommandBar, Visual?>? ComposePluginFooter { get; init; }

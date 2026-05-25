@@ -170,6 +170,7 @@ When the selected model supports image input, copy an image to the clipboard and
 | Open workspace settings | `Ctrl+G Ctrl+W` or `/settings` |
 | Open plugins | `Ctrl+G Ctrl+N` or `/plugins` |
 | Open logs | `Ctrl+G Ctrl+L` or `/logs` |
+| Toggle navigator | `Ctrl+G Ctrl+G` |
 | Context usage popup | `Ctrl+G Ctrl+U` |
 | Thread report | `Ctrl+G Ctrl+T` |
 | Steer a running thread | `Ctrl+Enter` |
