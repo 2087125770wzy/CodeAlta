@@ -111,6 +111,11 @@ public sealed record LocalAgentProviderProfile
     public bool SupportsReasoningEffort { get; init; }
 
     /// <summary>
+    /// Gets or initializes whether the provider supports parallel tool-call controls.
+    /// </summary>
+    public bool SupportsParallelToolCalls { get; init; } = true;
+
+    /// <summary>
     /// Gets or initializes whether usage can appear during streaming.
     /// </summary>
     public bool StreamsUsage { get; init; }

@@ -112,6 +112,40 @@ internal static class RawApiProviderDefaultsCatalog
         [
             new RawApiProviderDefaultsRule
             {
+                Id = "alibaba-dashscope-openai-chat",
+                DisplayName = "Alibaba DashScope OpenAI Chat",
+                Types = ["openai-chat"],
+                ProviderKeys = ["alibaba", "dashscope", "aliyun"],
+                HostSuffixes = [
+                    "dashscope.aliyuncs.com",
+                    "dashscope-intl.aliyuncs.com",
+                    "dashscope-us.aliyuncs.com",
+                    "cn-hongkong.dashscope.aliyuncs.com",
+                    "coding-intl.dashscope.aliyuncs.com",
+                    "maas.aliyuncs.com",
+                ],
+                Profile = new RawApiProviderDefaultsProfile
+                {
+                    SupportsDeveloperRole = false,
+                    SupportsStore = false,
+                    SupportsReasoningEffort = false,
+                    MaxTokensFieldName = "max_tokens",
+                },
+                OpenAI = new RawApiProviderDefaultsOpenAI
+                {
+                    ExtraBodyDefaults = new TomlTable(true)
+                    {
+                        ["stream_options"] = new TomlTable(true)
+                        {
+                            ["include_usage"] = true,
+                        },
+                        ["enable_thinking"] = true,
+                        ["preserve_thinking"] = true,
+                    },
+                },
+            },
+            new RawApiProviderDefaultsRule
+            {
                 Id = "minimax-openai-chat",
                 DisplayName = "MiniMax OpenAI Chat",
                 Types = ["openai-chat"],
@@ -139,7 +173,20 @@ internal static class RawApiProviderDefaultsCatalog
                 HostSuffixes = ["deepseek.com"],
                 Profile = new RawApiProviderDefaultsProfile
                 {
+                    SupportsDeveloperRole = false,
+                    SupportsStore = false,
+                    MaxTokensFieldName = "max_tokens",
                     ReasoningInputFieldName = "reasoning_content",
+                },
+                OpenAI = new RawApiProviderDefaultsOpenAI
+                {
+                    ExtraBodyDefaults = new TomlTable(true)
+                    {
+                        ["thinking"] = new TomlTable(true)
+                        {
+                            ["type"] = "enabled",
+                        },
+                    },
                 },
             },
         ];
@@ -198,6 +245,7 @@ internal static class RawApiProviderDefaultsCatalog
             SupportsDeveloperRole = defaults.SupportsDeveloperRole ?? profile.SupportsDeveloperRole,
             SupportsStore = defaults.SupportsStore ?? profile.SupportsStore,
             SupportsReasoningEffort = defaults.SupportsReasoningEffort ?? profile.SupportsReasoningEffort,
+            SupportsParallelToolCalls = defaults.SupportsParallelToolCalls ?? profile.SupportsParallelToolCalls,
             StreamsUsage = defaults.StreamsUsage ?? profile.StreamsUsage,
             SupportsThoughtSignatures = defaults.SupportsThoughtSignatures ?? profile.SupportsThoughtSignatures,
             RequiresToolResultName = defaults.RequiresToolResultName ?? profile.RequiresToolResultName,
@@ -397,6 +445,9 @@ internal sealed class RawApiProviderDefaultsProfile
 
     [JsonPropertyName("supports_reasoning_effort")]
     public bool? SupportsReasoningEffort { get; set; }
+
+    [JsonPropertyName("supports_parallel_tool_calls")]
+    public bool? SupportsParallelToolCalls { get; set; }
 
     [JsonPropertyName("streams_usage")]
     public bool? StreamsUsage { get; set; }

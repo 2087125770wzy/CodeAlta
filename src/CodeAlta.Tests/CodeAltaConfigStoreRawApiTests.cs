@@ -43,6 +43,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
             [providers.OpenRouter.profile]
             supports_developer_role = false
             supports_store = false
+            supports_parallel_tool_calls = false
             max_tokens_field_name = " max_tokens "
             reasoning_field_names = [" reasoning_content ", "", "reasoning"]
             reasoning_input_field_name = " reasoning_content "
@@ -117,6 +118,7 @@ public sealed class CodeAltaConfigStoreRawApiTests
         Assert.IsNotNull(openRouter.Profile);
         Assert.IsFalse(openRouter.Profile!.SupportsDeveloperRole);
         Assert.IsFalse(openRouter.Profile.SupportsStore);
+        Assert.IsFalse(openRouter.Profile.SupportsParallelToolCalls);
         Assert.AreEqual("max_tokens", openRouter.Profile.MaxTokensFieldName);
         CollectionAssert.AreEqual(
             new[] { "reasoning_content", "reasoning" },

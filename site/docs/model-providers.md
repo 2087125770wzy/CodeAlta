@@ -125,13 +125,29 @@ Use `[providers.<provider-key>.profile]` only when a provider-compatible endpoin
 | `max_tokens_field_name` | Request-body field used for maximum output tokens, such as `max_output_tokens` or `max_completion_tokens`. |
 | `reasoning_field_names` | Response fields inspected for reasoning content. |
 | `reasoning_input_field_name` | Assistant-message field used when replaying prior reasoning content. |
+| `supports_parallel_tool_calls` | Whether to send the Chat Completions `parallel_tool_calls` control when tools are available. |
 
-The bundled DeepSeek profile is an example of a verified compatibility override:
+The bundled Alibaba/DashScope and DeepSeek profiles are examples of verified compatibility overrides:
 
 ```toml
+[providers.alibaba.profile]
+supports_developer_role = false
+supports_store = false
+supports_reasoning_effort = false
+max_tokens_field_name = "max_tokens"
+
+[providers.alibaba.request.extra_body]
+enable_thinking = true
+preserve_thinking = true
+
 [providers.deepseek.profile]
 supports_developer_role = false
+supports_store = false
+max_tokens_field_name = "max_tokens"
 reasoning_input_field_name = "reasoning_content"
+
+[providers.deepseek.request.extra_body.thinking]
+type = "enabled"
 ```
 
 ### Single-model endpoints
@@ -188,7 +204,9 @@ api_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 enable_search = false
 ```
 
-MiniMax and DeepSeek compatibility defaults are bundled in CodeAlta's provider-defaults content file. You usually do not need to restate them in `config.toml`; explicit `profile`, `request`, and `extra_body` values still win when you do.
+Alibaba/DashScope, MiniMax, and DeepSeek compatibility defaults are bundled in CodeAlta's provider-defaults content file. You usually do not need to restate them in `config.toml`; explicit `profile`, `request`, and `extra_body` values still win when you do. The Alibaba defaults request streaming usage with `stream_options = { include_usage = true }` and enable Alibaba thinking plus thinking replay with `enable_thinking = true` and `preserve_thinking = true` for the Chat Completions transport.
+
+DeepSeek defaults also avoid the non-standard `developer` role and `store` parameter, use `max_tokens`, send DeepSeek's documented `thinking = { type = "enabled" }` request control by default, and preserve `reasoning_content` on replayed assistant messages; `reasoning_effort` remains available where supported.
 
 ### Model request overrides
 
@@ -265,6 +283,8 @@ model = "qwen3.7-max"
 api_key_env = "CODEALTA_ALIBABA_API_KEY"
 api_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 ```
+
+CodeAlta's bundled Alibaba/DashScope defaults follow the OpenAI Chat API documentation: system messages are used instead of developer messages, `store` is not sent, maximum output tokens use `max_tokens`, OpenAI-style `reasoning_effort` is not sent, streaming requests ask for the final usage chunk with `stream_options.include_usage = true`, and Alibaba's non-standard `enable_thinking = true` and `preserve_thinking = true` controls are sent through `extra_body` by default. Override either value under `request.extra_body`, legacy `extra_body`, or a model-specific `model_request` entry, or list it in `request.remove_extra_body` when an endpoint rejects it. Other Alibaba-specific parameters such as `thinking_budget`, `top_k`, `enable_search`, and `search_options` remain opt-in via `request.extra_body` or `extra_body` because their support varies by model and mode. CodeAlta keeps the OpenAI-compatible Chat default of sending `parallel_tool_calls` when tools are available; set `profile.supports_parallel_tool_calls = false` only for endpoints or models that reject that parameter.
 
 ### Azure OpenAI
 

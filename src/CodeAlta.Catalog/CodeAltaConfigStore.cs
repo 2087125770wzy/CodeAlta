@@ -2165,6 +2165,7 @@ public sealed class CodeAltaConfigStore
             SupportsDeveloperRole = profile.SupportsDeveloperRole,
             SupportsStore = profile.SupportsStore,
             SupportsReasoningEffort = profile.SupportsReasoningEffort,
+            SupportsParallelToolCalls = profile.SupportsParallelToolCalls,
             StreamsUsage = profile.StreamsUsage,
             SupportsThoughtSignatures = profile.SupportsThoughtSignatures,
             RequiresToolResultName = profile.RequiresToolResultName,

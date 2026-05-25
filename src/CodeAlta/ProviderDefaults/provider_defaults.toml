@@ -1,6 +1,22 @@
 version = 1
 
 [[rules]]
+id = "alibaba-dashscope-openai-chat"
+display_name = "Alibaba DashScope OpenAI Chat"
+types = ["openai-chat"]
+provider_keys = ["alibaba", "dashscope", "aliyun"]
+host_suffixes = ["dashscope.aliyuncs.com", "dashscope-intl.aliyuncs.com", "dashscope-us.aliyuncs.com", "cn-hongkong.dashscope.aliyuncs.com", "coding-intl.dashscope.aliyuncs.com", "maas.aliyuncs.com"]
+
+[rules.profile]
+supports_developer_role = false
+supports_store = false
+supports_reasoning_effort = false
+max_tokens_field_name = "max_tokens"
+
+[rules.openai]
+extra_body_defaults = { stream_options = { include_usage = true }, enable_thinking = true, preserve_thinking = true }
+
+[[rules]]
 id = "minimax-openai-chat"
 display_name = "MiniMax OpenAI Chat"
 types = ["openai-chat"]
@@ -22,4 +38,10 @@ provider_keys = ["deepseek"]
 host_suffixes = ["deepseek.com"]
 
 [rules.profile]
+supports_developer_role = false
+supports_store = false
+max_tokens_field_name = "max_tokens"
 reasoning_input_field_name = "reasoning_content"
+
+[rules.openai]
+extra_body_defaults = { thinking = { type = "enabled" } }

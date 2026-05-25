@@ -27,6 +27,12 @@ public sealed class CodeAltaProviderProfileDocument
     public bool? SupportsReasoningEffort { get; set; }
 
     /// <summary>
+    /// Gets or sets whether the provider supports parallel tool-call controls.
+    /// </summary>
+    [JsonPropertyName("supports_parallel_tool_calls")]
+    public bool? SupportsParallelToolCalls { get; set; }
+
+    /// <summary>
     /// Gets or sets whether the provider streams usage information.
     /// </summary>
     [JsonPropertyName("streams_usage")]

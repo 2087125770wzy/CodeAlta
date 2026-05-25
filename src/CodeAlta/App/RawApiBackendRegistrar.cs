@@ -865,6 +865,7 @@ internal static class RawApiBackendRegistrar
             SupportsDeveloperRole = document.SupportsDeveloperRole ?? profile.SupportsDeveloperRole,
             SupportsStore = document.SupportsStore ?? profile.SupportsStore,
             SupportsReasoningEffort = document.SupportsReasoningEffort ?? profile.SupportsReasoningEffort,
+            SupportsParallelToolCalls = document.SupportsParallelToolCalls ?? profile.SupportsParallelToolCalls,
             StreamsUsage = document.StreamsUsage ?? profile.StreamsUsage,
             SupportsThoughtSignatures = document.SupportsThoughtSignatures ?? profile.SupportsThoughtSignatures,
             RequiresToolResultName = document.RequiresToolResultName ?? profile.RequiresToolResultName,

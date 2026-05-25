@@ -221,10 +221,13 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
         var options = new ChatCompletionOptions
         {
             ToolChoice = request.Tools.Count > 0 ? ChatToolChoice.CreateAutoChoice() : null,
-            AllowParallelToolCalls = request.Tools.Count > 0,
             StoredOutputEnabled = request.Provider.Profile?.SupportsStore == false ? null : false,
-            MaxOutputTokenCount = request.MaxOutputTokens,
+            AllowParallelToolCalls = request.Provider.Profile?.SupportsParallelToolCalls == false
+                ? null
+                : request.Tools.Count > 0,
         };
+
+        ApplyMaxOutputTokens(request, options);
 
         if ((request.Provider.Profile?.SupportsReasoningEffort ?? true) &&
             request.ReasoningEffort is { } reasoningEffort &&
@@ -251,6 +254,33 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
 
         return options;
     }
+
+    private static void ApplyMaxOutputTokens(LocalAgentTurnRequest request, ChatCompletionOptions options)
+    {
+        if (request.MaxOutputTokens is not { } maxOutputTokens)
+        {
+            return;
+        }
+
+        var fieldName = NormalizeMaxOutputTokensFieldName(request.Provider.Profile?.MaxTokensFieldName);
+        if (string.Equals(fieldName, "max_completion_tokens", StringComparison.Ordinal))
+        {
+            options.MaxOutputTokenCount = maxOutputTokens;
+            return;
+        }
+
+        OpenAIExtraBodyPatchHelper.Apply(
+            ref options.Patch,
+            new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                [fieldName] = maxOutputTokens,
+            });
+    }
+
+    private static string NormalizeMaxOutputTokensFieldName(string? fieldName)
+        => string.IsNullOrWhiteSpace(fieldName)
+            ? "max_completion_tokens"
+            : fieldName.Trim();
 
     private static bool SupportsRequestedReasoningEffort(LocalAgentTurnRequest request, AgentReasoningEffort reasoningEffort)
     {

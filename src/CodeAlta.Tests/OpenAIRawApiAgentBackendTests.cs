@@ -273,6 +273,144 @@ public sealed class OpenAIRawApiAgentBackendTests
     }
 
     [TestMethod]
+    public async Task OpenAIChatTurnExecutor_UsesConfiguredMaxTokenFieldAndOmitsUnsupportedParallelToolCalls()
+    {
+        var chatClient = new RecordingOpenAIChatClient(
+        [
+            OpenAIChatModelFactory.StreamingChatCompletionUpdate(
+                completionId: "chatcmpl-compat",
+                contentUpdate: [ChatMessageContentPart.CreateTextPart("OK")],
+                model: "qwen-test"),
+        ]);
+        var profile = new LocalAgentProviderProfile
+        {
+            SupportsStore = false,
+            SupportsParallelToolCalls = false,
+            MaxTokensFieldName = "max_tokens",
+        };
+        var provider = new OpenAIProviderOptions
+        {
+            ProviderKey = "alibaba",
+            Profile = profile,
+            ChatClientFactory = _ => chatClient,
+        };
+        var executor = new OpenAIChatTurnExecutor(provider);
+
+        _ = await executor.ExecuteTurnAsync(
+                new LocalAgentTurnRequest
+                {
+                    Provider = new LocalAgentProviderDescriptor
+                    {
+                        ProtocolFamily = "openai",
+                        ProviderKey = "alibaba",
+                        DisplayName = "Alibaba",
+                        BackendId = new AgentBackendId("alibaba"),
+                        TransportKind = LocalAgentTransportKind.OpenAIChatCompletions,
+                        Profile = profile,
+                    },
+                    BackendId = new AgentBackendId("alibaba"),
+                    SessionId = "session-1",
+                    RunId = new AgentRunId("run-1"),
+                    ModelId = "qwen-test",
+                    MaxOutputTokens = 1234,
+                    Conversation =
+                    [
+                        new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.User,
+                            [new LocalAgentMessagePart.Text("Hello")]),
+                    ],
+                    Tools =
+                    [
+                        new AgentToolDefinition(
+                            new AgentToolSpec(
+                                "inspect_file",
+                                "Inspect a file.",
+                                JsonDocument.Parse("""{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}""").RootElement.Clone()),
+                            static (_, _) => Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text("ok")]))),
+                    ],
+                    State = new LocalAgentSessionState
+                    {
+                        SessionId = "session-1",
+                        ProtocolFamily = "openai",
+                        ProviderKey = "alibaba",
+                        UpdatedAt = DateTimeOffset.UtcNow,
+                    },
+                },
+                static (_, _) => ValueTask.CompletedTask)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(1, chatClient.Requests.Count);
+        var options = chatClient.Requests[0].Options;
+        Assert.IsNotNull(options);
+        Assert.IsNull(options!.MaxOutputTokenCount);
+        Assert.IsNull(options.AllowParallelToolCalls);
+        Assert.IsTrue(options.Patch.TryGetValue("$.max_tokens"u8, out int maxTokens));
+        Assert.AreEqual(1234, maxTokens);
+    }
+
+    [TestMethod]
+    public async Task OpenAIChatTurnExecutor_EnablesParallelToolCallsByDefaultWhenToolsAreAvailable()
+    {
+        var chatClient = new RecordingOpenAIChatClient(
+        [
+            OpenAIChatModelFactory.StreamingChatCompletionUpdate(
+                completionId: "chatcmpl-tools",
+                contentUpdate: [ChatMessageContentPart.CreateTextPart("OK")],
+                model: "gpt-test"),
+        ]);
+        var provider = new OpenAIProviderOptions
+        {
+            ProviderKey = "openai",
+            ChatClientFactory = _ => chatClient,
+        };
+        var executor = new OpenAIChatTurnExecutor(provider);
+
+        _ = await executor.ExecuteTurnAsync(
+                new LocalAgentTurnRequest
+                {
+                    Provider = new LocalAgentProviderDescriptor
+                    {
+                        ProtocolFamily = "openai",
+                        ProviderKey = "openai",
+                        DisplayName = "OpenAI",
+                        BackendId = new AgentBackendId("openai"),
+                        TransportKind = LocalAgentTransportKind.OpenAIChatCompletions,
+                    },
+                    BackendId = new AgentBackendId("openai"),
+                    SessionId = "session-1",
+                    RunId = new AgentRunId("run-1"),
+                    ModelId = "gpt-test",
+                    Conversation =
+                    [
+                        new LocalAgentConversationMessage(
+                            LocalAgentConversationRole.User,
+                            [new LocalAgentMessagePart.Text("Inspect README")]),
+                    ],
+                    Tools =
+                    [
+                        new AgentToolDefinition(
+                            new AgentToolSpec(
+                                "inspect_file",
+                                "Inspect a file.",
+                                JsonDocument.Parse("""{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}""").RootElement.Clone()),
+                            static (_, _) => Task.FromResult(new AgentToolResult(true, [new AgentToolResultItem.Text("ok")]))),
+                    ],
+                    State = new LocalAgentSessionState
+                    {
+                        SessionId = "session-1",
+                        ProtocolFamily = "openai",
+                        ProviderKey = "openai",
+                        UpdatedAt = DateTimeOffset.UtcNow,
+                    },
+                },
+                static (_, _) => ValueTask.CompletedTask)
+            .ConfigureAwait(false);
+
+        Assert.AreEqual(1, chatClient.Requests.Count);
+        Assert.AreEqual(true, chatClient.Requests[0].Options!.AllowParallelToolCalls);
+    }
+
+    [TestMethod]
     public async Task OpenAIChatAgentBackend_ProtocolTracing_WritesSessionTrace()
     {
         using var temp = TestTempDirectory.Create();
@@ -3852,6 +3990,7 @@ public sealed class OpenAIRawApiAgentBackendTests
                 StoredOutputEnabled = options.StoredOutputEnabled,
                 ToolChoice = options.ToolChoice,
                 ReasoningEffortLevel = options.ReasoningEffortLevel,
+                MaxOutputTokenCount = options.MaxOutputTokenCount,
             };
             foreach (var tool in options.Tools)
             {
@@ -3861,6 +4000,11 @@ public sealed class OpenAIRawApiAgentBackendTests
             if (options.Patch.TryGetValue("$.reasoning_split"u8, out bool reasoningSplit))
             {
                 clone.Patch.Set("$.reasoning_split"u8, reasoningSplit);
+            }
+
+            if (options.Patch.TryGetValue("$.max_tokens"u8, out int maxTokens))
+            {
+                clone.Patch.Set("$.max_tokens"u8, maxTokens);
             }
 
             return clone;

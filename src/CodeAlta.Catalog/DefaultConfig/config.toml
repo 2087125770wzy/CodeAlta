@@ -44,10 +44,6 @@ model = "deepseek-v4-pro"
 api_key_env = "CODEALTA_DEEPSEEK_API_KEY"
 api_url = "https://api.deepseek.com"
 
-[providers.deepseek.profile]
-supports_developer_role = false
-reasoning_input_field_name = "reasoning_content"
-
 [providers.gemini]
 enabled = false
 display_name = "Gemini"

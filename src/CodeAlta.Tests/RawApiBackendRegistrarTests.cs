@@ -330,6 +330,101 @@ public sealed class RawApiBackendRegistrarTests
     }
 
     [TestMethod]
+    public void RawApiProviderDefaultsCatalog_AlibabaDefaults_ApplyDashScopeChatCompatibility()
+    {
+        var profile = RawApiProviderDefaultsCatalog.ApplyProfileDefaults(
+            LocalAgentTransportKind.OpenAIChatCompletions,
+            "alibaba",
+            new Uri("https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
+            new LocalAgentProviderProfile
+            {
+                SupportsDeveloperRole = true,
+                SupportsStore = true,
+                SupportsReasoningEffort = true,
+                MaxTokensFieldName = "max_completion_tokens",
+            });
+
+        Assert.IsFalse(profile.SupportsDeveloperRole);
+        Assert.IsFalse(profile.SupportsStore);
+        Assert.IsFalse(profile.SupportsReasoningEffort);
+        Assert.IsTrue(profile.SupportsParallelToolCalls);
+        Assert.AreEqual("max_tokens", profile.MaxTokensFieldName);
+        Assert.IsNull(profile.ReasoningInputFieldName);
+
+        var extraBody = RawApiProviderDefaultsCatalog.CreateOpenAIExtraBodyDefaults(
+            LocalAgentTransportKind.OpenAIChatCompletions,
+            "custom-provider",
+            new Uri("https://coding-intl.dashscope.aliyuncs.com/v1"));
+
+        Assert.IsNotNull(extraBody);
+        var streamOptions = Assert.IsInstanceOfType<IReadOnlyDictionary<string, object?>>(extraBody!["stream_options"]);
+        Assert.AreEqual(true, streamOptions["include_usage"]);
+        Assert.AreEqual(true, extraBody["enable_thinking"]);
+        Assert.AreEqual(true, extraBody["preserve_thinking"]);
+
+        var overriddenExtraBody = RawApiProviderDefaultsCatalog.ApplyOpenAIExtraBodyDefaults(
+            LocalAgentTransportKind.OpenAIChatCompletions,
+            "alibaba",
+            new Uri("https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
+            new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["enable_thinking"] = false,
+                ["preserve_thinking"] = false,
+            });
+
+        Assert.IsNotNull(overriddenExtraBody);
+        Assert.AreEqual(false, overriddenExtraBody!["enable_thinking"]);
+        Assert.AreEqual(false, overriddenExtraBody["preserve_thinking"]);
+    }
+
+    [TestMethod]
+    public void RawApiProviderDefaultsCatalog_DeepSeekDefaults_ApplyOpenAIChatCompatibility()
+    {
+        var profile = RawApiProviderDefaultsCatalog.ApplyProfileDefaults(
+            LocalAgentTransportKind.OpenAIChatCompletions,
+            "deepseek",
+            new Uri("https://api.deepseek.com"),
+            new LocalAgentProviderProfile
+            {
+                SupportsDeveloperRole = true,
+                SupportsStore = true,
+                SupportsReasoningEffort = true,
+                MaxTokensFieldName = "max_completion_tokens",
+            });
+
+        Assert.IsFalse(profile.SupportsDeveloperRole);
+        Assert.IsFalse(profile.SupportsStore);
+        Assert.IsTrue(profile.SupportsReasoningEffort);
+        Assert.AreEqual("max_tokens", profile.MaxTokensFieldName);
+        Assert.AreEqual("reasoning_content", profile.ReasoningInputFieldName);
+
+        var extraBody = RawApiProviderDefaultsCatalog.CreateOpenAIExtraBodyDefaults(
+            LocalAgentTransportKind.OpenAIChatCompletions,
+            "deepseek",
+            new Uri("https://api.deepseek.com"));
+
+        Assert.IsNotNull(extraBody);
+        var thinking = Assert.IsInstanceOfType<IReadOnlyDictionary<string, object?>>(extraBody!["thinking"]);
+        Assert.AreEqual("enabled", thinking["type"]);
+
+        var overriddenExtraBody = RawApiProviderDefaultsCatalog.ApplyOpenAIExtraBodyDefaults(
+            LocalAgentTransportKind.OpenAIChatCompletions,
+            "deepseek",
+            new Uri("https://api.deepseek.com"),
+            new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["thinking"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["type"] = "disabled",
+                },
+            });
+
+        Assert.IsNotNull(overriddenExtraBody);
+        var overriddenThinking = Assert.IsInstanceOfType<IReadOnlyDictionary<string, object?>>(overriddenExtraBody!["thinking"]);
+        Assert.AreEqual("disabled", overriddenThinking["type"]);
+    }
+
+    [TestMethod]
     public async Task RegisterConfiguredBackends_OpenAICompatibleProviderWithoutModelsEndpoint_FallsBackToModelsDevCatalog()
     {
         using var temp = TempDirectory.Create();
