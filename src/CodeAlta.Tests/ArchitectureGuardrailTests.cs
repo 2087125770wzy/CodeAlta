@@ -513,7 +513,7 @@ public sealed class ArchitectureGuardrailTests
         var allowedLegacySites = new HashSet<string>(StringComparer.Ordinal)
         {
             "App/CodeAltaShellController.cs:71:_initializationTask = Task.Run(",
-            "App/CodeAltaShellController.cs:397:var startupProviderLoadTask = Task.Run(",
+            "App/CodeAltaShellController.cs:428:var startupProviderLoadTask = Task.Run(",
             "App/CodeAltaApp.cs:347:_ = PersistViewStateAsync();",
             "App/CodeAltaApp.cs:378:_ = PersistViewStateAsync();",
             "App/CodeAltaApp.cs:451:_ = OpenModelProvidersAsync();",
@@ -522,8 +522,8 @@ public sealed class ArchitectureGuardrailTests
             "App/ShellThreadStateCoordinator.cs:283:_ = PersistViewStateAsync();",
             "App/ShellThreadStateCoordinator.cs:296:_ = PersistViewStateAsync();",
             "App/ShellThreadStateCoordinator.cs:355:_ = PersistViewStateAsync();",
-            "App/ShellThreadStateCoordinator.cs:468:_ = PersistViewStateAsync();",
-            "App/ShellThreadStateCoordinator.cs:505:_ = PersistViewStateAsync();",
+            "App/ShellThreadStateCoordinator.cs:485:_ = PersistViewStateAsync();",
+            "App/ShellThreadStateCoordinator.cs:533:_ = PersistViewStateAsync();",
             "App/SidebarCoordinator.cs:308:_ = CommitInlineRenameAsync(row, projectId, displayName, previousTitle);",
             "App/ThreadPromptDispatchCoordinator.cs:178:_ = RecordResolvedReferenceUsageAsync(promptInput.ResolvedReferences);",
             "App/ThreadPromptDraftPersistenceCoordinator.cs:83:_ = PersistPromptDraftAsync(threadId, normalizedPrompt, cancellationSource);",

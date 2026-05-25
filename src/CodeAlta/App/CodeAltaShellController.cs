@@ -239,19 +239,40 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
 
         var threads = await _recoverableThreadSource.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
-        var thread = threads.FirstOrDefault(candidate => string.Equals(candidate.ThreadId, threadId, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"Thread '{threadId}' was not found.");
+        return await DeleteThreadAsync(threadId, threads, cancellationToken).ConfigureAwait(false);
+    }
 
-        var threadsToDelete = CollectThreadSubtree(thread, threads);
+    public async Task<DeleteThreadResult> DeleteThreadAsync(
+        string threadId,
+        IReadOnlyList<WorkThreadDescriptor> knownThreads,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        ArgumentNullException.ThrowIfNull(knownThreads);
+
+        var thread = knownThreads.FirstOrDefault(candidate => string.Equals(candidate.ThreadId, threadId, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"Thread '{threadId}' was not found.");
+        return await DeleteThreadAsync(thread, knownThreads, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<DeleteThreadResult> DeleteThreadAsync(
+        WorkThreadDescriptor thread,
+        IReadOnlyList<WorkThreadDescriptor> knownThreads,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(knownThreads);
+
+        var threadsToDelete = CollectThreadSubtree(thread, knownThreads);
         var deletedByBackend = false;
         foreach (var candidate in threadsToDelete)
         {
             deletedByBackend |= await _threadDeleter.DeleteThreadAsync(candidate, cancellationToken).ConfigureAwait(false);
         }
 
-        await ReloadCatalogAsync(cancellationToken).ConfigureAwait(false);
+        var deletedThreadIds = threadsToDelete.Select(static candidate => candidate.ThreadId).ToArray();
         return new DeleteThreadResult(
-            threadsToDelete.Select(static candidate => candidate.ThreadId).ToArray(),
+            deletedThreadIds,
             deletedByBackend);
     }
 
@@ -262,6 +283,16 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         var project = await _projectCatalog.GetByIdAsync(projectId, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Project '{projectId}' was not found.");
         var threads = await LoadProjectThreadsAsync(projectId, cancellationToken).ConfigureAwait(false);
+        return await DeleteProjectAsync(project, threads, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<DeleteProjectResult> DeleteProjectAsync(
+        ProjectDescriptor project,
+        IReadOnlyList<WorkThreadDescriptor> threads,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(threads);
 
         foreach (var thread in threads)
         {
@@ -270,8 +301,8 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
 
         project.Archived = true;
         await _projectCatalog.SaveAsync(project, cancellationToken).ConfigureAwait(false);
-        await ReloadCatalogAsync(cancellationToken).ConfigureAwait(false);
-        return new DeleteProjectResult(project.Id, threads.Select(static thread => thread.ThreadId).ToArray());
+        var deletedThreadIds = threads.Select(static thread => thread.ThreadId).ToArray();
+        return new DeleteProjectResult(project.Id, deletedThreadIds);
     }
 
     public async ValueTask DisposeAsync()

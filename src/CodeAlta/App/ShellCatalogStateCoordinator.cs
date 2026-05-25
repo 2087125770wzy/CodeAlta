@@ -130,6 +130,35 @@ internal sealed class ShellCatalogStateCoordinator
             .ToArray();
     }
 
+    public void ArchiveProject(string projectId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+
+        foreach (var project in _projects)
+        {
+            if (string.Equals(project.Id, projectId, StringComparison.OrdinalIgnoreCase))
+            {
+                project.Archived = true;
+                break;
+            }
+        }
+    }
+
+    public void RemoveThreads(IReadOnlyCollection<string> threadIds)
+    {
+        ArgumentNullException.ThrowIfNull(threadIds);
+
+        if (threadIds.Count == 0)
+        {
+            return;
+        }
+
+        var removedThreadIds = new HashSet<string>(threadIds, StringComparer.OrdinalIgnoreCase);
+        _threads = _threads
+            .Where(thread => !removedThreadIds.Contains(thread.ThreadId))
+            .ToArray();
+    }
+
     public ProjectDescriptor? GetProjectById(string? projectId)
     {
         if (string.IsNullOrWhiteSpace(projectId))

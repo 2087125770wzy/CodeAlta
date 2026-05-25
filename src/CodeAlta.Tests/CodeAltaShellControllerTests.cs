@@ -629,7 +629,7 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
-    public async Task DeleteThreadAsync_DeletesThreadAndReloadsCatalog()
+    public async Task DeleteThreadAsync_DeletesThreadWithoutReloadingCatalog()
     {
         var log = new List<string>();
         var shell = new FakeShell(log);
@@ -643,12 +643,15 @@ public sealed class CodeAltaShellControllerTests
             deleter);
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
-        var result = await controller.DeleteThreadAsync(thread.ThreadId, CancellationToken.None);
+        var result = await controller.DeleteThreadAsync(thread, [thread], CancellationToken.None);
 
         Assert.IsTrue(result.DeletedByBackend);
         CollectionAssert.AreEqual(new[] { thread.ThreadId }, result.DeletedThreadIds.ToArray());
         Assert.AreEqual(thread.ThreadId, deleter.DeletedThreadIds.Single());
-        CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:0:1");
+        Assert.IsFalse(log.Contains("Importer.Import"));
+        Assert.IsFalse(log.Contains("ProjectCatalog.Load"));
+        Assert.IsFalse(log.Contains("ThreadSource.Stream"));
+        Assert.IsFalse(log.Contains("ThreadSource.List"));
     }
 
     [TestMethod]
@@ -671,7 +674,7 @@ public sealed class CodeAltaShellControllerTests
             deleter);
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
-        var result = await controller.DeleteThreadAsync(parent.ThreadId, CancellationToken.None);
+        var result = await controller.DeleteThreadAsync(parent, [parent, child, grandchild, sibling], CancellationToken.None);
 
         CollectionAssert.AreEqual(
             new[] { grandchild.ThreadId, child.ThreadId, parent.ThreadId },
@@ -681,7 +684,7 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
-    public async Task DeleteProjectAsync_DeletesThreadsMarksProjectArchivedAndReloadsCatalog()
+    public async Task DeleteProjectAsync_DeletesThreadsMarksProjectArchivedWithoutReloadingCatalog()
     {
         var log = new List<string>();
         var shell = new FakeShell(log);
@@ -696,12 +699,17 @@ public sealed class CodeAltaShellControllerTests
             deleter);
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
-        var result = await controller.DeleteProjectAsync(project.Id, CancellationToken.None);
+        var threads = new[] { CreateThread("thread-1"), CreateThread("thread-2") };
+        var result = await controller.DeleteProjectAsync(project, threads, CancellationToken.None);
 
         Assert.IsTrue(catalog.Projects.Single().Archived);
         CollectionAssert.AreEquivalent(new[] { "thread-1", "thread-2" }, deleter.DeletedThreadIds.ToArray());
         CollectionAssert.AreEquivalent(new[] { "thread-1", "thread-2" }, result.DeletedThreadIds.ToArray());
         CollectionAssert.Contains(log, "ProjectCatalog.Save:project-1");
+        Assert.IsFalse(log.Contains("Importer.Import"));
+        Assert.IsFalse(log.Contains("ProjectCatalog.Load"));
+        Assert.IsFalse(log.Contains("ThreadSource.Stream"));
+        Assert.IsFalse(log.Contains("ThreadSource.List"));
     }
 
     private static WorkThreadHostEvent CreateHostEvent(string threadId)

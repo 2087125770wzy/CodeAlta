@@ -379,6 +379,8 @@ public sealed class ShellThreadStateCoordinatorTests
         Assert.IsTrue(coordinator.DraftTabOpen);
         Assert.IsTrue(coordinator.GlobalScopeSelected);
         Assert.IsNull(coordinator.SelectedThreadId);
+        Assert.IsTrue(coordinator.GetProjectById(project.Id)?.Archived);
+        Assert.IsFalse(coordinator.Threads.Any(thread => thread.ThreadId == "thread-1"));
         Assert.AreEqual(ShellSurface.DraftWorkspace, coordinator.Selection.Surface);
         Assert.IsInstanceOfType<WorkspaceTarget.Draft>(coordinator.Selection.Target);
     }
@@ -405,6 +407,8 @@ public sealed class ShellThreadStateCoordinatorTests
                 ("thread-2", ShellTabCloseReason.ProjectClosed),
             },
             closeReasons.ToArray());
+        Assert.IsTrue(coordinator.GetProjectById(project.Id)?.Archived);
+        Assert.IsFalse(coordinator.Threads.Any());
     }
 
     [TestMethod]

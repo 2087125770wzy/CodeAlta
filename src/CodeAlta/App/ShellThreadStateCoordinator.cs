@@ -444,19 +444,36 @@ internal sealed partial class ShellThreadStateCoordinator
     }
 
     public void RemoveDeletedThread(string threadId, string? fallbackProjectId)
+        => RemoveDeletedThreads([threadId], fallbackProjectId);
+
+    public void RemoveDeletedThreads(IReadOnlyList<string> threadIds, string? fallbackProjectId)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        ArgumentNullException.ThrowIfNull(threadIds);
+
+        var deletedThreadIds = threadIds
+            .Where(static threadId => !string.IsNullOrWhiteSpace(threadId))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (deletedThreadIds.Length == 0)
+        {
+            return;
+        }
 
         _tabLifecycle.ResetPendingThreadTabSelection();
-        var removedSelectedThread = string.Equals(SelectedThreadId, threadId, StringComparison.OrdinalIgnoreCase);
-        ViewState.OpenThreadIds.RemoveAll(id => string.Equals(id, threadId, StringComparison.OrdinalIgnoreCase));
-        _tabLifecycle.RemoveThreadTabPage(threadId, ShellTabCloseReason.ThreadDeleted);
-        _OpenThreadStateStore.RemoveThreadTab(threadId);
-        _promptDrafts.DeletePromptDraft(threadId);
+        var removedSelectedThread = deletedThreadIds.Contains(SelectedThreadId, StringComparer.OrdinalIgnoreCase);
+        _catalogStateCoordinator.RemoveThreads(deletedThreadIds);
 
-        if (string.Equals(ViewState.SelectedThreadId, threadId, StringComparison.OrdinalIgnoreCase))
+        foreach (var threadId in deletedThreadIds)
         {
-            ViewState.SelectedThreadId = null;
+            ViewState.OpenThreadIds.RemoveAll(id => string.Equals(id, threadId, StringComparison.OrdinalIgnoreCase));
+            _tabLifecycle.RemoveThreadTabPage(threadId, ShellTabCloseReason.ThreadDeleted);
+            _OpenThreadStateStore.RemoveThreadTab(threadId);
+            _promptDrafts.DeletePromptDraft(threadId);
+
+            if (string.Equals(ViewState.SelectedThreadId, threadId, StringComparison.OrdinalIgnoreCase))
+            {
+                ViewState.SelectedThreadId = null;
+            }
         }
 
         if (removedSelectedThread)
@@ -469,6 +486,15 @@ internal sealed partial class ShellThreadStateCoordinator
         SyncStateStore(catalogChanged: true, selectionChanged: true);
     }
 
+    public void RemoveDeletedProject(ProjectDescriptor project, IReadOnlyList<string> deletedThreadIds)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(deletedThreadIds);
+
+        _catalogStateCoordinator.UpsertProject(project);
+        RemoveDeletedProject(project.Id, deletedThreadIds);
+    }
+
     public void RemoveDeletedProject(string projectId, IReadOnlyList<string> deletedThreadIds)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
@@ -478,6 +504,8 @@ internal sealed partial class ShellThreadStateCoordinator
         var removedSelectedThread = deletedThreadIds.Contains(SelectedThreadId, StringComparer.OrdinalIgnoreCase);
         var removedSelectedProject = !GlobalScopeSelected &&
             string.Equals(SelectedProjectId, projectId, StringComparison.OrdinalIgnoreCase);
+        _catalogStateCoordinator.ArchiveProject(projectId);
+        _catalogStateCoordinator.RemoveThreads(deletedThreadIds.ToArray());
 
         foreach (var threadId in deletedThreadIds)
         {
