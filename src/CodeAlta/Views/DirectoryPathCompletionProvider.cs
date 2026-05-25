@@ -63,12 +63,19 @@ internal sealed class DirectoryPathCompletionProvider
                 return [];
             }
 
-            return Directory
+            var suggestions = Directory
                 .EnumerateDirectories(searchRoot)
                 .Where(directory => prefix.Length == 0 || Path.GetFileName(directory).StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 .Select(static directory => BuildDirectorySuggestion(directory))
                 .OrderBy(static candidate => candidate.ReplaceText, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+                .ToList();
+
+            if (prefix.Length == 0)
+            {
+                suggestions.Insert(0, BuildDirectorySuggestion(searchRoot));
+            }
+
+            return suggestions;
         }
         catch (IOException)
         {

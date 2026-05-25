@@ -46,6 +46,40 @@ public sealed class DirectoryPathCompletionProviderTests
     }
 
     [TestMethod]
+    public void GetSuggestions_ExistingDirectoryWithTrailingSeparator_IncludesDirectoryBeforeChildren()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "codealta-open-folder-tests", Guid.NewGuid().ToString("N"));
+        var projectRoot = Path.Combine(root, "CodeAlta");
+        Directory.CreateDirectory(Path.Combine(projectRoot, ".github"));
+        Directory.CreateDirectory(Path.Combine(projectRoot, "src"));
+
+        try
+        {
+            var provider = new DirectoryPathCompletionProvider(root);
+            var input = projectRoot + Path.DirectorySeparatorChar;
+
+            var result = provider.GetSuggestions(input);
+
+            Assert.AreEqual(3, result.Count);
+            Assert.AreEqual(new OpenProjectSuggestion(OpenProjectSuggestionKind.Directory, input, input), result[0]);
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    new OpenProjectSuggestion(OpenProjectSuggestionKind.Directory, Path.Combine(projectRoot, ".github") + Path.DirectorySeparatorChar, Path.Combine(projectRoot, ".github") + Path.DirectorySeparatorChar),
+                    new OpenProjectSuggestion(OpenProjectSuggestionKind.Directory, Path.Combine(projectRoot, "src") + Path.DirectorySeparatorChar, Path.Combine(projectRoot, "src") + Path.DirectorySeparatorChar),
+                },
+                result.Skip(1).ToArray());
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void GetSuggestions_BlankInput_IncludesProjectsBeforeRoots()
     {
         var provider = new DirectoryPathCompletionProvider(
@@ -198,6 +232,65 @@ public sealed class DirectoryPathCompletionProviderTests
     }
 
     [TestMethod]
+    public void Dialog_SubmitExistingDirectoryWithTrailingSeparator_OpensTypedDirectory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "codealta-open-folder-tests", Guid.NewGuid().ToString("N"));
+        var projectRoot = Path.Combine(root, "CodeAlta");
+        Directory.CreateDirectory(Path.Combine(projectRoot, ".github"));
+
+        try
+        {
+            var openedPath = string.Empty;
+            var typedPath = projectRoot + Path.DirectorySeparatorChar;
+            var dialog = new DirectoryPathDialog(
+                "Open Project",
+                "Type a project name from the sidebar or a rooted folder path.",
+                "Open",
+                CreateDialogService(openFolderAsync: (path, _) =>
+                {
+                    openedPath = path;
+                    return Task.CompletedTask;
+                }));
+
+            using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+            var app = new TerminalApp(
+                new TextBlock("host"),
+                terminalSession.Instance,
+                new TerminalAppOptions
+                {
+                    HostKind = TerminalHostKind.Fullscreen,
+                });
+
+            InvokeTerminalApp(app, "BeginRun");
+            try
+            {
+                dialog.Show();
+                TickTerminalApp(app);
+
+                var backend = (InMemoryTerminalBackend)terminalSession.Instance.Backend;
+                backend.PushEvent(new TerminalTextEvent { Text = typedPath });
+                TickTerminalApp(app);
+
+                backend.PushEvent(new TerminalKeyEvent { Key = TerminalKey.Enter });
+                TickTerminalApp(app);
+
+                Assert.AreEqual(typedPath, openedPath);
+            }
+            finally
+            {
+                InvokeTerminalApp(app, "EndRun");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
     public void Dialog_ToggleIncludeHiddenCommand_RefreshesSuggestions()
     {
         var visibleProject = CreateProject("codealta", "CodeAlta", @"C:\repo\CodeAlta");
@@ -260,11 +353,13 @@ public sealed class DirectoryPathCompletionProviderTests
         method.Invoke(app, [null]);
     }
 
-    private static DirectoryPathDialogService CreateDialogService(Func<IEnumerable<ProjectDescriptor>>? getProjects = null)
+    private static DirectoryPathDialogService CreateDialogService(
+        Func<IEnumerable<ProjectDescriptor>>? getProjects = null,
+        Func<string, bool, Task>? openFolderAsync = null)
         => new(
             () => new XenoAtom.Terminal.UI.Geometry.Rectangle(0, 0, 120, 40),
             static () => null,
-            static (_, _) => Task.CompletedTask,
+            openFolderAsync ?? (static (_, _) => Task.CompletedTask),
             getProjects: getProjects);
 
     private static ProjectDescriptor CreateProject(string slug, string displayName, string? projectPath = null)
