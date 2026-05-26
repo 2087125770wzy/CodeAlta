@@ -91,7 +91,8 @@ namespace CodeAlta.Models
         Markup timestampText,
         Markup headerText,
         StringBuilder buffer,
-        AgentContentKind kind)
+        AgentContentKind kind,
+        AgentRunId? runId)
     {
         public DocumentFlowItem Item { get; } = item;
 
@@ -104,6 +105,10 @@ namespace CodeAlta.Models
         public StringBuilder Buffer { get; } = buffer;
 
         public AgentContentKind Kind { get; } = kind;
+
+        public AgentRunId? RunId { get; } = runId;
+
+        public bool IsCompleted { get; set; }
 
         public string? DraftAttemptId { get; set; }
     }

@@ -16,6 +16,7 @@ internal sealed class ThreadTimelinePresenter
     private readonly IUiDispatcher _uiDispatcher;
     private readonly Func<Rectangle?> _getDialogBounds;
     private readonly Dictionary<string, ChatContentState> _contentStates = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _contentStateAliases = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ChatStatusState> _activityStates = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ChatStatusState> _interactionStates = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ChatStatusState> _planStates = new(StringComparer.Ordinal);
@@ -175,7 +176,12 @@ internal sealed class ThreadTimelinePresenter
             return;
         }
 
-        var state = GetOrCreateContentState(delta.Kind, delta.ContentId, delta.Timestamp);
+        var state = GetOrCreateContentState(delta.Kind, delta.ContentId, delta.Timestamp, delta.RunId);
+        if (state.IsCompleted)
+        {
+            return;
+        }
+
         if (TryGetDraftAttemptId(delta.Details, out var draftAttemptId))
         {
             state.DraftAttemptId = draftAttemptId;
@@ -214,6 +220,13 @@ internal sealed class ThreadTimelinePresenter
             }
 
             _contentStates.Remove(entry.Key);
+            foreach (var alias in _contentStateAliases.Where(alias =>
+                string.Equals(alias.Key, entry.Key, StringComparison.Ordinal) ||
+                string.Equals(alias.Value, entry.Key, StringComparison.Ordinal)).ToArray())
+            {
+                _contentStateAliases.Remove(alias.Key);
+            }
+
             discardedItems.Add(entry.Value.Item);
         }
 
@@ -292,10 +305,11 @@ internal sealed class ThreadTimelinePresenter
         var imageAttachments = completed.Kind == AgentContentKind.User
             ? ExtractUserImageAttachments(completed.Details)
             : [];
-        var state = GetOrCreateContentState(completed.Kind, completed.ContentId, completed.Timestamp, imageAttachments);
+        var state = GetOrCreateCompletedContentState(completed, imageAttachments);
         var content = ResolveCompletedContent(completed.Content, state.Buffer);
         state.Buffer.Clear();
         state.Buffer.Append(content);
+        state.IsCompleted = true;
         var markdown = ChatMarkdownFormatter.FormatChatContentMarkdown(completed.Kind, content);
         var headerSecondary = ChatMarkdownFormatter.GetChatContentHeaderSecondary(completed.Kind, content);
         UiDispatch.Post(_uiDispatcher, () =>
@@ -603,6 +617,7 @@ internal sealed class ThreadTimelinePresenter
         UiDispatch.Post(_uiDispatcher, () => Flow.Items.Clear());
         _bufferedHistoryItems = null;
         _contentStates.Clear();
+        _contentStateAliases.Clear();
         _activityStates.Clear();
         _interactionStates.Clear();
         _planStates.Clear();
@@ -666,13 +681,89 @@ internal sealed class ThreadTimelinePresenter
         return new TruncatedHistoryState(item, rule, omittedMessageCount);
     }
 
+    private ChatContentState GetOrCreateCompletedContentState(
+        AgentContentCompletedEvent completed,
+        IReadOnlyList<PromptImageAttachmentReference>? imageAttachments)
+    {
+        var key = ChatTimelineVisualFactory.CreateContentKey(completed.Kind, completed.ContentId);
+        if (_contentStates.TryGetValue(key, out var existing))
+        {
+            return existing;
+        }
+
+        if (TryFindEquivalentStreamingContentState(completed, out var streamingKey, out var streamingState))
+        {
+            _contentStates.Remove(streamingKey);
+            _contentStates[key] = streamingState;
+            _contentStateAliases[streamingKey] = key;
+            return streamingState;
+        }
+
+        return GetOrCreateContentState(completed.Kind, completed.ContentId, completed.Timestamp, completed.RunId, imageAttachments);
+    }
+
+    private bool TryFindEquivalentStreamingContentState(
+        AgentContentCompletedEvent completed,
+        out string streamingKey,
+        out ChatContentState streamingState)
+    {
+        streamingKey = string.Empty;
+        streamingState = null!;
+
+        if (string.IsNullOrEmpty(completed.Content))
+        {
+            return false;
+        }
+
+        var matched = false;
+        foreach (var entry in _contentStates)
+        {
+            var state = entry.Value;
+            if (state.Kind != completed.Kind || state.Buffer.Length == 0)
+            {
+                continue;
+            }
+
+            var streamedContent = state.Buffer.ToString();
+            var isEquivalent = completed.RunId is { } completedRunId && state.RunId == completedRunId
+                ? completed.Content.StartsWith(streamedContent, StringComparison.Ordinal)
+                : string.Equals(streamedContent, completed.Content, StringComparison.Ordinal);
+            if (!isEquivalent)
+            {
+                continue;
+            }
+
+            if (matched)
+            {
+                return false;
+            }
+
+            matched = true;
+            streamingKey = entry.Key;
+            streamingState = state;
+        }
+
+        return matched;
+    }
+
     private ChatContentState GetOrCreateContentState(
         AgentContentKind kind,
         string contentId,
         DateTimeOffset timestamp,
+        AgentRunId? runId,
         IReadOnlyList<PromptImageAttachmentReference>? imageAttachments = null)
     {
         var key = ChatTimelineVisualFactory.CreateContentKey(kind, contentId);
+        if (_contentStateAliases.TryGetValue(key, out var aliasedKey))
+        {
+            if (_contentStates.TryGetValue(aliasedKey, out var aliased))
+            {
+                return aliased;
+            }
+
+            _contentStateAliases.Remove(key);
+        }
+
         if (_contentStates.TryGetValue(key, out var existing))
         {
             return existing;
@@ -683,7 +774,7 @@ internal sealed class ThreadTimelinePresenter
             pending.ContentId = contentId;
             ChatTimelineVisualFactory.ApplyTimestamp(pending.TimestampText, timestamp);
             _pendingAssistant = null;
-            var pendingState = new ChatContentState(pending.Item, pending.Markdown, pending.TimestampText, pending.HeaderText, pending.Buffer, kind);
+            var pendingState = new ChatContentState(pending.Item, pending.Markdown, pending.TimestampText, pending.HeaderText, pending.Buffer, kind, runId);
             _contentStates[key] = pendingState;
             TrackNavigableMessage(pending.Item, kind);
             return pendingState;
@@ -698,7 +789,7 @@ internal sealed class ThreadTimelinePresenter
             imageAttachments: kind == AgentContentKind.User ? imageAttachments : null,
             getDialogBounds: _getDialogBounds);
         ChatTimelineVisualFactory.ApplyTimestamp(entry.TimestampText, timestamp);
-        var state = new ChatContentState(entry.Item, entry.Markdown, entry.TimestampText, entry.HeaderText, new StringBuilder(), kind);
+        var state = new ChatContentState(entry.Item, entry.Markdown, entry.TimestampText, entry.HeaderText, new StringBuilder(), kind, runId);
         _contentStates[key] = state;
         if (kind == AgentContentKind.User)
         {

@@ -140,6 +140,72 @@ public sealed class ThreadTimelinePresenterTests
     }
 
     [TestMethod]
+    public void FinalizeContent_ReusesEquivalentStreamingItemWhenCompletedContentIdDiffers()
+    {
+        var presenter = CreatePresenter();
+        var timestamp = DateTimeOffset.UtcNow;
+        var runId = new AgentRunId("run-1");
+        var delta = new AgentContentDeltaEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            timestamp,
+            runId,
+            AgentContentKind.Assistant,
+            "assistant-stream",
+            null,
+            "Streaming ");
+        var completed = new AgentContentCompletedEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            timestamp.AddSeconds(1),
+            runId,
+            AgentContentKind.Assistant,
+            "assistant-final",
+            null,
+            "Streaming assistant reply");
+
+        presenter.AppendContent(delta);
+        presenter.FinalizeContent(completed);
+
+        Assert.AreEqual(1, presenter.Flow.Items.Count);
+        Assert.AreEqual("Streaming assistant reply", GetOnlyMarkdown(presenter).Markdown);
+    }
+
+    [TestMethod]
+    public void AppendContent_IgnoresLateDeltaAfterAuthoritativeCompletedContent()
+    {
+        var presenter = CreatePresenter();
+        var timestamp = DateTimeOffset.UtcNow;
+        var runId = new AgentRunId("run-1");
+        var delta = new AgentContentDeltaEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            timestamp,
+            runId,
+            AgentContentKind.Assistant,
+            "assistant-stream",
+            null,
+            "Streaming ");
+        var completed = new AgentContentCompletedEvent(
+            AgentBackendIds.Codex,
+            "session-1",
+            timestamp.AddSeconds(1),
+            runId,
+            AgentContentKind.Assistant,
+            "assistant-final",
+            null,
+            "Streaming assistant reply");
+        var lateDelta = delta with { Timestamp = timestamp.AddSeconds(2), Delta = "assistant reply" };
+
+        presenter.AppendContent(delta);
+        presenter.FinalizeContent(completed);
+        presenter.AppendContent(lateDelta);
+
+        Assert.AreEqual(1, presenter.Flow.Items.Count);
+        Assert.AreEqual("Streaming assistant reply", GetOnlyMarkdown(presenter).Markdown);
+    }
+
+    [TestMethod]
     public void DiscardDraftContent_RemovesMatchingDraftTimelineItem()
     {
         var presenter = CreatePresenter();
@@ -446,6 +512,14 @@ public sealed class ThreadTimelinePresenterTests
     {
         using var document = System.Text.Json.JsonDocument.Parse(json);
         return document.RootElement.Clone();
+    }
+
+    private static MarkdownControl GetOnlyMarkdown(ThreadTimelinePresenter presenter)
+    {
+        var document = Assert.IsInstanceOfType<FlowDocument>(presenter.Flow.Items.Single().Content);
+        var block = Assert.IsInstanceOfType<VisualDocumentFlowBlock>(document.GetBlock(0));
+        var group = Assert.IsInstanceOfType<Group>(block.CreateVisual());
+        return group.EnumerateVisualsDepthFirst().OfType<MarkdownControl>().Single();
     }
 
     private static void RenderCompletedContent(
