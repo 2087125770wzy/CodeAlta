@@ -152,7 +152,7 @@ internal sealed class CodeAltaFrontendComposition
             new ThreadTimelineSurface(() => frontend.ThreadPaneLayout?.GetAbsoluteBounds()),
             threadPromptDraftService,
             threadModelProviderPreferenceService,
-            new ThreadModelProviderReadinessService(thread => frontend.IsModelProviderReady(new AgentBackendId(thread.BackendId))),
+            new ThreadModelProviderReadinessService(thread => frontend.IsModelProviderReady(new ModelProviderId(thread.BackendId))),
             new ThreadHistoryLoaderService(frontend.EnsureThreadHistoryLoadedAsync),
             new ThreadStateTabLifecycleService(
                 () => frontend.GetShellTabs()
@@ -325,7 +325,7 @@ internal sealed class CodeAltaFrontendComposition
         var threadCreationCoordinator = new ThreadCreationCoordinator(
             runtimeService,
             catalogOptions,
-            modelProviderSelectorCoordinator.GetPreferredModelProviderId,
+            () => new AgentBackendId(modelProviderSelectorCoordinator.GetPreferredModelProviderId().Value),
             threadSelectionContext.GetSelectedProject,
             () => threadSelectionContext.Selection,
             static () => null,

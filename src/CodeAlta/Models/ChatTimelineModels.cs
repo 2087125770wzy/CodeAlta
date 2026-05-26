@@ -31,7 +31,7 @@ namespace CodeAlta.Models
         Interaction,
     }
 
-    public sealed record ChatBackendOption(AgentBackendId BackendId, string Label)
+    public sealed record ChatBackendOption(ModelProviderId ProviderId, string Label)
     {
         public override string ToString() => Label;
     }
@@ -66,9 +66,9 @@ namespace CodeAlta.Models
         Func<Visual>? VisualFactory = null,
         Func<Visual>? HeaderVisualFactory = null);
 
-    internal sealed class ChatBackendState(AgentBackendId backendId, string displayName)
+    internal sealed class ChatBackendState(ModelProviderId providerId, string displayName)
     {
-        public AgentBackendId BackendId { get; } = backendId;
+        public ModelProviderId ProviderId { get; } = providerId;
 
         public string DisplayName { get; set; } = displayName;
 

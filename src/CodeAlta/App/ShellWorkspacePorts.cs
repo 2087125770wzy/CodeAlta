@@ -6,7 +6,7 @@ namespace CodeAlta.App;
 
 internal interface IShellPromptAvailabilityPort
 {
-    AgentBackendId GetPreferredModelProviderId();
+    ModelProviderId GetPreferredModelProviderId();
 
     (bool HasStatus, string Message, StatusTone Tone) GetPromptUnavailableStatus();
 
@@ -38,12 +38,12 @@ internal interface IShellWorkspaceProjectionPort
 
 internal sealed class DelegatingShellPromptAvailabilityPort : IShellPromptAvailabilityPort
 {
-    private readonly Func<AgentBackendId> _getPreferredModelProviderId;
+    private readonly Func<ModelProviderId> _getPreferredModelProviderId;
     private readonly Func<(bool HasStatus, string Message, StatusTone Tone)> _getPromptUnavailableStatus;
     private readonly Func<bool> _hasCurrentPromptDraft;
 
     public DelegatingShellPromptAvailabilityPort(
-        Func<AgentBackendId> getPreferredModelProviderId,
+        Func<ModelProviderId> getPreferredModelProviderId,
         Func<(bool HasStatus, string Message, StatusTone Tone)> getPromptUnavailableStatus,
         Func<bool>? hasCurrentPromptDraft = null)
     {
@@ -55,7 +55,7 @@ internal sealed class DelegatingShellPromptAvailabilityPort : IShellPromptAvaila
         _hasCurrentPromptDraft = hasCurrentPromptDraft ?? (static () => false);
     }
 
-    public AgentBackendId GetPreferredModelProviderId()
+    public ModelProviderId GetPreferredModelProviderId()
         => _getPreferredModelProviderId();
 
     public (bool HasStatus, string Message, StatusTone Tone) GetPromptUnavailableStatus()

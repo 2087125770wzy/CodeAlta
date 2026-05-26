@@ -162,13 +162,13 @@ internal sealed class FrontendModelProviderPreferencePort : IModelProviderPrefer
 {
     private readonly Action<ChatBackendState> _applyDraftModelProviderState;
     private readonly Action<OpenThreadState> _applyThreadModelProviderState;
-    private readonly Action<AgentBackendId, string?, AgentReasoningEffort?> _rememberGlobalPreference;
+    private readonly Action<ModelProviderId, string?, AgentReasoningEffort?> _rememberGlobalPreference;
     private readonly Action<string, string?, AgentReasoningEffort?, bool> _rememberThreadPreference;
 
     public FrontendModelProviderPreferencePort(
         Action<ChatBackendState> applyDraftModelProviderState,
         Action<OpenThreadState> applyThreadModelProviderState,
-        Action<AgentBackendId, string?, AgentReasoningEffort?> rememberGlobalPreference,
+        Action<ModelProviderId, string?, AgentReasoningEffort?> rememberGlobalPreference,
         Action<string, string?, AgentReasoningEffort?, bool> rememberThreadPreference)
     {
         ArgumentNullException.ThrowIfNull(applyDraftModelProviderState);
@@ -221,16 +221,13 @@ internal sealed class FrontendModelProviderPreferencePort : IModelProviderPrefer
     {
         EnsurePreference(preference);
         var normalized = preference.Normalize();
-        _rememberGlobalPreference(
-            new AgentBackendId(normalized.ModelProviderId.Value),
-            normalized.ModelId,
-            normalized.ReasoningEffort);
+        _rememberGlobalPreference(normalized.ModelProviderId, normalized.ModelId, normalized.ReasoningEffort);
     }
 
     private static ChatBackendState CreateLegacyModelProviderState(ModelProviderPreference preference)
     {
         EnsurePreference(preference);
-        return new ChatBackendState(new AgentBackendId(preference.ModelProviderId.Value), preference.ModelProviderId.Value)
+        return new ChatBackendState(preference.ModelProviderId, preference.ModelProviderId.Value)
         {
             SelectedModelId = preference.ModelId,
             SelectedReasoningEffort = preference.ReasoningEffort,

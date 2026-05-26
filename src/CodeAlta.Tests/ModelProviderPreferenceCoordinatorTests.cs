@@ -18,7 +18,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         using var temp = TempDirectory.Create();
         var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
         var coordinator = new ModelProviderPreferenceCoordinator(store, Views.CodeAltaApp.UiLogger);
-        var backendState = new ChatBackendState(new AgentBackendId("zai"), "ZAI");
+        var backendState = new ChatBackendState(new ModelProviderId("zai"), "ZAI");
         backendState.Models.Add(new AgentModelInfo(
             "gpt-5",
             SupportedReasoningEfforts: [AgentReasoningEffort.Low, AgentReasoningEffort.High]));
@@ -31,7 +31,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         var viewState = new WorkThreadViewState();
         coordinator.RememberGlobalModelProviderPreference(
             viewState,
-            new AgentBackendId("zai"),
+            new ModelProviderId("zai"),
             "glm-5.1",
             AgentReasoningEffort.Medium,
             projectA,
@@ -39,7 +39,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
             rememberDraftScope: true);
         coordinator.RememberGlobalModelProviderPreference(
             viewState,
-            new AgentBackendId("zai"),
+            new ModelProviderId("zai"),
             "gpt-5",
             AgentReasoningEffort.High,
             projectB,
@@ -74,7 +74,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
                 },
             },
         };
-        var backendState = new ChatBackendState(new AgentBackendId("zai"), "ZAI");
+        var backendState = new ChatBackendState(new ModelProviderId("zai"), "ZAI");
 
         coordinator.ApplyDraftModelProviderPreference(backendState, viewState, draftProjectRoot: null, draftProjectId: "project-a");
 
@@ -110,7 +110,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
 
         coordinator.RememberGlobalModelProviderPreference(
             viewState,
-            new AgentBackendId("zai"),
+            new ModelProviderId("zai"),
             "glm-5.1",
             AgentReasoningEffort.High,
             rememberDraftScope: true);
@@ -133,7 +133,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
 
         coordinator.RememberGlobalModelProviderPreference(
             viewState,
-            new AgentBackendId("zai"),
+            new ModelProviderId("zai"),
             "glm-5.1",
             AgentReasoningEffort.Medium,
             draftProjectRoot: Path.Combine(temp.Path, "project-a"),
@@ -165,7 +165,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         var coordinator = new ModelProviderPreferenceCoordinator(store, Views.CodeAltaApp.UiLogger);
         ModelProviderDescriptor[] backendDescriptors =
         [
-            new ModelProviderDescriptor(new AgentBackendId("zai"), "ZAI"),
+            new ModelProviderDescriptor(new ModelProviderId("zai"), "ZAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         backendStates["zai"].Models.Add(
@@ -208,7 +208,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         var coordinator = new ModelProviderPreferenceCoordinator(store, Views.CodeAltaApp.UiLogger);
         ModelProviderDescriptor[] backendDescriptors =
         [
-            new ModelProviderDescriptor(new AgentBackendId("zai"), "ZAI"),
+            new ModelProviderDescriptor(new ModelProviderId("zai"), "ZAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         backendStates["zai"].Models.Add(new AgentModelInfo("gpt-5", DisplayName: "GPT-5"));
@@ -250,7 +250,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         var coordinator = new ModelProviderPreferenceCoordinator(store, Views.CodeAltaApp.UiLogger);
         ModelProviderDescriptor[] backendDescriptors =
         [
-            new ModelProviderDescriptor(new AgentBackendId("zai"), "ZAI"),
+            new ModelProviderDescriptor(new ModelProviderId("zai"), "ZAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         backendStates["zai"].Models.Add(new AgentModelInfo(

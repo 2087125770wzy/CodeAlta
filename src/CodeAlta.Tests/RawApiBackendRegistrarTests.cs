@@ -62,9 +62,11 @@ public sealed class RawApiBackendRegistrarTests
 
             var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
             var factory = new AgentBackendFactory();
+            await using var providerRegistry = new ModelProviderRegistry();
 
             var descriptors = RawApiBackendRegistrar.RegisterConfiguredBackends(
                 factory,
+                providerRegistry,
                 store,
                 Path.Combine(temp.Path, "machine", "agents"));
 
@@ -82,6 +84,11 @@ public sealed class RawApiBackendRegistrarTests
             Assert.AreEqual("Azure OpenAI", descriptorsById["azure"]);
             Assert.AreEqual("Anthropic", descriptorsById["anthropic"]);
             Assert.AreEqual("Vertex", descriptorsById["vertex"]);
+            Assert.IsTrue(providerRegistry.TryGetProvider(new ModelProviderId("azure"), out var azureProviderDescriptor));
+            Assert.AreEqual("azure", azureProviderDescriptor.ProviderId.Value);
+            Assert.AreEqual("azure-openai", azureProviderDescriptor.ProviderType);
+            Assert.AreEqual("https://example.openai.azure.com/", azureProviderDescriptor.BaseUri?.ToString());
+            Assert.AreEqual("my-gpt-4o-mini-deployment", azureProviderDescriptor.DefaultModelId);
 
             Assert.IsTrue(factory.IsRegistered("openai_responses"));
             Assert.IsTrue(factory.IsRegistered("openai_chat"));

@@ -75,18 +75,18 @@ internal sealed class AcpFrontendCoordinator
         var backendDescriptors = _ownedServices?.BackendDescriptors
             ?? CodeAltaOwnedServices.CreateBuiltInBackendDescriptors();
         var activeBackendIds = new HashSet<string>(
-            backendDescriptors.Select(static descriptor => descriptor.BackendId.Value),
+            backendDescriptors.Select(static descriptor => descriptor.ProviderId.Value),
             StringComparer.OrdinalIgnoreCase);
 
         foreach (var descriptor in backendDescriptors)
         {
-            if (_chatBackendStates.TryGetValue(descriptor.BackendId.Value, out var existing))
+            if (_chatBackendStates.TryGetValue(descriptor.ProviderId.Value, out var existing))
             {
                 existing.DisplayName = descriptor.DisplayName;
                 continue;
             }
 
-            _chatBackendStates[descriptor.BackendId.Value] = new ChatBackendState(descriptor.BackendId, descriptor.DisplayName);
+            _chatBackendStates[descriptor.ProviderId.Value] = new ChatBackendState(descriptor.ProviderId, descriptor.DisplayName);
         }
 
         foreach (var backendId in _chatBackendStates.Keys.Where(key => !activeBackendIds.Contains(key)).ToArray())

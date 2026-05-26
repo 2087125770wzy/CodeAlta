@@ -16,7 +16,7 @@ public sealed class ProviderFrontendCoordinatorTests
             ProviderKey = "copilot",
             ProviderType = "copilot",
         };
-        var backendState = new ChatBackendState(AgentBackendIds.Copilot, "Copilot")
+        var backendState = new ChatBackendState(ModelProviderIds.Copilot, "Copilot")
         {
             Availability = ChatBackendAvailability.Ready,
             StatusMessage = "Ready",
@@ -46,7 +46,7 @@ public sealed class ProviderFrontendCoordinatorTests
             ProviderKey = "codex",
             ProviderType = "codex",
         };
-        var backendState = new ChatBackendState(AgentBackendIds.Codex, "Codex")
+        var backendState = new ChatBackendState(ModelProviderIds.Codex, "Codex")
         {
             Availability = ChatBackendAvailability.Failed,
             StatusMessage = "Codex startup failed.",

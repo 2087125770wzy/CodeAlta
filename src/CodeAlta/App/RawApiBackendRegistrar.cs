@@ -46,6 +46,10 @@ internal static class RawApiBackendRegistrar
                     descriptor.BackendId,
                     createBackend,
                     AgentBackendRegistrationOptions.SharedSessionMetadataStore);
+                // Phase 1 provider descriptors are sourced from the config definition above.
+                // The backend wrapper registered here is short-lived scaffolding until the
+                // Phase 8 provider-runtime migration removes IAgentBackend from provider
+                // registry execution paths.
                 modelProviderRegistry?.RegisterOrReplaceBackendRuntime(descriptor, createBackend);
                 descriptors.Add(descriptor);
             }
@@ -85,6 +89,10 @@ internal static class RawApiBackendRegistrar
                 descriptor.BackendId,
                 createBackend,
                 AgentBackendRegistrationOptions.SharedSessionMetadataStore);
+            // Phase 1 provider descriptors are sourced from the config definition above.
+            // The backend wrapper registered here is short-lived scaffolding until the
+            // Phase 8 provider-runtime migration removes IAgentBackend from provider
+            // registry execution paths.
             modelProviderRegistry?.RegisterOrReplaceBackendRuntime(descriptor, createBackend);
             descriptors.Add(descriptor);
         }
@@ -207,7 +215,7 @@ internal static class RawApiBackendRegistrar
             },
         };
 
-        descriptor = new ModelProviderDescriptor(new ModelProviderId(definition.ProviderKey), displayName, definition.ProviderType);
+        descriptor = CreateProviderDescriptor(definition, displayName, baseUri);
         createBackend = () => new OpenAIChatAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)}");
@@ -276,7 +284,7 @@ internal static class RawApiBackendRegistrar
             },
         };
 
-        descriptor = new ModelProviderDescriptor(new ModelProviderId(definition.ProviderKey), displayName, definition.ProviderType);
+        descriptor = CreateProviderDescriptor(definition, displayName, baseUri);
         createBackend = () => new OpenAIResponsesAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)}");
@@ -334,7 +342,7 @@ internal static class RawApiBackendRegistrar
             },
         };
 
-        descriptor = new ModelProviderDescriptor(new ModelProviderId(definition.ProviderKey), displayName, definition.ProviderType);
+        descriptor = CreateProviderDescriptor(definition, displayName, baseUri);
         createBackend = () => new OpenAIChatAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)} azureOpenAI=true");
@@ -387,7 +395,7 @@ internal static class RawApiBackendRegistrar
             Providers = { providerOptions },
         };
 
-        descriptor = new ModelProviderDescriptor(new ModelProviderId(definition.ProviderKey), displayName, definition.ProviderType);
+        descriptor = CreateProviderDescriptor(definition, displayName, baseUri);
         createBackend = () => new OpenAIResponsesAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)} authSource={providerOptions.CodexSubscription.AuthSource}");
@@ -457,7 +465,7 @@ internal static class RawApiBackendRegistrar
             Providers = { providerOptions },
         };
 
-        descriptor = new ModelProviderDescriptor(new ModelProviderId(definition.ProviderKey), displayName, definition.ProviderType);
+        descriptor = CreateProviderDescriptor(definition, displayName, baseUri);
         createBackend = () => new CopilotDirectAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)} authSource={providerOptions.Auth.AuthSource} modelDiscovery={providerOptions.ModelDiscovery}");
@@ -523,7 +531,7 @@ internal static class RawApiBackendRegistrar
             Providers = { providerOptions },
         };
 
-        descriptor = new ModelProviderDescriptor(new ModelProviderId(definition.ProviderKey), displayName, definition.ProviderType);
+        descriptor = CreateProviderDescriptor(definition, displayName, baseUri);
         createBackend = () => new XaiDirectAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)} authSource={providerOptions.Auth.AuthSource} modelDiscovery={providerOptions.ModelDiscovery}");
@@ -598,7 +606,7 @@ internal static class RawApiBackendRegistrar
             },
         };
 
-        descriptor = new ModelProviderDescriptor(new ModelProviderId(definition.ProviderKey), displayName, definition.ProviderType);
+        descriptor = CreateProviderDescriptor(definition, displayName, baseUri);
         createBackend = () => new AnthropicAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)}");
@@ -697,7 +705,7 @@ internal static class RawApiBackendRegistrar
             },
         };
 
-        descriptor = new ModelProviderDescriptor(new ModelProviderId(definition.ProviderKey), displayName, definition.ProviderType);
+        descriptor = CreateProviderDescriptor(definition, displayName, baseUri);
         createBackend = () => new GoogleGenAIAgentBackend(options);
         LogInfo(
             $"Registered provider backend={backendId.Value} type={definition.ProviderType} displayName={displayName} apiUrl={FormatUri(baseUri)} vertex={useVertexAI}");
@@ -708,6 +716,36 @@ internal static class RawApiBackendRegistrar
     {
         ArgumentNullException.ThrowIfNull(definition);
         return NormalizeText(definition.DisplayName) ?? definition.ProviderKey;
+    }
+
+    private static ModelProviderDescriptor CreateProviderDescriptor(
+        CodeAltaProviderDocument definition,
+        string displayName,
+        Uri? baseUri)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        return new ModelProviderDescriptor(new ModelProviderId(definition.ProviderKey), displayName, definition.ProviderType)
+        {
+            BaseUri = baseUri,
+            IsDefault = true,
+            IsEnabled = definition.Enabled != false,
+            DefaultModelId = NormalizeText(definition.SingleModelId) ?? NormalizeText(definition.Model),
+            DefaultReasoningEffort = ParseReasoningEffort(definition.ReasoningEffort),
+        };
+    }
+
+    private static AgentReasoningEffort? ParseReasoningEffort(string? value)
+    {
+        return NormalizeText(value)?.ToLowerInvariant() switch
+        {
+            "none" => AgentReasoningEffort.None,
+            "minimal" => AgentReasoningEffort.Minimal,
+            "low" => AgentReasoningEffort.Low,
+            "medium" => AgentReasoningEffort.Medium,
+            "high" => AgentReasoningEffort.High,
+            "xhigh" => AgentReasoningEffort.XHigh,
+            _ => null,
+        };
     }
 
     private static string? ResolveSecret(string? literal, string? environmentVariableName)

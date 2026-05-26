@@ -80,7 +80,7 @@ public sealed class ThreadExecutionOptionsFactoryTests
             threadState,
             static (_, _) => Task.CompletedTask,
             static _ => false);
-        var backendState = new ChatBackendState(AgentBackendIds.Codex, "Codex")
+        var backendState = new ChatBackendState(ModelProviderIds.Codex, "Codex")
         {
             Availability = ChatBackendAvailability.Ready,
             SelectedModelId = "gpt-selected",
@@ -150,7 +150,7 @@ public sealed class ThreadExecutionOptionsFactoryTests
             catalogOptions,
             new Dictionary<string, ChatBackendState>(StringComparer.Ordinal)
             {
-                [AgentBackendIds.Codex.Value] = new ChatBackendState(AgentBackendIds.Codex, "Codex")
+                [AgentBackendIds.Codex.Value] = new ChatBackendState(ModelProviderIds.Codex, "Codex")
                 {
                     Availability = ChatBackendAvailability.Ready,
                     SelectedModelId = "gpt-test",

@@ -20,7 +20,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         backendFactory.Register(backendId, () => backend);
 
         await using var hub = new AgentHub(backendFactory);
-        var state = new ChatBackendState(backendId, "OpenAI")
+        var state = new ChatBackendState(new ModelProviderId(backendId.Value), "OpenAI")
         {
             Availability = ChatBackendAvailability.Ready,
             StatusMessage = "Ready",
@@ -58,7 +58,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         backendFactory.Register(backendId, () => backend);
 
         await using var hub = new AgentHub(backendFactory);
-        var state = new ChatBackendState(backendId, "Codex")
+        var state = new ChatBackendState(new ModelProviderId(backendId.Value), "Codex")
         {
             SelectedModelId = "gpt-5.5",
             SelectedReasoningEffort = AgentReasoningEffort.High,
@@ -87,7 +87,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         backendFactory.Register(backendId, () => new CountingBackend(backendId));
 
         await using var hub = new AgentHub(backendFactory);
-        var state = new ChatBackendState(backendId, "ChatGPT");
+        var state = new ChatBackendState(new ModelProviderId(backendId.Value), "ChatGPT");
         var queuedUiActions = new Queue<Action>();
         var sessionLoadingUpdates = new List<(AgentBackendId BackendId, bool Enabled)>();
         var publishedEvents = new List<ShellFrontendEvent>();
@@ -150,7 +150,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         backendFactory.Register(backendId, () => new CountingBackend(backendId));
 
         await using var hub = new AgentHub(backendFactory);
-        var state = new ChatBackendState(backendId, "OpenAI");
+        var state = new ChatBackendState(new ModelProviderId(backendId.Value), "OpenAI");
         var queuedUiActions = new List<Action>();
         var providerStatuses = new List<string?>();
         var coordinator = new ChatBackendInitializationCoordinator(

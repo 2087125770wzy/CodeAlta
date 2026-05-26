@@ -12,8 +12,8 @@ internal static class ChatBackendPresentation
     {
         return CreateBackendStates(
         [
-            new ModelProviderDescriptor(AgentBackendIds.Codex, "Codex"),
-            new ModelProviderDescriptor(AgentBackendIds.Copilot, "Copilot"),
+            new ModelProviderDescriptor(ModelProviderIds.Codex, "Codex"),
+            new ModelProviderDescriptor(ModelProviderIds.Copilot, "Copilot"),
         ]);
     }
 
@@ -23,8 +23,8 @@ internal static class ChatBackendPresentation
         ArgumentNullException.ThrowIfNull(backendDescriptors);
 
         return backendDescriptors.ToDictionary(
-            static descriptor => descriptor.BackendId.Value,
-            static descriptor => new ChatBackendState(descriptor.BackendId, descriptor.DisplayName),
+            static descriptor => descriptor.ProviderId.Value,
+            static descriptor => new ChatBackendState(descriptor.ProviderId, descriptor.DisplayName),
             StringComparer.OrdinalIgnoreCase);
     }
 
@@ -32,8 +32,8 @@ internal static class ChatBackendPresentation
     {
         return BuildBackendOptions(
         [
-            new ModelProviderDescriptor(AgentBackendIds.Codex, "Codex"),
-            new ModelProviderDescriptor(AgentBackendIds.Copilot, "Copilot"),
+            new ModelProviderDescriptor(ModelProviderIds.Codex, "Codex"),
+            new ModelProviderDescriptor(ModelProviderIds.Copilot, "Copilot"),
         ]);
     }
 
@@ -43,7 +43,7 @@ internal static class ChatBackendPresentation
         ArgumentNullException.ThrowIfNull(backendDescriptors);
 
         return backendDescriptors
-            .Select(static descriptor => new ChatBackendOption(descriptor.BackendId, descriptor.DisplayName))
+            .Select(static descriptor => new ChatBackendOption(descriptor.ProviderId, descriptor.DisplayName))
             .ToList();
     }
 
@@ -99,15 +99,15 @@ internal static class ChatBackendPresentation
             .ToList();
     }
 
-    public static AgentBackendId ResolveBackendSelection(
-        AgentBackendId currentSelection,
-        AgentBackendId requestedBackend,
+    public static ModelProviderId ResolveBackendSelection(
+        ModelProviderId currentSelection,
+        ModelProviderId requestedBackend,
         bool adoptRequestedBackend)
         => adoptRequestedBackend ? requestedBackend : currentSelection;
 
     public static string BuildBackendStatusMarkup(
         IEnumerable<ChatBackendState> backendStates,
-        AgentBackendId selectedBackendId,
+        ModelProviderId selectedProviderId,
         bool isInitializing)
     {
         ArgumentNullException.ThrowIfNull(backendStates);
@@ -131,7 +131,7 @@ internal static class ChatBackendPresentation
                     ChatBackendAvailability.Connecting => $"{NerdFont.MdTimerOutline}",
                     _ => $"{NerdFont.MdHelpBox}",
                 };
-                var selected = string.Equals(state.BackendId.Value, selectedBackendId.Value, StringComparison.OrdinalIgnoreCase)
+                var selected = string.Equals(state.ProviderId.Value, selectedProviderId.Value, StringComparison.OrdinalIgnoreCase)
                     ? "[bold]"
                     : string.Empty;
                 var reset = selected.Length > 0 ? "[/]" : string.Empty;
@@ -169,9 +169,9 @@ internal static class ChatBackendPresentation
         var providerCount = configuredProviderCount ?? configuredKeySet?.Count ?? states.Length;
         var stateErrorCount = states.Count(state =>
             state.Availability is ChatBackendAvailability.Unsupported or ChatBackendAvailability.Failed &&
-            (configuredKeySet is null || configuredKeySet.Contains(state.BackendId.Value)));
+            (configuredKeySet is null || configuredKeySet.Contains(state.ProviderId.Value)));
         var missingConfiguredCount = configuredKeySet?.Count(key =>
-            !states.Any(state => string.Equals(state.BackendId.Value, key, StringComparison.OrdinalIgnoreCase))) ?? 0;
+            !states.Any(state => string.Equals(state.ProviderId.Value, key, StringComparison.OrdinalIgnoreCase))) ?? 0;
         var errorCount = stateErrorCount + missingConfiguredCount;
         var readyCount = states.Count(static state => state.Availability == ChatBackendAvailability.Ready);
         var activeLabel = readyCount == 1 ? "active provider" : "active providers";

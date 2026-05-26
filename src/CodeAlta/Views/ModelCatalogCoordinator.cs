@@ -15,7 +15,7 @@ internal sealed class ModelCatalogCoordinator
     private readonly ModelProviderSelectorCoordinator _modelProviderSelectorCoordinator;
     private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
     private readonly Func<string, OpenThreadState?> _findOpenThread;
-    private readonly Func<AgentBackendId> _getPreferredModelProviderId;
+    private readonly Func<ModelProviderId> _getPreferredModelProviderId;
     private readonly Func<Rectangle?> _getDialogBounds;
     private readonly Func<Visual?> _getFocusTarget;
     private readonly Action _focusPrompt;
@@ -27,7 +27,7 @@ internal sealed class ModelCatalogCoordinator
         ModelProviderSelectorCoordinator modelProviderSelectorCoordinator,
         Func<WorkThreadDescriptor?> getSelectedThread,
         Func<string, OpenThreadState?> findOpenThread,
-        Func<AgentBackendId> getPreferredModelProviderId,
+        Func<ModelProviderId> getPreferredModelProviderId,
         Func<Rectangle?> getDialogBounds,
         Func<Visual?> getFocusTarget,
         Action focusPrompt,
@@ -74,7 +74,7 @@ internal sealed class ModelCatalogCoordinator
     {
         ArgumentNullException.ThrowIfNull(row);
 
-        var selected = await _modelProviderSelectorCoordinator.SelectProviderModelAsync(new AgentBackendId(row.ProviderKey), row.ModelId);
+        var selected = await _modelProviderSelectorCoordinator.SelectProviderModelAsync(new ModelProviderId(row.ProviderKey), row.ModelId);
         if (!selected)
         {
             _setStatus($"Could not select model '{row.ModelId}' from provider '{row.ProviderKey}'.", StatusTone.Warning);

@@ -228,7 +228,7 @@ internal sealed class ModelCatalogDialog
     {
         return chatBackendStates.Values
             .OrderBy(static state => state.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(static state => state.BackendId.Value, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static state => state.ProviderId.Value, StringComparer.OrdinalIgnoreCase)
             .SelectMany(state => state.Models
                 .OrderBy(static model => model.DisplayName ?? model.Id, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(static model => model.Id, StringComparer.OrdinalIgnoreCase)
@@ -249,13 +249,13 @@ internal sealed class ModelCatalogDialog
         var modelsDevProviderId = TryReadString(capabilities, "modelsDevProviderId");
         var modelsDevModelId = TryReadString(capabilities, "modelsDevModelId");
         var status = TryReadString(capabilities, "status");
-        var isSelected = string.Equals(state.BackendId.Value, selectedProviderKey, StringComparison.OrdinalIgnoreCase) &&
+        var isSelected = string.Equals(state.ProviderId.Value, selectedProviderKey, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(model.Id, selectedModelId, StringComparison.OrdinalIgnoreCase);
 
         return new ModelCatalogRowViewModel
         {
             CurrentMarker = isSelected ? "●" : string.Empty,
-            ProviderKey = state.BackendId.Value,
+            ProviderKey = state.ProviderId.Value,
             ProviderDisplayName = state.DisplayName,
             ProviderStatus = state.Availability.ToString(),
             ModelId = model.Id,

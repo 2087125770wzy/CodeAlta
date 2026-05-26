@@ -217,7 +217,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
 
     private static ChatBackendState ReadyState(string backendId, string displayName)
     {
-        var state = new ChatBackendState(new AgentBackendId(backendId), displayName)
+        var state = new ChatBackendState(new ModelProviderId(backendId), displayName)
         {
             Availability = ChatBackendAvailability.Ready,
         };

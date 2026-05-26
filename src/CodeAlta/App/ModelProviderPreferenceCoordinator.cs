@@ -35,16 +35,16 @@ internal sealed class ModelProviderPreferenceCoordinator
 
         var scopeKey = BuildDraftScopeKey(draftProjectRoot);
         var projectPreferenceKey = BuildProjectPreferenceKey(draftProjectId);
-        var defaults = _configStore.GetEffectiveProviderPreference(backendState.BackendId.Value, draftProjectRoot);
+        var defaults = _configStore.GetEffectiveProviderPreference(backendState.ProviderId.Value, draftProjectRoot);
         _draftPreferencesByScope.TryGetValue(scopeKey, out var draftPreference);
         viewState.ProjectPreferences.TryGetValue(projectPreferenceKey, out var projectPreference);
         var preserveCurrentSelection = string.Equals(backendState.DraftScopeKey, scopeKey, StringComparison.OrdinalIgnoreCase);
         var matchingDraftPreference = draftPreference is not null &&
-            string.Equals(draftPreference.BackendId.Value, backendState.BackendId.Value, StringComparison.OrdinalIgnoreCase)
+            string.Equals(draftPreference.ProviderId.Value, backendState.ProviderId.Value, StringComparison.OrdinalIgnoreCase)
                 ? draftPreference
                 : null;
         var matchingProjectPreference = projectPreference is not null &&
-            string.Equals(projectPreference.ProviderKey, backendState.BackendId.Value, StringComparison.OrdinalIgnoreCase)
+            string.Equals(projectPreference.ProviderKey, backendState.ProviderId.Value, StringComparison.OrdinalIgnoreCase)
                 ? projectPreference
                 : null;
         var preferredModelId = matchingDraftPreference is not null
@@ -114,7 +114,7 @@ internal sealed class ModelProviderPreferenceCoordinator
 
     public void RememberGlobalModelProviderPreference(
         WorkThreadViewState viewState,
-        AgentBackendId backendId,
+        ModelProviderId providerId,
         string? modelId,
         AgentReasoningEffort? reasoningEffort,
         string? draftProjectRoot = null,
@@ -127,7 +127,7 @@ internal sealed class ModelProviderPreferenceCoordinator
         if (rememberDraftScope)
         {
             _draftPreferencesByScope[BuildDraftScopeKey(draftProjectRoot)] = new DraftModelProviderPreference(
-                backendId,
+                providerId,
                 normalizedModelId,
                 reasoningEffort);
         }
@@ -136,7 +136,7 @@ internal sealed class ModelProviderPreferenceCoordinator
         {
             viewState.ProjectPreferences[BuildProjectPreferenceKey(draftProjectId)] = new WorkThreadPreference
             {
-                ProviderKey = backendId.Value,
+                ProviderKey = providerId.Value,
                 ModelId = normalizedModelId,
                 ReasoningEffort = reasoningEffort,
             };
@@ -196,7 +196,7 @@ internal sealed class ModelProviderPreferenceCoordinator
         => string.IsNullOrWhiteSpace(projectId) ? GlobalProjectPreferenceKey : projectId.Trim();
 
     private sealed record DraftModelProviderPreference(
-        AgentBackendId BackendId,
+        ModelProviderId ProviderId,
         string? ModelId,
         AgentReasoningEffort? ReasoningEffort);
 }

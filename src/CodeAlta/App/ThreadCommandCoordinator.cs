@@ -48,7 +48,7 @@ internal sealed class ThreadCommandCoordinator
             runtimeService,
             catalogOptions,
             ChatBackendPresentation.CreateBackendStates().Values
-                .Select(static state => new ModelProviderDescriptor(state.BackendId, state.DisplayName))
+                .Select(static state => new ModelProviderDescriptor(state.ProviderId, state.DisplayName))
                 .ToArray(),
             chatBackendStates,
             threadSelection,
@@ -445,11 +445,12 @@ internal sealed class ThreadCommandCoordinator
         var backendOptions = ChatBackendPresentation.BuildBackendOptions(_backendDescriptors);
         if (backendIndex is { } index && (uint)index < (uint)backendOptions.Count)
         {
-            return backendOptions[index].BackendId;
+            return new AgentBackendId(backendOptions[index].ProviderId.Value);
         }
 
-        return _chatBackendStates.Values.FirstOrDefault(static state => state.Availability == ChatBackendAvailability.Ready)?.BackendId ??
-            AgentBackendIds.Codex;
+        return _chatBackendStates.Values.FirstOrDefault(static state => state.Availability == ChatBackendAvailability.Ready) is { } readyState
+            ? new AgentBackendId(readyState.ProviderId.Value)
+            : AgentBackendIds.Codex;
     }
 
 }

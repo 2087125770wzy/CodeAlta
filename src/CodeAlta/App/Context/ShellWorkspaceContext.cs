@@ -30,7 +30,7 @@ internal sealed class ShellWorkspaceContext
         _uiDispatcher = uiDispatcher;
     }
 
-    public AgentBackendId GetPreferredModelProviderId()
+    public ModelProviderId GetPreferredModelProviderId()
         => _promptAvailability.GetPreferredModelProviderId();
 
     public (bool HasStatus, string Message, StatusTone Tone) GetPromptUnavailableStatus()

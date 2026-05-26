@@ -61,13 +61,13 @@ internal sealed class ChatBackendInitializationCoordinator
 
     public Task RefreshBackendAsync(AgentBackendId backendId, CancellationToken cancellationToken = default)
     {
-        return RefreshAsync(backendId, cancellationToken);
+        return RefreshAsync(new ModelProviderId(backendId.Value), cancellationToken);
     }
 
     public Task RefreshBackendsAsync(IEnumerable<AgentBackendId> backendIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(backendIds);
-        return Task.WhenAll(backendIds.Distinct().Select(backendId => RefreshAsync(backendId, cancellationToken)));
+        return Task.WhenAll(backendIds.Distinct().Select(backendId => RefreshAsync(new ModelProviderId(backendId.Value), cancellationToken)));
     }
 
     internal static (ChatBackendAvailability Availability, string StatusMessage) ClassifyFailure(
@@ -98,11 +98,11 @@ internal sealed class ChatBackendInitializationCoordinator
         return (ChatBackendAvailability.Failed, ChatBackendPresentation.BuildFailedBackendMessage(state, message));
     }
 
-    internal static bool CanReuseLoadedBackendState(AgentBackendId backendId, ChatBackendState state)
+    internal static bool CanReuseLoadedBackendState(ModelProviderId providerId, ChatBackendState state)
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        return IsProcessBackedProviderBackend(backendId) &&
+        return IsProcessBackedProviderBackend(providerId) &&
                state.Availability == ChatBackendAvailability.Ready;
     }
 
@@ -137,7 +137,7 @@ internal sealed class ChatBackendInitializationCoordinator
     {
         try
         {
-            await RefreshAsync(descriptor.BackendId, descriptor.DisplayName, cancellationToken).ConfigureAwait(false);
+            await RefreshAsync(descriptor.ProviderId, descriptor.DisplayName, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -145,31 +145,32 @@ internal sealed class ChatBackendInitializationCoordinator
         }
     }
 
-    private async Task RefreshAsync(AgentBackendId backendId, CancellationToken cancellationToken)
-        => await RefreshAsync(backendId, displayName: null, cancellationToken).ConfigureAwait(false);
+    private async Task RefreshAsync(ModelProviderId providerId, CancellationToken cancellationToken)
+        => await RefreshAsync(providerId, displayName: null, cancellationToken).ConfigureAwait(false);
 
     private async Task RefreshAsync(
-        AgentBackendId backendId,
+        ModelProviderId providerId,
         string? displayName,
         CancellationToken cancellationToken)
     {
-        var state = await EnsureBackendStateAsync(backendId, displayName, cancellationToken).ConfigureAwait(false);
-        if (CanReuseLoadedBackendState(backendId, state))
+        var state = await EnsureBackendStateAsync(providerId, displayName, cancellationToken).ConfigureAwait(false);
+        var backendId = new AgentBackendId(providerId.Value);
+        if (CanReuseLoadedBackendState(providerId, state))
         {
             _setBackendSessionLoadingEnabled?.Invoke(backendId, true);
             LogInfo(
-                $"Skipping chat backend refresh for loaded process-backed backend backend={backendId.Value} displayName={state.DisplayName} models={state.Models.Count}");
+                $"Skipping chat backend refresh for loaded process-backed backend provider={providerId.Value} displayName={state.DisplayName} models={state.Models.Count}");
             return;
         }
 
         _setBackendSessionLoadingEnabled?.Invoke(backendId, false);
-        LogInfo($"Refreshing chat backend backend={backendId.Value} displayName={state.DisplayName}");
+        LogInfo($"Refreshing chat backend provider={providerId.Value} displayName={state.DisplayName}");
         _dispatchToUi(
             () =>
             {
                 state.Availability = ChatBackendAvailability.Connecting;
-                state.StatusMessage = "Detecting backend...";
-                PublishProviderStateChanged(backendId);
+                state.StatusMessage = "Detecting provider...";
+                PublishProviderStateChanged(providerId);
             });
 
         try
@@ -190,8 +191,8 @@ internal sealed class ChatBackendInitializationCoordinator
                     state.Availability = ChatBackendAvailability.Ready;
                     state.StatusMessage = ChatBackendPresentation.BuildReadyStatusMessage(state);
                     LogInfo(
-                        $"Chat backend ready backend={backendId.Value} displayName={state.DisplayName} models={models.Count} status={state.StatusMessage}");
-                    PublishProviderStateChanged(backendId);
+                        $"Chat backend ready provider={providerId.Value} displayName={state.DisplayName} models={models.Count} status={state.StatusMessage}");
+                    PublishProviderStateChanged(providerId);
                 });
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
@@ -200,7 +201,7 @@ internal sealed class ChatBackendInitializationCoordinator
             var (availability, statusMessage) = ClassifyFailure(state, ex);
             LogWarn(
                 ex,
-                $"Chat backend initialization failed backend={backendId.Value} displayName={state.DisplayName} classifiedAvailability={availability} status={statusMessage}");
+                $"Chat backend initialization failed provider={providerId.Value} displayName={state.DisplayName} classifiedAvailability={availability} status={statusMessage}");
             _dispatchToUi(
                 () =>
                 {
@@ -210,7 +211,7 @@ internal sealed class ChatBackendInitializationCoordinator
                     state.DraftScopeKey = null;
                     state.Availability = availability;
                     state.StatusMessage = statusMessage;
-                    PublishProviderStateChanged(backendId);
+                    PublishProviderStateChanged(providerId);
                 });
         }
     }
@@ -227,11 +228,11 @@ internal sealed class ChatBackendInitializationCoordinator
     }
 
     private async Task<ChatBackendState> EnsureBackendStateAsync(
-        AgentBackendId backendId,
+        ModelProviderId providerId,
         string? displayName,
         CancellationToken cancellationToken)
     {
-        if (_chatBackendStates.TryGetValue(backendId.Value, out var state))
+        if (_chatBackendStates.TryGetValue(providerId.Value, out var state))
         {
             return state;
         }
@@ -242,12 +243,12 @@ internal sealed class ChatBackendInitializationCoordinator
             {
                 try
                 {
-                    if (!_chatBackendStates.TryGetValue(backendId.Value, out var state))
+                    if (!_chatBackendStates.TryGetValue(providerId.Value, out var state))
                     {
                         state = new ChatBackendState(
-                            backendId,
-                            string.IsNullOrWhiteSpace(displayName) ? backendId.Value : displayName.Trim());
-                        _chatBackendStates[backendId.Value] = state;
+                            providerId,
+                            string.IsNullOrWhiteSpace(displayName) ? providerId.Value : displayName.Trim());
+                        _chatBackendStates[providerId.Value] = state;
                     }
 
                     completion.SetResult(state);
@@ -261,13 +262,13 @@ internal sealed class ChatBackendInitializationCoordinator
         return await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private void PublishProviderStateChanged(AgentBackendId backendId)
+    private void PublishProviderStateChanged(ModelProviderId providerId)
     {
-        _frontendEvents.Publish(new ModelProviderStateChangedEvent(backendId.Value));
+        _frontendEvents.Publish(new ModelProviderStateChangedEvent(providerId.Value));
         _frontendEvents.Publish(new HeaderChangedEvent());
     }
 
-    private static bool IsProcessBackedProviderBackend(AgentBackendId backendId)
+    private static bool IsProcessBackedProviderBackend(ModelProviderId providerId)
         => false;
 
     private void ReportProviderInitializationProgress(ProviderInitializationProgressSnapshot? progress)

@@ -64,12 +64,12 @@ public sealed class ModelProviderSelectorCoordinatorTests
             static _ => null,
             () => syncCallCount++);
 
-        coordinator.RefreshForDraftScope(AgentBackendIds.Codex);
+        coordinator.RefreshForDraftScope(ModelProviderIds.Codex);
 
         CollectionAssert.AreEqual(new[] { "GPT-5 Codex" }, workspaceViewModel.ModelOptions.Select(static option => option.Label).ToArray());
         Assert.AreEqual(1, syncCallCount);
 
-        coordinator.RefreshForDraftScope(AgentBackendIds.Copilot);
+        coordinator.RefreshForDraftScope(ModelProviderIds.Copilot);
 
         Assert.AreEqual(1, workspaceViewModel.SelectedModelProviderIndex);
         CollectionAssert.AreEqual(new[] { "GPT-4.1", "o4-mini" }, workspaceViewModel.ModelOptions.Select(static option => option.Label).ToArray());
@@ -252,7 +252,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             static _ => null,
             static () => ["codex", "copilot", "openai", "anthropic", "google", "vertex"]);
 
-        coordinator.RefreshForDraftScope(AgentBackendIds.Codex);
+        coordinator.RefreshForDraftScope(ModelProviderIds.Codex);
 
         StringAssert.Contains(workspaceViewModel.ProviderSummaryMarkup, "1 active provider");
         StringAssert.Contains(workspaceViewModel.ProviderSummaryMarkup, "6 configured");
@@ -352,7 +352,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
         coordinator.RefreshForThread(tab);
 
         Assert.AreEqual(0, workspaceViewModel.SelectedModelProviderIndex);
-        Assert.AreEqual("unavailable-provider", workspaceViewModel.ModelProviderOptions[0].BackendId.Value);
+        Assert.AreEqual("unavailable-provider", workspaceViewModel.ModelProviderOptions[0].ProviderId.Value);
         StringAssert.Contains(workspaceViewModel.ModelProviderOptions[0].Label, "not configured");
         Assert.AreEqual("gpt-4.1", workspaceViewModel.ModelOptions[0].ModelId);
         Assert.IsFalse(workspaceViewModel.CanSelectModel);
@@ -658,7 +658,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             static _ => null,
             static () => { });
 
-        coordinator.RefreshForDraftScope(new AgentBackendId("openai"));
+        coordinator.RefreshForDraftScope(new ModelProviderId("openai"));
         coordinator.OnModelSelectionChanged(newIndex: 1);
 
         Assert.AreEqual(1, workspaceViewModel.SelectedModelIndex);
@@ -703,7 +703,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             applyThreadModelProviderPreference: static _ => { });
 
         threadStateCoordinator.SelectProjectScope("project-1");
-        coordinator.RefreshForDraftScope(new AgentBackendId("openai"));
+        coordinator.RefreshForDraftScope(new ModelProviderId("openai"));
         Assert.AreEqual(0, workspaceViewModel.SelectedModelProviderIndex);
 
         threadStateCoordinator.OpenThread(thread.ThreadId);
@@ -749,11 +749,11 @@ public sealed class ModelProviderSelectorCoordinatorTests
             applyThreadModelProviderPreference: static _ => { });
 
         threadStateCoordinator.SelectProjectScope("project-1");
-        coordinator.RefreshForDraftScope(new AgentBackendId("anthropic"));
+        coordinator.RefreshForDraftScope(new ModelProviderId("anthropic"));
         Assert.AreEqual(1, workspaceViewModel.SelectedModelProviderIndex);
 
         threadStateCoordinator.SelectGlobalScope();
-        coordinator.RefreshForDraftScope(new AgentBackendId("openai"));
+        coordinator.RefreshForDraftScope(new ModelProviderId("openai"));
         Assert.AreEqual(0, workspaceViewModel.SelectedModelProviderIndex);
 
         threadStateCoordinator.SelectProjectScope("project-1");
@@ -795,7 +795,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             applyThreadModelProviderPreference: static _ => { });
 
         threadStateCoordinator.SelectProjectScope("project-1");
-        coordinator.RefreshForDraftScope(new AgentBackendId("openai"));
+        coordinator.RefreshForDraftScope(new ModelProviderId("openai"));
         coordinator.OnModelSelectionChanged(newIndex: 1);
         Assert.AreEqual("gpt-5.4-mini", backendState.SelectedModelId);
 
@@ -885,7 +885,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             backendStates,
             static _ => null);
 
-        var selected = await coordinator.SelectProviderModelAsync(new AgentBackendId("openai"), "gpt-5.4-mini");
+        var selected = await coordinator.SelectProviderModelAsync(new ModelProviderId("openai"), "gpt-5.4-mini");
 
         Assert.IsTrue(selected);
         Assert.AreEqual("gpt-5.4-mini", backendState.SelectedModelId);
@@ -923,7 +923,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             threadSelection: threadSelection,
             applyThreadModelProviderPreference: static _ => { });
 
-        var selected = await coordinator.SelectProviderModelAsync(new AgentBackendId("openai"), "gpt-5.4-mini");
+        var selected = await coordinator.SelectProviderModelAsync(new ModelProviderId("openai"), "gpt-5.4-mini");
 
         Assert.IsTrue(selected);
         Assert.AreEqual("gpt-5.4-mini", tab.ModelId);

@@ -63,7 +63,7 @@ public sealed class AcpManagementServiceTests
         });
 
         var runtimeState = new ChatBackendState(
-            AcpAgentBackendFactoryExtensions.CreateBackendId("sample-agent"),
+            new ModelProviderId(AcpAgentBackendFactoryExtensions.CreateBackendId("sample-agent").Value),
             "Configured Sample Agent")
         {
             Availability = ChatBackendAvailability.Ready,
@@ -78,7 +78,7 @@ public sealed class AcpManagementServiceTests
             installedStore,
             new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
             {
-                [runtimeState.BackendId.Value] = runtimeState,
+                [runtimeState.ProviderId.Value] = runtimeState,
             });
 
         var snapshot = await service.LoadSnapshotAsync(refreshRegistry: false).ConfigureAwait(false);

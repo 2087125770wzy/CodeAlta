@@ -141,7 +141,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         backendDescriptors.AddRange(
             pluginRuntime.Adapter.GetAgentBackends(new PluginAdapterOperationOptions { HasInteractiveUi = true })
                 .Select(static pluginBackend => new ModelProviderDescriptor(
-                    new AgentBackendId(pluginBackend.Name),
+                    new ModelProviderId(pluginBackend.Name),
                     pluginBackend.DisplayName ?? pluginBackend.Name)));
 
         return new CodeAltaOwnedServices(
@@ -208,8 +208,8 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
     {
         return
         [
-            new ModelProviderDescriptor(AgentBackendIds.Codex, "Codex"),
-            new ModelProviderDescriptor(AgentBackendIds.Copilot, "Copilot"),
+            new ModelProviderDescriptor(ModelProviderIds.Codex, "Codex"),
+            new ModelProviderDescriptor(ModelProviderIds.Copilot, "Copilot"),
         ];
     }
 

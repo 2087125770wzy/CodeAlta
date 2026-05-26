@@ -332,13 +332,13 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         => _modelProviderPreferences.ApplyThreadPreference(tab, _viewState, GetThreadProjectRoot(tab.Thread), _chatBackendStates);
 
     internal void RememberGlobalModelProviderPreference(
-        AgentBackendId backendId,
+        ModelProviderId providerId,
         string? modelId,
         AgentReasoningEffort? reasoningEffort)
     {
         _modelProviderPreferences.RememberGlobalModelProviderPreference(
             _viewState,
-            backendId,
+            providerId,
             modelId,
             reasoningEffort,
             GetDraftProjectRoot(),
@@ -457,14 +457,14 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private string? ResolvePromptRoot()
         => PromptReferenceProjectRootResolver.Resolve(GetSelectedThread(), GetProjectById, GetSelectedProject, _catalogOptions.GlobalRoot);
 
-    internal void RefreshModelProviderSelectorsForDraftScope(AgentBackendId? preferredBackendId = null) => _modelProviderSelectorCoordinator.RefreshForDraftScope(preferredBackendId);
+    internal void RefreshModelProviderSelectorsForDraftScope(ModelProviderId? id = null) => _modelProviderSelectorCoordinator.RefreshForDraftScope(id);
     internal void RefreshModelProviderSelectorsForThread(OpenThreadState tab) => _modelProviderSelectorCoordinator.RefreshForThread(tab);
     internal void SyncModelProviderSelectorItems() => _threadWorkspaceView?.SyncModelProviderSelectorItems(_threadWorkspaceViewModel);
     private void OnModelProviderSelectionChanged(int newIndex) => ObserveUiTask(() => _modelProviderSelectorCoordinator.OnModelProviderSelectionChangedAsync(newIndex), "change the selected provider");
     private void OnModelSelectionChanged(int newIndex) => _modelProviderSelectorCoordinator.OnModelSelectionChanged(newIndex);
     private void OnReasoningSelectionChanged(int newIndex) => _modelProviderSelectorCoordinator.OnReasoningSelectionChanged(newIndex);
-    private AgentBackendId GetPreferredModelProviderId() => _modelProviderSelectorCoordinator.GetPreferredModelProviderId();
-    internal bool IsModelProviderReady(AgentBackendId backendId) => _modelProviderSelectorCoordinator.IsModelProviderReady(backendId);
+    private AgentBackendId GetPreferredBackendId() => new(_modelProviderSelectorCoordinator.GetPreferredModelProviderId().Value);
+    internal bool IsModelProviderReady(ModelProviderId providerId) => _modelProviderSelectorCoordinator.IsModelProviderReady(providerId);
 
     private bool TryGetPromptUnavailableStatus(out string message, out StatusTone tone)
         => _modelProviderSelectorCoordinator.TryGetPromptUnavailableStatus(out message, out tone);
@@ -488,7 +488,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         Func<string?> promptRoot = ResolvePromptRoot;
         var pb = _ownedServices?.PluginHostBridge;
         var pec = pb?.GetPromptEditorContributions() ?? [];
-        var getPromptComposerSession = PromptComposerSessionBindingFactory.Create(_promptDraftUiCoordinator, new PromptImageCapabilityContext(GetSelectedThread, _threadStateCoordinator.FindOpenThread, GetPreferredModelProviderId, _chatBackendStates), (message, tone) => SetStatus(message, tone: tone));
+        var getPromptComposerSession = PromptComposerSessionBindingFactory.Create(_promptDraftUiCoordinator, new PromptImageCapabilityContext(GetSelectedThread, _threadStateCoordinator.FindOpenThread, GetPreferredBackendId, _chatBackendStates), (message, tone) => SetStatus(message, tone: tone));
         var openHelp = () => ObserveUiTask(() => _shellCommandSurfaceCoordinator.ShowHelpAsync(), "show help");
         var showPalette = () => _shellCommandSurfaceCoordinator.ShowCommandPalette();
         var shellSurface = CodeAltaShellViewFactory.CreateSurface(new CodeAltaShellSurfaceOptions

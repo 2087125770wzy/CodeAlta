@@ -85,7 +85,7 @@ internal sealed class ThreadInfoService
         var tab = _threadSelection.EnsureThreadTab(thread);
         var backendState = _chatBackendStates.TryGetValue(thread.BackendId, out var resolvedBackendState)
             ? resolvedBackendState
-            : new ChatBackendState(new AgentBackendId(thread.BackendId), thread.BackendId);
+            : new ChatBackendState(new ModelProviderId(thread.BackendId), thread.BackendId);
 
         if (!tab.HistoryLoaded || tab.HistoryEvents is null)
         {

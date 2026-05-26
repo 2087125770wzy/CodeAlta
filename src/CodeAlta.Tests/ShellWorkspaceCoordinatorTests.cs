@@ -35,7 +35,7 @@ public sealed class ShellWorkspaceCoordinatorTests
         var uiDispatcher = new QueueingUiDispatcher(deferredActions);
         var workspaceContext = new ShellWorkspaceContext(
             new DelegatingShellPromptAvailabilityPort(
-                static () => AgentBackendIds.Codex,
+                static () => ModelProviderIds.Codex,
                 static () => (false, string.Empty, StatusTone.Info)),
             new ShellWorkspaceSurfacePort(
                 static () => true,
@@ -99,7 +99,7 @@ public sealed class ShellWorkspaceCoordinatorTests
         var uiDispatcher = new QueueingUiDispatcher(deferredActions);
         var workspaceContext = new ShellWorkspaceContext(
             new DelegatingShellPromptAvailabilityPort(
-                static () => AgentBackendIds.Codex,
+                static () => ModelProviderIds.Codex,
                 static () => (false, string.Empty, StatusTone.Info)),
             new ShellWorkspaceSurfacePort(
                 static () => true,
@@ -161,7 +161,7 @@ public sealed class ShellWorkspaceCoordinatorTests
             threadStateCoordinator,
             threadSelection,
             new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase),
-            static () => AgentBackendIds.Codex);
+            static () => ModelProviderIds.Codex);
 
         workspace.ApplySelectionProjection();
 
@@ -188,7 +188,7 @@ public sealed class ShellWorkspaceCoordinatorTests
             threadStateCoordinator,
             threadSelection,
             new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase),
-            static () => AgentBackendIds.Codex);
+            static () => ModelProviderIds.Codex);
 
         workspace.ApplySelectionProjection();
 
@@ -243,7 +243,7 @@ public sealed class ShellWorkspaceCoordinatorTests
 
         var workspaceContext = new ShellWorkspaceContext(
             new DelegatingShellPromptAvailabilityPort(
-                static () => AgentBackendIds.Codex,
+                static () => ModelProviderIds.Codex,
                 static () => (false, string.Empty, StatusTone.Info)),
             new ShellWorkspaceSurfacePort(
                 static () => true,
@@ -287,7 +287,7 @@ public sealed class ShellWorkspaceCoordinatorTests
         ShellThreadStateCoordinator threadStateCoordinator,
         ThreadSelectionContext threadSelection,
         Dictionary<string, ChatBackendState> chatBackendStates,
-        Func<AgentBackendId> getPreferredBackendId)
+        Func<ModelProviderId> getPreferredBackendId)
     {
         var workspaceContext = new ShellWorkspaceContext(
             new DelegatingShellPromptAvailabilityPort(
@@ -336,7 +336,7 @@ public sealed class ShellWorkspaceCoordinatorTests
     private static ShellWorkspaceContext CreateMinimalWorkspaceContext(IUiDispatcher uiDispatcher)
         => new(
             new DelegatingShellPromptAvailabilityPort(
-                static () => AgentBackendIds.Codex,
+                static () => ModelProviderIds.Codex,
                 static () => (false, string.Empty, StatusTone.Info)),
             new ShellWorkspaceSurfacePort(
                 static () => false,
@@ -369,7 +369,7 @@ public sealed class ShellWorkspaceCoordinatorTests
     private static Dictionary<string, ChatBackendState> CreateChatBackendStates()
         => new(StringComparer.Ordinal)
         {
-            [AgentBackendIds.Codex.Value] = new ChatBackendState(AgentBackendIds.Codex, "Codex")
+            [ModelProviderIds.Codex.Value] = new ChatBackendState(ModelProviderIds.Codex, "Codex")
             {
                 Availability = ChatBackendAvailability.Ready,
             },
@@ -382,7 +382,7 @@ public sealed class ShellWorkspaceCoordinatorTests
         {
             ThreadId = threadId,
             Kind = WorkThreadKind.ProjectThread,
-            BackendId = AgentBackendIds.Codex.Value,
+            BackendId = ModelProviderIds.Codex.Value,
             ProjectRef = projectId,
             WorkingDirectory = @"C:\repo",
             Title = "Test thread",

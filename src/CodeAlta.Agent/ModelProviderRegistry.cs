@@ -44,6 +44,11 @@ public sealed class ModelProviderRegistry : IModelProviderRegistry, IAsyncDispos
         ArgumentNullException.ThrowIfNull(descriptor);
         ArgumentNullException.ThrowIfNull(backendFactory);
 
+        // Phase 1 still adapts configured providers through IAgentBackend so existing
+        // session/runtime paths keep working. This bridge is intentionally short-lived;
+        // Phase 8 replaces it with native IModelProviderRuntime implementations. Keep
+        // the descriptor supplied by provider configuration rather than deriving it from
+        // the backend instance created below.
         RegisterOrReplace(descriptor, () => new AgentBackendModelProviderRuntime(descriptor, backendFactory()));
     }
 

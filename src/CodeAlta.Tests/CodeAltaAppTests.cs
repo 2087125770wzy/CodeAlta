@@ -1058,7 +1058,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void ClassifyBackendInitializationFailure_TreatsMissingExecutableAsUnsupported()
     {
-        var backendState = new ChatBackendState(AgentBackendIds.Codex, "Codex");
+        var backendState = new ChatBackendState(ModelProviderIds.Codex, "Codex");
 
         var result = ChatBackendInitializationCoordinator.ClassifyFailure(
             backendState,
@@ -2156,7 +2156,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildModelOptions_PreservesSelectedModelMissingFromCatalog()
     {
-        var backendState = new ChatBackendState(new AgentBackendId("codex"), "Codex subscription")
+        var backendState = new ChatBackendState(new ModelProviderId("codex"), "Codex subscription")
         {
             SelectedModelId = "gpt-5.5",
         };
@@ -2172,7 +2172,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildModelOptions_FallsBackToIdWhenDisplayNameIsBlank()
     {
-        var backendState = new ChatBackendState(new AgentBackendId("qwen"), "Qwen");
+        var backendState = new ChatBackendState(new ModelProviderId("qwen"), "Qwen");
         backendState.Models.Add(new AgentModelInfo("qwen3-flash", DisplayName: " "));
 
         var options = ChatBackendPresentation.BuildModelOptions(backendState);
@@ -2199,7 +2199,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildModelOptions_UsesSelectedModelWhenCatalogIsEmpty()
     {
-        var backendState = new ChatBackendState(new AgentBackendId("codex"), "Codex subscription")
+        var backendState = new ChatBackendState(new ModelProviderId("codex"), "Codex subscription")
         {
             SelectedModelId = "gpt-5.5",
         };
@@ -2263,19 +2263,19 @@ public sealed class CodeAltaAppTests
     {
         var states = new[]
         {
-            new ChatBackendState(AgentBackendIds.Codex, "Codex")
+            new ChatBackendState(ModelProviderIds.Codex, "Codex")
             {
                 Availability = ChatBackendAvailability.Ready,
                 StatusMessage = "Connected · 2 models",
             },
-            new ChatBackendState(AgentBackendIds.Copilot, "Copilot")
+            new ChatBackendState(ModelProviderIds.Copilot, "Copilot")
             {
                 Availability = ChatBackendAvailability.Unsupported,
                 StatusMessage = "Copilot is unavailable: CLI not found.",
             },
         };
 
-        var markup = ChatBackendPresentation.BuildBackendStatusMarkup(states, AgentBackendIds.Codex, isInitializing: false);
+        var markup = ChatBackendPresentation.BuildBackendStatusMarkup(states, ModelProviderIds.Codex, isInitializing: false);
 
         StringAssert.Contains(markup, "Codex");
         StringAssert.Contains(markup, "Copilot");
@@ -2287,11 +2287,11 @@ public sealed class CodeAltaAppTests
     {
         var states = new[]
         {
-            new ChatBackendState(AgentBackendIds.Codex, "Codex")
+            new ChatBackendState(ModelProviderIds.Codex, "Codex")
             {
                 Availability = ChatBackendAvailability.Ready,
             },
-            new ChatBackendState(AgentBackendIds.Copilot, "Copilot")
+            new ChatBackendState(ModelProviderIds.Copilot, "Copilot")
             {
                 Availability = ChatBackendAvailability.Failed,
             },
@@ -2309,11 +2309,11 @@ public sealed class CodeAltaAppTests
     {
         var states = new[]
         {
-            new ChatBackendState(AgentBackendIds.Codex, "Codex")
+            new ChatBackendState(ModelProviderIds.Codex, "Codex")
             {
                 Availability = ChatBackendAvailability.Ready,
             },
-            new ChatBackendState(AgentBackendIds.Copilot, "Copilot")
+            new ChatBackendState(ModelProviderIds.Copilot, "Copilot")
             {
                 Availability = ChatBackendAvailability.Failed,
             },
@@ -2334,11 +2334,11 @@ public sealed class CodeAltaAppTests
     {
         var states = new[]
         {
-            new ChatBackendState(AgentBackendIds.Codex, "Codex")
+            new ChatBackendState(ModelProviderIds.Codex, "Codex")
             {
                 Availability = ChatBackendAvailability.Ready,
             },
-            new ChatBackendState(AgentBackendIds.Copilot, "Copilot")
+            new ChatBackendState(ModelProviderIds.Copilot, "Copilot")
             {
                 Availability = ChatBackendAvailability.Failed,
             },
@@ -2760,11 +2760,11 @@ public sealed class CodeAltaAppTests
     public void ResolveChatBackendSelection_CanPreserveCurrentSelection()
     {
         var selected = ChatBackendPresentation.ResolveBackendSelection(
-            AgentBackendIds.Copilot,
-            AgentBackendIds.Codex,
+            ModelProviderIds.Copilot,
+            ModelProviderIds.Codex,
             adoptRequestedBackend: false);
 
-        Assert.AreEqual(AgentBackendIds.Copilot, selected);
+        Assert.AreEqual(ModelProviderIds.Copilot, selected);
     }
 
     [TestMethod]
