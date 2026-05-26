@@ -12,7 +12,7 @@ internal sealed class ChatBackendInitializationCoordinator
 {
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.App.ChatBackendInitialization");
     private readonly AgentHub _agentHub;
-    private readonly IReadOnlyList<AgentBackendDescriptor> _backendDescriptors;
+    private readonly IReadOnlyList<ModelProviderDescriptor> _backendDescriptors;
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
     private readonly Action<Action> _dispatchToUi;
     private readonly FrontendEventPublisher _frontendEvents;
@@ -22,7 +22,7 @@ internal sealed class ChatBackendInitializationCoordinator
 
     public ChatBackendInitializationCoordinator(
         AgentHub agentHub,
-        IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
+        IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         Dictionary<string, ChatBackendState> chatBackendStates,
         Action<Action> dispatchToUi,
         FrontendEventPublisher frontendEvents,
@@ -131,7 +131,7 @@ internal sealed class ChatBackendInitializationCoordinator
     }
 
     private async Task RefreshAndReportAsync(
-        AgentBackendDescriptor descriptor,
+        ModelProviderDescriptor descriptor,
         ProviderInitializationProgress progress,
         CancellationToken cancellationToken)
     {
@@ -313,7 +313,7 @@ internal sealed class ChatBackendInitializationCoordinator
         private readonly List<string> _initializingProviderDisplayNames;
         private int _completedProviderCount;
 
-        public ProviderInitializationProgress(IReadOnlyList<AgentBackendDescriptor> descriptors)
+        public ProviderInitializationProgress(IReadOnlyList<ModelProviderDescriptor> descriptors)
         {
             ArgumentNullException.ThrowIfNull(descriptors);
 
@@ -323,7 +323,7 @@ internal sealed class ChatBackendInitializationCoordinator
 
         public int TotalProviderCount { get; }
 
-        public ProviderInitializationProgressSnapshot Snapshot(AgentBackendDescriptor? completedDescriptor)
+        public ProviderInitializationProgressSnapshot Snapshot(ModelProviderDescriptor? completedDescriptor)
         {
             lock (_gate)
             {

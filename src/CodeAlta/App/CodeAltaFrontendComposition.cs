@@ -49,7 +49,7 @@ internal sealed class CodeAltaFrontendComposition
     public required WorkspaceRefreshContext WorkspaceRefreshContext { get; init; }
 
     public static CodeAltaFrontendComposition Create(
-        IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
+        IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         ProjectCatalog projectCatalog,
         WorkThreadCatalog threadCatalog,
         WorkThreadRuntimeService runtimeService,
@@ -59,7 +59,8 @@ internal sealed class CodeAltaFrontendComposition
         ICodeAltaShell shell,
         KnownProjectImporter knownProjectImporter,
         CodeAltaApp frontend,
-        PluginHostBridge? pluginHostBridge = null)
+        PluginHostBridge? pluginHostBridge = null,
+        IModelProviderRegistry? modelProviderRegistry = null)
     {
         ArgumentNullException.ThrowIfNull(projectCatalog);
         ArgumentNullException.ThrowIfNull(threadCatalog);
@@ -107,8 +108,12 @@ internal sealed class CodeAltaFrontendComposition
             .Add(runtimeService.SkillCatalog)
             .Add(agentHub)
             .Add(projectFileSearchService)
-            .Add<IReadOnlyList<AgentBackendDescriptor>>(backendDescriptors)
+            .Add<IReadOnlyList<ModelProviderDescriptor>>(backendDescriptors)
             .Add<IAltaSessionToolBackendPolicy>(new AltaSessionToolBackendPolicy(altaToolBackendIds));
+        if (modelProviderRegistry is not null)
+        {
+            altaServices.Add(modelProviderRegistry);
+        }
         if (pluginHostBridge?.Runtime is { } pluginRuntime)
         {
             altaServices.Add<IAltaPluginCatalog>(new RuntimeAltaPluginCatalog(pluginRuntime));
@@ -455,7 +460,7 @@ internal sealed class CodeAltaFrontendComposition
            string.Equals(providerType, "xai", StringComparison.OrdinalIgnoreCase);
 
     private static Func<string?, string> CreateProviderDisplayNameResolver(
-        IReadOnlyList<AgentBackendDescriptor> backendDescriptors)
+        IReadOnlyList<ModelProviderDescriptor> backendDescriptors)
     {
         ArgumentNullException.ThrowIfNull(backendDescriptors);
 

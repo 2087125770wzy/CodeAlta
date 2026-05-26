@@ -15,7 +15,7 @@ namespace CodeAlta.Presentation.Workspace;
 
 internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProjectionController
 {
-    private readonly IReadOnlyList<AgentBackendDescriptor> _backendDescriptors;
+    private readonly IReadOnlyList<ModelProviderDescriptor> _backendDescriptors;
     private readonly ThreadWorkspaceViewModel _workspaceViewModel;
     private readonly PromptComposerViewModel _promptComposerViewModel;
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
@@ -53,7 +53,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         Func<IReadOnlyList<string>>? getPromptPlaceholderContributions = null)
         : this(
             ChatBackendPresentation.CreateBackendStates().Values
-                .Select(static state => new AgentBackendDescriptor(state.BackendId, state.DisplayName))
+                .Select(static state => new ModelProviderDescriptor(state.BackendId, state.DisplayName))
                 .ToArray(),
             workspaceViewModel,
             promptComposerViewModel,
@@ -74,7 +74,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
     }
 
     public ModelProviderSelectorCoordinator(
-        IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
+        IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
         Dictionary<string, ChatBackendState> chatBackendStates,

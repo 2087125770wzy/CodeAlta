@@ -19,21 +19,23 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
 {
     private readonly bool _ownsLogging;
     private readonly AgentBackendFactory _backendFactory;
+    private readonly ModelProviderRegistry _modelProviderRegistry;
     private readonly CodeAltaConfigStore _configStore;
     private readonly AcpInstalledBackendStore _installedBackendStore;
-    private readonly List<AgentBackendDescriptor> _backendDescriptors;
+    private readonly List<ModelProviderDescriptor> _backendDescriptors;
     private readonly ModelsDevCatalogService _modelsDevCatalogService;
 
     private CodeAltaOwnedServices(
         bool ownsLogging,
         AgentBackendFactory backendFactory,
+        ModelProviderRegistry modelProviderRegistry,
         CodeAltaConfigStore configStore,
         AcpInstalledBackendStore installedBackendStore,
         ModelsDevCatalogService modelsDevCatalogService,
         PluginRuntimeManager pluginRuntime,
         PluginHostBridge pluginHostBridge,
         CatalogOptions catalogOptions,
-        List<AgentBackendDescriptor> backendDescriptors,
+        List<ModelProviderDescriptor> backendDescriptors,
         AcpAgentRegistryService acpAgentRegistryService,
         ProjectCatalog projectCatalog,
         WorkThreadCatalog threadCatalog,
@@ -44,6 +46,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
     {
         _ownsLogging = ownsLogging;
         _backendFactory = backendFactory;
+        _modelProviderRegistry = modelProviderRegistry;
         _configStore = configStore;
         _installedBackendStore = installedBackendStore;
         _modelsDevCatalogService = modelsDevCatalogService;
@@ -62,7 +65,9 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
 
     public CatalogOptions CatalogOptions { get; }
 
-    public IReadOnlyList<AgentBackendDescriptor> BackendDescriptors => _backendDescriptors;
+    public IReadOnlyList<ModelProviderDescriptor> BackendDescriptors => _backendDescriptors;
+
+    public IModelProviderRegistry ModelProviderRegistry => _modelProviderRegistry;
 
     internal ModelsDevCatalogService ModelsDevCatalogService => _modelsDevCatalogService;
 
@@ -111,7 +116,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
 
         var providerDefinitions = configStore.LoadGlobalProviderDefinitions(includeDisabled: true)
             .ToDictionary(static definition => definition.ProviderKey, StringComparer.OrdinalIgnoreCase);
-        var backendDescriptors = new List<AgentBackendDescriptor>();
+        var backendDescriptors = new List<ModelProviderDescriptor>();
         var pluginAltaServiceBridge = new PluginAltaServiceBridge();
         var sharedHost = await CodeAltaHost.CreateAsync(
                 new CodeAltaHostOptions
@@ -126,7 +131,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
                     PrestartedPluginRuntime = prestartedPluginRuntime,
                     PluginBuiltIns = CodeAltaBuiltInPlugins.All,
                     PluginServices = new CodeAltaPluginServices(pluginAltaServiceBridge),
-                    ConfigureAgentBackends = RegisterFrontendBackends,
+                    ConfigureModelProviders = RegisterFrontendModelProviders,
                 },
                 cancellationToken)
             .ConfigureAwait(false);
@@ -135,13 +140,14 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         var pluginHostBridge = new PluginHostBridge(pluginRuntime, () => sharedHost.CurrentProject, pluginAltaServiceBridge);
         backendDescriptors.AddRange(
             pluginRuntime.Adapter.GetAgentBackends(new PluginAdapterOperationOptions { HasInteractiveUi = true })
-                .Select(static pluginBackend => new AgentBackendDescriptor(
+                .Select(static pluginBackend => new ModelProviderDescriptor(
                     new AgentBackendId(pluginBackend.Name),
                     pluginBackend.DisplayName ?? pluginBackend.Name)));
 
         return new CodeAltaOwnedServices(
             ownsLogging,
             backendFactory,
+            sharedHost.ModelProviderRegistry,
             configStore,
             installedBackendStore,
             modelsDevCatalogService,
@@ -157,11 +163,12 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
             sharedHost.RuntimeService,
             sharedHost.ProjectFileSearchService);
 
-        void RegisterFrontendBackends(AgentBackendFactory backendFactory)
+        void RegisterFrontendModelProviders(ModelProviderRegistry modelProviderRegistry, AgentBackendFactory backendFactory)
         {
             backendDescriptors.AddRange(
                 RawApiBackendRegistrar.RegisterConfiguredBackends(
                     backendFactory,
+                    modelProviderRegistry,
                     configStore,
                     homeRoot,
                     modelsDevCatalogService));
@@ -174,7 +181,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
             //     if (TryCreateAcpBackendOptions(catalogOptions, definition, out var acpOptions))
             //     {
             //         backendFactory.RegisterAcp(acpOptions);
-            //         backendDescriptors.Add(new AgentBackendDescriptor(
+            //         backendDescriptors.Add(new ModelProviderDescriptor(
             //             AcpAgentBackendFactoryExtensions.CreateBackendId(acpOptions.AgentId),
             //             acpOptions.DisplayName));
             //     }
@@ -186,6 +193,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
     {
         await RuntimeService.DisposeAsync().ConfigureAwait(false);
         await AgentHub.DisposeAsync().ConfigureAwait(false);
+        await _modelProviderRegistry.DisposeAsync().ConfigureAwait(false);
         await PluginRuntime.DisposeAsync().ConfigureAwait(false);
         AcpAgentRegistryService.Dispose();
         await _modelsDevCatalogService.DisposeAsync().ConfigureAwait(false);
@@ -196,26 +204,27 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         }
     }
 
-    internal static IReadOnlyList<AgentBackendDescriptor> CreateBuiltInBackendDescriptors()
+    internal static IReadOnlyList<ModelProviderDescriptor> CreateBuiltInBackendDescriptors()
     {
         return
         [
-            new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
-            new AgentBackendDescriptor(AgentBackendIds.Copilot, "Copilot"),
+            new ModelProviderDescriptor(AgentBackendIds.Codex, "Codex"),
+            new ModelProviderDescriptor(AgentBackendIds.Copilot, "Copilot"),
         ];
     }
 
-    public async Task<IReadOnlyList<AgentBackendDescriptor>> RefreshProviderBackendsAsync(
+    public async Task<IReadOnlyList<ModelProviderDescriptor>> RefreshProviderBackendsAsync(
         CancellationToken cancellationToken = default)
     {
         var providerDefinitions = _configStore.LoadGlobalProviderDefinitions(includeDisabled: true)
             .ToDictionary(static definition => definition.ProviderKey, StringComparer.OrdinalIgnoreCase);
         var expectedBackendIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var providerDescriptors = new List<AgentBackendDescriptor>();
+        var providerDescriptors = new List<ModelProviderDescriptor>();
 
         providerDescriptors.AddRange(
             RawApiBackendRegistrar.RegisterOrReplaceConfiguredBackends(
                 _backendFactory,
+                _modelProviderRegistry,
                 providerDefinitions.Values.Where(static definition => definition.Enabled != false),
                 CatalogOptions.GlobalRoot,
                 _modelsDevCatalogService));
@@ -235,6 +244,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
 
             await AgentHub.UnloadBackendAsync(descriptor.BackendId, cancellationToken).ConfigureAwait(false);
             _backendFactory.Unregister(descriptor.BackendId);
+            _modelProviderRegistry.Unregister(descriptor.ProviderId);
         }
 
         _backendDescriptors.RemoveAll(static descriptor => !descriptor.BackendId.Value.StartsWith("acp:", StringComparison.OrdinalIgnoreCase));
@@ -245,7 +255,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         return _backendDescriptors;
     }
 
-    public async Task<IReadOnlyList<AgentBackendDescriptor>> RefreshAcpBackendsAsync(
+    public async Task<IReadOnlyList<ModelProviderDescriptor>> RefreshAcpBackendsAsync(
         CancellationToken cancellationToken = default)
     {
         var effectiveDefinitions = _configStore.LoadEffectiveAcpBackendDefinitions(_installedBackendStore.Load());
@@ -284,7 +294,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         _backendDescriptors.AddRange(
             effectiveDefinitions
                 .Where(definition => TryCreateAcpBackendOptions(CatalogOptions, definition, out _))
-                .Select(definition => new AgentBackendDescriptor(
+                .Select(definition => new ModelProviderDescriptor(
                     AcpAgentBackendFactoryExtensions.CreateBackendId(definition.AgentId),
                     definition.DisplayName ?? definition.AgentId))
                 .OrderBy(static descriptor => descriptor.DisplayName, StringComparer.OrdinalIgnoreCase));

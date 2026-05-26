@@ -18,7 +18,7 @@ namespace CodeAlta.App;
 internal sealed class ThreadCommandCoordinator
 {
     private readonly WorkThreadRuntimeService _runtimeService;
-    private readonly IReadOnlyList<AgentBackendDescriptor> _backendDescriptors;
+    private readonly IReadOnlyList<ModelProviderDescriptor> _backendDescriptors;
     private readonly Dictionary<string, ChatBackendState> _chatBackendStates;
     private readonly ThreadSelectionContext _threadSelection;
     private readonly ModelProviderSelectorStateStore _selectorState;
@@ -48,7 +48,7 @@ internal sealed class ThreadCommandCoordinator
             runtimeService,
             catalogOptions,
             ChatBackendPresentation.CreateBackendStates().Values
-                .Select(static state => new AgentBackendDescriptor(state.BackendId, state.DisplayName))
+                .Select(static state => new ModelProviderDescriptor(state.BackendId, state.DisplayName))
                 .ToArray(),
             chatBackendStates,
             threadSelection,
@@ -67,7 +67,7 @@ internal sealed class ThreadCommandCoordinator
     public ThreadCommandCoordinator(
         WorkThreadRuntimeService runtimeService,
         CatalogOptions catalogOptions,
-        IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
+        IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         Dictionary<string, ChatBackendState> chatBackendStates,
         ThreadSelectionContext threadSelection,
         ModelProviderSelectorStateStore selectorState,

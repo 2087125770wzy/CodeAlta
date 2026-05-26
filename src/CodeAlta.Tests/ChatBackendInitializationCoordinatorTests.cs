@@ -29,7 +29,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
 
         var coordinator = CreateCoordinator(
             hub,
-            [new AgentBackendDescriptor(backendId, "OpenAI")],
+            [new ModelProviderDescriptor(backendId, "OpenAI")],
             new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
             {
                 [backendId.Value] = state,
@@ -65,7 +65,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         };
         var coordinator = CreateCoordinator(
             hub,
-            [new AgentBackendDescriptor(backendId, "Codex")],
+            [new ModelProviderDescriptor(backendId, "Codex")],
             new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
             {
                 [backendId.Value] = state,
@@ -93,7 +93,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         var publishedEvents = new List<ShellFrontendEvent>();
         var coordinator = new ChatBackendInitializationCoordinator(
             hub,
-            [new AgentBackendDescriptor(backendId, "ChatGPT")],
+            [new ModelProviderDescriptor(backendId, "ChatGPT")],
             new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
             {
                 [backendId.Value] = state,
@@ -130,7 +130,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         var states = new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase);
         var coordinator = CreateCoordinator(
             hub,
-            [new AgentBackendDescriptor(backendId, "Gemini")],
+            [new ModelProviderDescriptor(backendId, "Gemini")],
             states);
 
         await coordinator.InitializeAsync(CancellationToken.None).ConfigureAwait(false);
@@ -155,7 +155,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
         var providerStatuses = new List<string?>();
         var coordinator = new ChatBackendInitializationCoordinator(
             hub,
-            [new AgentBackendDescriptor(backendId, "OpenAI")],
+            [new ModelProviderDescriptor(backendId, "OpenAI")],
             new Dictionary<string, ChatBackendState>(StringComparer.OrdinalIgnoreCase)
             {
                 [backendId.Value] = state,
@@ -202,7 +202,7 @@ public sealed class ChatBackendInitializationCoordinatorTests
 
     private static ChatBackendInitializationCoordinator CreateCoordinator(
         AgentHub hub,
-        IReadOnlyList<AgentBackendDescriptor> descriptors,
+        IReadOnlyList<ModelProviderDescriptor> descriptors,
         Dictionary<string, ChatBackendState> states)
         => new(
             hub,

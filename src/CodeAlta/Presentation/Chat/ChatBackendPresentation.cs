@@ -12,13 +12,13 @@ internal static class ChatBackendPresentation
     {
         return CreateBackendStates(
         [
-            new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
-            new AgentBackendDescriptor(AgentBackendIds.Copilot, "Copilot"),
+            new ModelProviderDescriptor(AgentBackendIds.Codex, "Codex"),
+            new ModelProviderDescriptor(AgentBackendIds.Copilot, "Copilot"),
         ]);
     }
 
     public static Dictionary<string, ChatBackendState> CreateBackendStates(
-        IReadOnlyList<AgentBackendDescriptor> backendDescriptors)
+        IReadOnlyList<ModelProviderDescriptor> backendDescriptors)
     {
         ArgumentNullException.ThrowIfNull(backendDescriptors);
 
@@ -32,13 +32,13 @@ internal static class ChatBackendPresentation
     {
         return BuildBackendOptions(
         [
-            new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
-            new AgentBackendDescriptor(AgentBackendIds.Copilot, "Copilot"),
+            new ModelProviderDescriptor(AgentBackendIds.Codex, "Codex"),
+            new ModelProviderDescriptor(AgentBackendIds.Copilot, "Copilot"),
         ]);
     }
 
     public static List<ChatBackendOption> BuildBackendOptions(
-        IReadOnlyList<AgentBackendDescriptor> backendDescriptors)
+        IReadOnlyList<ModelProviderDescriptor> backendDescriptors)
     {
         ArgumentNullException.ThrowIfNull(backendDescriptors);
 

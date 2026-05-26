@@ -23,6 +23,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
         WorkThreadCatalog threadCatalog,
         SkillCatalog skillCatalog,
         AgentBackendFactory backendFactory,
+        ModelProviderRegistry modelProviderRegistry,
         AgentHub agentHub,
         WorkThreadRuntimeService runtimeService,
         IProjectFileSearchService projectFileSearchService,
@@ -36,6 +37,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
         ThreadCatalog = threadCatalog;
         SkillCatalog = skillCatalog;
         BackendFactory = backendFactory;
+        ModelProviderRegistry = modelProviderRegistry;
         AgentHub = agentHub;
         RuntimeService = runtimeService;
         ProjectFileSearchService = projectFileSearchService;
@@ -69,6 +71,11 @@ public sealed class CodeAltaHost : IAsyncDisposable
     /// Gets the backend factory used by the host.
     /// </summary>
     public AgentBackendFactory BackendFactory { get; }
+
+    /// <summary>
+    /// Gets the model provider registry used by the host.
+    /// </summary>
+    public ModelProviderRegistry ModelProviderRegistry { get; }
 
     /// <summary>
     /// Gets the agent hub.
@@ -170,6 +177,8 @@ public sealed class CodeAltaHost : IAsyncDisposable
         {
             LocalSessionJournalFile = sessionJournalFile,
         };
+        var modelProviderRegistry = new ModelProviderRegistry();
+        options.ConfigureModelProviders?.Invoke(modelProviderRegistry, backendFactory);
         options.ConfigureAgentBackends?.Invoke(backendFactory);
         _ = CodeAltaHostPluginBackendRegistrar.RegisterPluginBackends(backendFactory, pluginRuntime, pluginOperationOptions);
         var agentHub = new AgentHub(backendFactory);
@@ -190,6 +199,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
             threadCatalog,
             skillCatalog,
             backendFactory,
+            modelProviderRegistry,
             agentHub,
             runtimeService,
             projectFileSearchService,
@@ -221,6 +231,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
     {
         await RuntimeService.DisposeAsync().ConfigureAwait(false);
         await AgentHub.DisposeAsync().ConfigureAwait(false);
+        await ModelProviderRegistry.DisposeAsync().ConfigureAwait(false);
         if (_ownsPluginRuntime)
         {
             await PluginRuntime.DisposeAsync().ConfigureAwait(false);

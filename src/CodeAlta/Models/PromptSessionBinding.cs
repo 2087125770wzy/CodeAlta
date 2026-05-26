@@ -33,21 +33,6 @@ internal readonly record struct ThreadDraftId
     public override string ToString() => Value;
 }
 
-internal readonly record struct ModelProviderId
-{
-    public ModelProviderId(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        Value = value;
-    }
-
-    public string Value { get; }
-
-    public bool IsEmpty => string.IsNullOrWhiteSpace(Value);
-
-    public override string ToString() => Value;
-}
-
 internal abstract record ShellThreadRef
 {
     private ShellThreadRef()

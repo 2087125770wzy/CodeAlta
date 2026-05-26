@@ -163,9 +163,9 @@ public sealed class ModelProviderPreferenceCoordinatorTests
 
         var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
         var coordinator = new ModelProviderPreferenceCoordinator(store, Views.CodeAltaApp.UiLogger);
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
-            new AgentBackendDescriptor(new AgentBackendId("zai"), "ZAI"),
+            new ModelProviderDescriptor(new AgentBackendId("zai"), "ZAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         backendStates["zai"].Models.Add(
@@ -206,9 +206,9 @@ public sealed class ModelProviderPreferenceCoordinatorTests
         using var temp = TempDirectory.Create();
         var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
         var coordinator = new ModelProviderPreferenceCoordinator(store, Views.CodeAltaApp.UiLogger);
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
-            new AgentBackendDescriptor(new AgentBackendId("zai"), "ZAI"),
+            new ModelProviderDescriptor(new AgentBackendId("zai"), "ZAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         backendStates["zai"].Models.Add(new AgentModelInfo("gpt-5", DisplayName: "GPT-5"));
@@ -248,9 +248,9 @@ public sealed class ModelProviderPreferenceCoordinatorTests
 
         var store = new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path });
         var coordinator = new ModelProviderPreferenceCoordinator(store, Views.CodeAltaApp.UiLogger);
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
-            new AgentBackendDescriptor(new AgentBackendId("zai"), "ZAI"),
+            new ModelProviderDescriptor(new AgentBackendId("zai"), "ZAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         backendStates["zai"].Models.Add(new AgentModelInfo(

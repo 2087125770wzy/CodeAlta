@@ -601,7 +601,7 @@ internal sealed class ThreadTabStripCoordinator
                 new PromptSessionId(CodeAltaApp.DraftTabId),
                 ProjectId.NewVersion7(),
                 new ShellThreadRef.Draft(new ThreadDraftId(CodeAltaApp.DraftTabId)),
-                new ModelProviderId("legacy-selected-provider"))),
+                new CodeAlta.Agent.ModelProviderId("legacy-selected-provider"))),
             Header = header,
             Content = workspaceView.CreateThreadTabContent(
                 CodeAltaApp.DraftTabId,
@@ -897,7 +897,7 @@ internal sealed class ThreadTabStripCoordinator
                 thread.ThreadId,
                 new PromptSessionId(thread.ThreadId),
                 projectId,
-                new ModelProviderId(thread.ProviderKey ?? thread.BackendId)),
+                new CodeAlta.Agent.ModelProviderId(thread.ProviderKey ?? thread.BackendId)),
             Header = header,
             Content = workspaceView.CreateThreadTabContent(thread.ThreadId, tab.Timeline.Flow, tab.Session),
             ViewModel = tab.ViewModel,

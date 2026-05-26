@@ -10,7 +10,7 @@ internal sealed class KnownProjectImporter : IKnownProjectImporterWithProgress
 {
     private static readonly Logger Logger = LogManager.GetLogger("CodeAlta.App");
     private readonly AgentHub _agentHub;
-    private readonly IReadOnlyList<AgentBackendDescriptor> _backendDescriptors;
+    private readonly IReadOnlyList<ModelProviderDescriptor> _backendDescriptors;
     private readonly ProjectCatalog _projectCatalog;
     private readonly CatalogOptions? _catalogOptions;
     private readonly SemaphoreSlim _importGate = new(initialCount: 1, maxCount: 1);
@@ -19,7 +19,7 @@ internal sealed class KnownProjectImporter : IKnownProjectImporterWithProgress
 
     public KnownProjectImporter(
         AgentHub agentHub,
-        IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
+        IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         ProjectCatalog projectCatalog,
         CatalogOptions? catalogOptions = null)
     {
@@ -38,7 +38,7 @@ internal sealed class KnownProjectImporter : IKnownProjectImporterWithProgress
     public Task ImportAsync(CancellationToken cancellationToken)
         => ImportAsync(static _ => { }, cancellationToken);
 
-    public async Task ImportBackendAsync(AgentBackendDescriptor descriptor, CancellationToken cancellationToken)
+    public async Task ImportBackendAsync(ModelProviderDescriptor descriptor, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
@@ -156,7 +156,7 @@ internal sealed class KnownProjectImporter : IKnownProjectImporterWithProgress
         await Task.WhenAll(importTasks).ConfigureAwait(false);
         return;
 
-        async Task ImportBackendProjectsAsync(AgentBackendDescriptor descriptor)
+        async Task ImportBackendProjectsAsync(ModelProviderDescriptor descriptor)
         {
             try
             {
@@ -168,7 +168,7 @@ internal sealed class KnownProjectImporter : IKnownProjectImporterWithProgress
             }
         }
 
-        void ReportProgress(AgentBackendDescriptor? descriptor)
+        void ReportProgress(ModelProviderDescriptor? descriptor)
         {
             lock (progressGate)
             {

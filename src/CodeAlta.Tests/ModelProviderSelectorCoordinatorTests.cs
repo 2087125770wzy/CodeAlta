@@ -91,10 +91,10 @@ public sealed class ModelProviderSelectorCoordinatorTests
     {
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
-            new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
-            new AgentBackendDescriptor(new AgentBackendId("zai"), "ZAI"),
+            new ModelProviderDescriptor(AgentBackendIds.Codex, "Codex"),
+            new ModelProviderDescriptor(new AgentBackendId("zai"), "ZAI"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         backendStates[AgentBackendIds.Codex.Value].Availability = ChatBackendAvailability.Ready;
@@ -117,7 +117,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
     {
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
             new(new AgentBackendId("anthropic"), "Anthropic"),
@@ -160,7 +160,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
     {
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("codex"), "Codex subscription"),
         ];
@@ -207,11 +207,11 @@ public sealed class ModelProviderSelectorCoordinatorTests
     {
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
-            new AgentBackendDescriptor(new AgentBackendId("zai"), "ZAI"),
-            new AgentBackendDescriptor(new AgentBackendId("openai"), "OpenAI"),
-            new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
+            new ModelProviderDescriptor(new AgentBackendId("zai"), "ZAI"),
+            new ModelProviderDescriptor(new AgentBackendId("openai"), "OpenAI"),
+            new ModelProviderDescriptor(AgentBackendIds.Codex, "Codex"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         backendStates["zai"].Availability = ChatBackendAvailability.Unsupported;
@@ -235,10 +235,10 @@ public sealed class ModelProviderSelectorCoordinatorTests
     {
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
-            new AgentBackendDescriptor(AgentBackendIds.Codex, "Codex"),
-            new AgentBackendDescriptor(AgentBackendIds.Copilot, "Copilot"),
+            new ModelProviderDescriptor(AgentBackendIds.Codex, "Codex"),
+            new ModelProviderDescriptor(AgentBackendIds.Copilot, "Copilot"),
         ];
         var backendStates = ChatBackendPresentation.CreateBackendStates(backendDescriptors);
         backendStates[AgentBackendIds.Codex.Value].Availability = ChatBackendAvailability.Ready;
@@ -272,7 +272,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
             new(new AgentBackendId("anthropic"), "Anthropic"),
@@ -323,7 +323,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
         ];
@@ -378,7 +378,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
             new(new AgentBackendId("anthropic"), "Anthropic"),
@@ -433,7 +433,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
             new(new AgentBackendId("anthropic"), "Anthropic"),
@@ -493,7 +493,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
             new(new AgentBackendId("anthropic"), "Anthropic"),
@@ -580,7 +580,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
         ];
@@ -621,7 +621,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
     {
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
         ];
@@ -682,7 +682,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
             new(new AgentBackendId("anthropic"), "Anthropic"),
@@ -728,7 +728,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
             new(new AgentBackendId("anthropic"), "Anthropic"),
@@ -775,7 +775,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
         ];
@@ -824,7 +824,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
         ];
@@ -868,7 +868,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
     {
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
         ];
@@ -905,7 +905,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         var workspaceViewModel = new ThreadWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();
-        AgentBackendDescriptor[] backendDescriptors =
+        ModelProviderDescriptor[] backendDescriptors =
         [
             new(new AgentBackendId("openai"), "OpenAI"),
         ];
@@ -931,7 +931,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
     }
 
     private static ModelProviderSelectorCoordinator CreateCoordinator(
-        IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
+        IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         ThreadWorkspaceViewModel workspaceViewModel,
         PromptComposerViewModel promptComposerViewModel,
         Dictionary<string, ChatBackendState> backendStates,

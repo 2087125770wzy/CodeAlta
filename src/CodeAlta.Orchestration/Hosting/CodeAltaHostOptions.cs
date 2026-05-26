@@ -60,6 +60,11 @@ public sealed class CodeAltaHostOptions
     public Action<AgentBackendFactory>? ConfigureAgentBackends { get; init; }
 
     /// <summary>
+    /// Gets an optional callback that registers host-specific model providers before the agent hub is created.
+    /// </summary>
+    public Action<ModelProviderRegistry, AgentBackendFactory>? ConfigureModelProviders { get; init; }
+
+    /// <summary>
     /// Gets a prestarted plugin runtime supplied by the caller. When set, the host will not dispose it.
     /// </summary>
     public PluginRuntimeManager? PrestartedPluginRuntime { get; init; }

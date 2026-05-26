@@ -131,8 +131,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             updateService);
     }
 
-    private CodeAltaApp(
-        IReadOnlyList<AgentBackendDescriptor> backendDescriptors,
+    private CodeAltaApp(IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         ProjectCatalog projectCatalog,
         WorkThreadCatalog threadCatalog,
         WorkThreadRuntimeService runtimeService,
@@ -167,7 +166,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             new CodeAltaShellBridge(this),
             _knownProjectImporter,
             this,
-            ownedServices?.PluginHostBridge);
+            ownedServices?.PluginHostBridge,ownedServices?.ModelProviderRegistry);
         _modelProviderPreferences = composition.ModelProviderPreferences;
         _shellController = composition.ShellController;
         _runtimeEventPump = composition.RuntimeEventPump;
@@ -324,6 +323,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
 
     private string? GetThreadProjectRoot(WorkThreadDescriptor thread)
         => GetProjectById(thread.ProjectRef)?.ProjectPath;
+
 
     internal void ApplyDraftModelProviderPreference(ChatBackendState backendState)
         => _modelProviderPreferences.ApplyDraftModelProviderPreference(backendState, _viewState, GetDraftProjectRoot(), GetDraftProjectId());

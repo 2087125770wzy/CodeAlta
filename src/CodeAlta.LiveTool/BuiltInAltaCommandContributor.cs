@@ -710,14 +710,14 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
                 backendId.Value,
                 backendId.Value,
                 registered.Contains(backendId),
-                descriptors.Any(descriptor => descriptor.BackendId == backendId),
+                descriptors.Any(descriptor => string.Equals(descriptor.ProviderId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase)),
                 policy?.SupportsAltaSessionTool(backendId.Value) ?? false))
             .ToArray();
     }
 
-    private static AgentBackendId[] GetProviderBackendIds(AltaCommandContext context, IReadOnlyList<AgentBackendDescriptor> descriptors)
+    private static AgentBackendId[] GetProviderBackendIds(AltaCommandContext context, IReadOnlyList<ModelProviderDescriptor> descriptors)
     {
-        var backendIds = descriptors.Select(static descriptor => descriptor.BackendId).ToList();
+        var backendIds = descriptors.Select(static descriptor => new AgentBackendId(descriptor.ProviderId.Value)).ToList();
         if (context.Services.Get<AgentHub>() is { } agentHub)
         {
             foreach (var id in agentHub.ListRegisteredBackends())
@@ -2076,7 +2076,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
         foreach (var backendId in backendIds)
         {
-            var descriptor = descriptors.FirstOrDefault(candidate => candidate.BackendId == backendId);
+            var descriptor = descriptors.FirstOrDefault(candidate => string.Equals(candidate.ProviderId.Value, backendId.Value, StringComparison.OrdinalIgnoreCase));
             AltaJsonlWriter.WriteRecord(context.Stdout, new
             {
                 type = "alta.provider.item",
@@ -2542,14 +2542,14 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         if (GetBackendDescriptors(context).FirstOrDefault() is { } descriptor)
         {
-            return descriptor.BackendId.Value;
+            return descriptor.ProviderId.Value;
         }
 
         return context.Services.Get<AgentHub>()?.ListRegisteredBackends().FirstOrDefault().Value;
     }
 
-    private static IReadOnlyList<AgentBackendDescriptor> GetBackendDescriptors(AltaCommandContext context)
-        => context.Services.Get<IReadOnlyList<AgentBackendDescriptor>>() ?? [];
+    private static IReadOnlyList<ModelProviderDescriptor> GetBackendDescriptors(AltaCommandContext context)
+        => context.Services.Get<IReadOnlyList<ModelProviderDescriptor>>() ?? [];
 
     private static AltaModelSelection CreateModelSelection(WorkThreadDescriptor thread, WorkThreadPreference? preference)
     {

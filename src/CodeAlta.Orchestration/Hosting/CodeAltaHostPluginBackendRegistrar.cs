@@ -19,7 +19,7 @@ public static class CodeAltaHostPluginBackendRegistrar
     /// Thrown when <paramref name="backendFactory"/>, <paramref name="pluginRuntime"/>, or <paramref name="options"/>
     /// is <see langword="null"/>.
     /// </exception>
-    public static IReadOnlyList<AgentBackendDescriptor> RegisterPluginBackends(
+    public static IReadOnlyList<ModelProviderDescriptor> RegisterPluginBackends(
         AgentBackendFactory backendFactory,
         PluginRuntimeManager pluginRuntime,
         PluginAdapterOperationOptions options)
@@ -28,7 +28,7 @@ public static class CodeAltaHostPluginBackendRegistrar
         ArgumentNullException.ThrowIfNull(pluginRuntime);
         ArgumentNullException.ThrowIfNull(options);
 
-        var descriptors = new List<AgentBackendDescriptor>();
+        var descriptors = new List<ModelProviderDescriptor>();
         foreach (var pluginBackend in pluginRuntime.Adapter.GetAgentBackends(options))
         {
             var backendId = new AgentBackendId(pluginBackend.Name);
@@ -40,7 +40,7 @@ public static class CodeAltaHostPluginBackendRegistrar
                     .GetResult()
                     .Backend
                     ?? throw new InvalidOperationException($"Plugin backend '{pluginBackend.Name}' did not create a backend instance."));
-            descriptors.Add(new AgentBackendDescriptor(backendId, pluginBackend.DisplayName ?? pluginBackend.Name));
+            descriptors.Add(new ModelProviderDescriptor(backendId, pluginBackend.DisplayName ?? pluginBackend.Name));
         }
 
         return descriptors;

@@ -17,7 +17,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
     private readonly IProjectCatalogStore _projectCatalog;
     private readonly IRecoverableThreadSource _recoverableThreadSource;
     private readonly IWorkThreadDeleter _threadDeleter;
-    private readonly IReadOnlyList<AgentBackendDescriptor> _backendDescriptors;
+    private readonly IReadOnlyList<ModelProviderDescriptor> _backendDescriptors;
     private readonly CancellationTokenSource _disposeCts = new();
     private readonly ConcurrentQueue<WorkThreadRuntimeEvent> _pendingRuntimeEvents = new();
     private IUiDispatcher? _uiDispatcher;
@@ -32,7 +32,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         IProjectCatalogStore projectCatalog,
         IRecoverableThreadSource recoverableThreadSource,
         IWorkThreadDeleter threadDeleter,
-        IReadOnlyList<AgentBackendDescriptor>? backendDescriptors = null)
+        IReadOnlyList<ModelProviderDescriptor>? backendDescriptors = null)
     {
         ArgumentNullException.ThrowIfNull(shell);
         ArgumentNullException.ThrowIfNull(knownProjectImporter);
@@ -492,7 +492,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
     }
 
     private async Task InitializeLoadAndRecoverProviderAsync(
-        AgentBackendDescriptor descriptor,
+        ModelProviderDescriptor descriptor,
         IKnownProjectImporterWithProgress projectImporter,
         ProviderStartupLoadProgress progress,
         Dictionary<string, WorkThreadDescriptor> recoveredThreads,
@@ -865,7 +865,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         private readonly List<string> _loadingProviderDisplayNames;
         private int _completedProviderCount;
 
-        public ProviderStartupLoadProgress(IReadOnlyList<AgentBackendDescriptor> descriptors)
+        public ProviderStartupLoadProgress(IReadOnlyList<ModelProviderDescriptor> descriptors)
         {
             _loadingProviderDisplayNames = descriptors.Select(static descriptor => descriptor.DisplayName).ToList();
             TotalProviderCount = descriptors.Count;
@@ -873,7 +873,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
 
         public int TotalProviderCount { get; }
 
-        public ProviderSessionLoadProgress Snapshot(AgentBackendDescriptor? completedDescriptor)
+        public ProviderSessionLoadProgress Snapshot(ModelProviderDescriptor? completedDescriptor)
         {
             lock (_gate)
             {

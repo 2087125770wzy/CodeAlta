@@ -140,8 +140,8 @@ public sealed class CodeAltaShellControllerTests
             threadSource,
             new FakeWorkThreadDeleter(log),
             [
-                new AgentBackendDescriptor(codexBackendId, "Codex"),
-                new AgentBackendDescriptor(slowBackendId, "Slow"),
+                new ModelProviderDescriptor(codexBackendId, "Codex"),
+                new ModelProviderDescriptor(slowBackendId, "Slow"),
             ]);
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
@@ -186,8 +186,8 @@ public sealed class CodeAltaShellControllerTests
             threadSource,
             new FakeWorkThreadDeleter(log),
             [
-                new AgentBackendDescriptor(codexBackendId, "Codex"),
-                new AgentBackendDescriptor(slowBackendId, "Slow"),
+                new ModelProviderDescriptor(codexBackendId, "Codex"),
+                new ModelProviderDescriptor(slowBackendId, "Slow"),
             ]);
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
@@ -236,8 +236,8 @@ public sealed class CodeAltaShellControllerTests
             threadSource,
             new FakeWorkThreadDeleter(log),
             [
-                new AgentBackendDescriptor(codexBackendId, "Codex"),
-                new AgentBackendDescriptor(slowBackendId, "Slow"),
+                new ModelProviderDescriptor(codexBackendId, "Codex"),
+                new ModelProviderDescriptor(slowBackendId, "Slow"),
             ]);
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
@@ -887,7 +887,7 @@ public sealed class CodeAltaShellControllerTests
         public void AllowCompletion()
             => _allowCompletion.TrySetResult(true);
 
-        public async Task ImportBackendAsync(AgentBackendDescriptor descriptor, CancellationToken cancellationToken)
+        public async Task ImportBackendAsync(ModelProviderDescriptor descriptor, CancellationToken cancellationToken)
         {
             log.Add($"ProgressImporter.ImportBackend:{descriptor.BackendId.Value}");
             if (descriptor.BackendId == firstBackendId)

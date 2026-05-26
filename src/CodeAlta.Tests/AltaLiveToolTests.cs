@@ -291,7 +291,7 @@ public sealed class AltaLiveToolTests
             .Add(new ProjectCatalog(options))
             .Add(new WorkThreadCatalog(options))
             .Add(new SkillCatalog())
-            .Add<IReadOnlyList<AgentBackendDescriptor>>([new AgentBackendDescriptor(backendId, "OpenAI Responses")])
+            .Add<IReadOnlyList<ModelProviderDescriptor>>([new ModelProviderDescriptor(backendId, "OpenAI Responses")])
             .Add<IAltaSessionToolBackendPolicy>(new AltaSessionToolBackendPolicy([backendId.Value]))
             .Add<IAltaPluginCatalog>(pluginCatalog));
 
@@ -322,7 +322,7 @@ public sealed class AltaLiveToolTests
             .Add(options)
             .Add(projectCatalog)
             .Add(new SkillCatalog())
-            .Add<IReadOnlyList<AgentBackendDescriptor>>([new AgentBackendDescriptor(backendId, "Compact Provider")])
+            .Add<IReadOnlyList<ModelProviderDescriptor>>([new ModelProviderDescriptor(backendId, "Compact Provider")])
             .Add<IAltaPluginCatalog>(new FakeAltaPluginCatalog(new AltaPluginCommandContribution
             {
                 Plugin = CreatePluginDescriptor("compact-plugin"),
@@ -689,7 +689,7 @@ public sealed class AltaLiveToolTests
             .Add(projectCatalog)
             .Add(new WorkThreadCatalog(options))
             .Add(runtime)
-            .Add<IReadOnlyList<AgentBackendDescriptor>>([new AgentBackendDescriptor(backendId, "Plugin Create")])
+            .Add<IReadOnlyList<ModelProviderDescriptor>>([new ModelProviderDescriptor(backendId, "Plugin Create")])
             .Add<IAltaPluginCatalog>(catalog));
         loopback.SetDispatcher(dispatcher);
 
@@ -826,7 +826,7 @@ public sealed class AltaLiveToolTests
             .Add(projectCatalog)
             .Add(new WorkThreadCatalog(options))
             .Add(runtime)
-            .Add<IReadOnlyList<AgentBackendDescriptor>>([new AgentBackendDescriptor(backendId, "Plugin Prompt")])
+            .Add<IReadOnlyList<ModelProviderDescriptor>>([new ModelProviderDescriptor(backendId, "Plugin Prompt")])
             .Add<IAltaPluginCatalog>(catalog));
         loopback.SetDispatcher(dispatcher);
         var created = await dispatcher.InvokeAsync(["session", "create", "--project", project.Id, "--provider", backendId.Value], caller: AltaCallerIdentity.Cli).ConfigureAwait(false);

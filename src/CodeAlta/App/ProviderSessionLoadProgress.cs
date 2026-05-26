@@ -14,5 +14,5 @@ internal interface IKnownProjectImporterWithProgress : IKnownProjectImporter
 {
     Task ImportAsync(Action<ProviderSessionLoadProgress> reportProgress, CancellationToken cancellationToken);
 
-    Task ImportBackendAsync(AgentBackendDescriptor descriptor, CancellationToken cancellationToken);
+    Task ImportBackendAsync(ModelProviderDescriptor descriptor, CancellationToken cancellationToken);
 }
