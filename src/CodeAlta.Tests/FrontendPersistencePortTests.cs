@@ -37,7 +37,7 @@ public sealed class FrontendPersistencePortTests
         var cancellation = new CancellationTokenSource();
         var persistToken = default(CancellationToken);
         var registerToken = default(CancellationToken);
-        WorkThreadDescriptor? registeredThread = null;
+        SessionViewDescriptor? registeredThread = null;
         var port = new FrontendPersistencePort(
             static _ => null,
             static _ => { },
@@ -52,7 +52,7 @@ public sealed class FrontendPersistencePortTests
                 registerToken = token;
                 return Task.CompletedTask;
             });
-        var descriptor = new WorkThreadDescriptor { ThreadId = "thread-1", Title = "Thread" };
+        var descriptor = new SessionViewDescriptor { ThreadId = "thread-1", Title = "Thread" };
 
         await port.PersistViewStateAsync(cancellation.Token);
         await port.RegisterCreatedThreadAsync(descriptor, cancellation.Token);

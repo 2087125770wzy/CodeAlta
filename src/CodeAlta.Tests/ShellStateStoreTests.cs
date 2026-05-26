@@ -79,7 +79,7 @@ public sealed class ShellStateStoreTests
     public void SetCatalogAndSelection_CapturesFrontendStateSnapshots()
     {
         var project = new ProjectDescriptor { Id = "project-1", Name = "Project", ProjectPath = "C:\\repo" };
-        var thread = new WorkThreadDescriptor { ThreadId = "thread-1", ProjectRef = "project-1", Title = "Thread" };
+        var thread = new SessionViewDescriptor { ThreadId = "thread-1", ProjectRef = "project-1", Title = "Thread" };
         var navigatorSettings = new NavigatorSettings
         {
             SortMode = NavigatorProjectSortMode.Date,

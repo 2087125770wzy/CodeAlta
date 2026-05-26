@@ -10,7 +10,7 @@ sequenceDiagram
     participant Owned as CodeAltaOwnedServices
     participant Host as CodeAltaHost
     participant UI as CodeAltaFrontendComposition
-    participant Runtime as WorkThreadRuntimeService
+    participant Runtime as SessionRuntimeService
 
     Program->>Owned: create process-owned services
     Owned->>Host: CreateAsync(global root, current project, plugins, backend registration)
@@ -24,7 +24,7 @@ sequenceDiagram
 
 - `ProjectCatalog`, `WorkThreadCatalog`, and `SkillCatalog` from `CodeAlta.Catalog`;
 - `PluginRuntimeManager` and plugin resource/backend adapters;
-- `AgentBackendFactory`, `AgentHub`, and `WorkThreadRuntimeService`;
+- `AgentBackendFactory`, `AgentHub`, and `SessionRuntimeService`;
 - `ProjectFileSearchService` for prompt attachments and file pickers.
 
 The TUI receives these services instead of constructing runtime primitives directly. Headless and tool-driven paths can reuse `CodeAltaHost` without terminal controls.
@@ -64,7 +64,7 @@ Important boundary rules:
 
 - Reusable thread/session orchestration belongs in `CodeAlta.Orchestration`, not in `src/CodeAlta` views or dialogs.
 - `CodeAlta.Orchestration` is headless and references `CodeAlta.Agent`, `CodeAlta.Catalog`, and `CodeAlta.Plugins` only.
-- Views and dialogs render state and invoke command/service interfaces; they must not call `WorkThreadRuntimeService`, `AgentHub`, or plugin runtime services directly.
+- Views and dialogs render state and invoke command/service interfaces; they must not call `SessionRuntimeService`, `AgentHub`, or plugin runtime services directly.
 - `CodeAlta.Plugins.Abstractions` is the public plugin authoring surface. Runtime adapters belong in `CodeAlta.Plugins` or `CodeAlta.Orchestration`, not in the TUI.
 - Public/runtime APIs expose ids, request/response records, snapshots, handles, and events. Internal mailbox actors stay internal.
 
@@ -84,7 +84,7 @@ flowchart LR
     Events[Frontend events]
     Controllers[Coordinators/controllers]
     RuntimeAdapter[Runtime adapter - thread commands + event pump]
-    Runtime[WorkThreadRuntimeService]
+    Runtime[SessionRuntimeService]
     Plugins[PluginHostBridge]
 
     Composition --> App
@@ -116,14 +116,14 @@ UI code awaits normally on the UI path. Background work must marshal back throug
 
 ## Runtime services
 
-`WorkThreadRuntimeService` is the central work-thread runtime. It owns coordinator sessions, recoverable threads, runtime events, prompt send/queue/steer/abort/compact flow, activation of CodeAlta-managed skills, and CodeAlta thread metadata persisted in local session journals.
+`SessionRuntimeService` is the central work-thread runtime. It owns coordinator sessions, recoverable threads, runtime events, prompt send/queue/steer/abort/compact flow, activation of CodeAlta-managed skills, and CodeAlta thread metadata persisted in local session journals.
 
 `AgentHub` is the runtime cache and facade for backend/session objects. It starts backends lazily, registers agents, lists models/sessions, resumes sessions, and normalizes session metadata. The hub shields orchestration from provider package details.
 
 ```mermaid
 flowchart TD
     ThreadRequest[Work-thread command request]
-    WTRS[WorkThreadRuntimeService]
+    WTRS[SessionRuntimeService]
     Actor[WorkThreadActor - per-thread mailbox]
     Hub[AgentHub]
     Backend[IAgentBackend]
@@ -165,7 +165,7 @@ Extensions are trusted local code or files that the host explicitly discovers:
 - Source plugins under `~/.alta/plugins/<package-id>/plugin.cs` and `<project>/.alta/plugins/<package-id>/plugin.cs` are built and loaded in-process by `CodeAlta.Plugins`.
 - Built-in plugins are registered through the same plugin runtime. The statistics plugin contributes transient projections and an `alta` command root.
 - Plugins can contribute prompt processors, system/developer prompt parts, tools, provider factories, resource roots, UI elements, transient thread projections, and `alta` command roots.
-- Skill roots come from project/user filesystem roots, built-ins, and plugin resource contributions. Discovery and activation are owned by `SkillCatalog` and `WorkThreadRuntimeService`.
+- Skill roots come from project/user filesystem roots, built-ins, and plugin resource contributions. Discovery and activation are owned by `SkillCatalog` and `SessionRuntimeService`.
 - The in-session `alta` live tool is an in-process command gateway built from core contributors plus plugin contributors.
 
 Extensions do not own canonical transcript persistence. Plugin-derived thread cards are transient projections replayed from canonical agent events.
@@ -173,7 +173,7 @@ Extensions do not own canonical transcript persistence. Plugin-derived thread ca
 ## Thread lifecycle at a glance
 
 1. A user or tool creates a global or project thread.
-2. `WorkThreadRuntimeService` resolves the model provider, project roots, instructions, tools, and skill advertisements.
+2. `SessionRuntimeService` resolves the model provider, project roots, instructions, tools, and skill advertisements.
 3. `AgentHub` starts or resumes the selected backend/session.
 4. The session receives a prompt through `IAgentSession.SendAsync` or an accepted steering request through `SteerAsync` when supported.
 5. Provider/tool events are normalized to `AgentEvent` values and projected to `WorkThreadRuntimeEvent` values.

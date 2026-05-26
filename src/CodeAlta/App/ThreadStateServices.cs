@@ -6,20 +6,20 @@ namespace CodeAlta.App;
 
 internal interface IThreadModelProviderReadinessService
 {
-    bool IsModelProviderReady(WorkThreadDescriptor thread);
+    bool IsModelProviderReady(SessionViewDescriptor thread);
 }
 
 internal sealed class ThreadModelProviderReadinessService : IThreadModelProviderReadinessService
 {
-    private readonly Func<WorkThreadDescriptor, bool> _isModelProviderReady;
+    private readonly Func<SessionViewDescriptor, bool> _isModelProviderReady;
 
-    public ThreadModelProviderReadinessService(Func<WorkThreadDescriptor, bool> isModelProviderReady)
+    public ThreadModelProviderReadinessService(Func<SessionViewDescriptor, bool> isModelProviderReady)
     {
         ArgumentNullException.ThrowIfNull(isModelProviderReady);
         _isModelProviderReady = isModelProviderReady;
     }
 
-    public bool IsModelProviderReady(WorkThreadDescriptor thread)
+    public bool IsModelProviderReady(SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
         return _isModelProviderReady(thread);
@@ -28,20 +28,20 @@ internal sealed class ThreadModelProviderReadinessService : IThreadModelProvider
 
 internal interface IThreadHistoryLoaderService
 {
-    Task EnsureThreadHistoryLoadedAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken);
+    Task EnsureThreadHistoryLoadedAsync(SessionViewDescriptor thread, CancellationToken cancellationToken);
 }
 
 internal sealed class ThreadHistoryLoaderService : IThreadHistoryLoaderService
 {
-    private readonly Func<WorkThreadDescriptor, CancellationToken, Task> _ensureThreadHistoryLoadedAsync;
+    private readonly Func<SessionViewDescriptor, CancellationToken, Task> _ensureThreadHistoryLoadedAsync;
 
-    public ThreadHistoryLoaderService(Func<WorkThreadDescriptor, CancellationToken, Task> ensureThreadHistoryLoadedAsync)
+    public ThreadHistoryLoaderService(Func<SessionViewDescriptor, CancellationToken, Task> ensureThreadHistoryLoadedAsync)
     {
         ArgumentNullException.ThrowIfNull(ensureThreadHistoryLoadedAsync);
         _ensureThreadHistoryLoadedAsync = ensureThreadHistoryLoadedAsync;
     }
 
-    public Task EnsureThreadHistoryLoadedAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken)
+    public Task EnsureThreadHistoryLoadedAsync(SessionViewDescriptor thread, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(thread);
         return _ensureThreadHistoryLoadedAsync(thread, cancellationToken);

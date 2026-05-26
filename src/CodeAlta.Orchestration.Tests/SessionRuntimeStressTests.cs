@@ -6,7 +6,7 @@ using CodeAlta.Orchestration.Runtime;
 namespace CodeAlta.Orchestration.Tests;
 
 [TestClass]
-public sealed class WorkThreadRuntimeStressTests
+public sealed class SessionRuntimeStressTests
 {
     [TestMethod]
     public async Task MultipleThreads_RunConcurrentlyAndReturnIdleEvents()
@@ -141,7 +141,7 @@ public sealed class WorkThreadRuntimeStressTests
         Assert.AreEqual(0, fixture.Backend.AbortCount);
     }
 
-    private static WorkThreadDescriptor CreateThread(string threadId, AgentBackendId backendId, string root)
+    private static SessionViewDescriptor CreateThread(string threadId, AgentBackendId backendId, string root)
         => new()
         {
             ThreadId = threadId,
@@ -154,7 +154,7 @@ public sealed class WorkThreadRuntimeStressTests
             LastActiveAt = DateTimeOffset.UtcNow,
         };
 
-    private static WorkThreadExecutionOptions CreateOptions(AgentBackendId backendId, string root)
+    private static SessionExecutionOptions CreateOptions(AgentBackendId backendId, string root)
         => new()
         {
             BackendId = backendId,
@@ -168,7 +168,7 @@ public sealed class WorkThreadRuntimeStressTests
         private readonly TempDirectory _temp;
         private readonly AgentHub _hub;
 
-        private RuntimeFixture(TempDirectory temp, AgentHub hub, WorkThreadRuntimeService runtime, StressAgentBackend backend, AgentBackendId backendId)
+        private RuntimeFixture(TempDirectory temp, AgentHub hub, SessionRuntimeService runtime, StressAgentBackend backend, AgentBackendId backendId)
         {
             _temp = temp;
             _hub = hub;
@@ -178,7 +178,7 @@ public sealed class WorkThreadRuntimeStressTests
             Root = temp.Path;
         }
 
-        public WorkThreadRuntimeService Runtime { get; }
+        public SessionRuntimeService Runtime { get; }
 
         public StressAgentBackend Backend { get; }
 
@@ -195,10 +195,13 @@ public sealed class WorkThreadRuntimeStressTests
             factory.Register(backendId, () => backend);
             var hub = new AgentHub(factory);
             var options = new CatalogOptions { GlobalRoot = temp.Path };
-            var runtime = new WorkThreadRuntimeService(
+            var threadCatalog = new WorkThreadCatalog(options);
+            var sessionCatalog = new AgentSessionCatalog(threadCatalog.JournalStore.CreateSessionStore());
+            var runtime = new SessionRuntimeService(
                 hub,
+                sessionCatalog,
                 new ProjectCatalog(options),
-                new WorkThreadCatalog(options),
+                threadCatalog,
                 new AgentInstructionTemplateProvider(catalogOptions: options),
                 options);
             return new RuntimeFixture(temp, hub, runtime, backend, backendId);

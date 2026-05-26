@@ -107,7 +107,7 @@ internal sealed class ShellSelectionCoordinator
     public void ApplyInitialSelection(
         WorkThreadViewState viewState,
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads)
+        IReadOnlyList<SessionViewDescriptor> threads)
     {
         ArgumentNullException.ThrowIfNull(viewState);
         ArgumentNullException.ThrowIfNull(projects);
@@ -137,7 +137,7 @@ internal sealed class ShellSelectionCoordinator
 
     public void EnsureSelectionDefaults(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads)
+        IReadOnlyList<SessionViewDescriptor> threads)
     {
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(threads);
@@ -179,7 +179,7 @@ internal sealed class ShellSelectionCoordinator
             : ShellSelection.GlobalDraft();
     }
 
-    public void SelectThread(WorkThreadDescriptor thread)
+    public void SelectThread(SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
         Selection = ShellSelection.Thread(thread.ThreadId, thread.ProjectRef);
@@ -189,7 +189,7 @@ internal sealed class ShellSelectionCoordinator
         string? nextSelectedThreadId,
         string? fallbackProjectId,
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads)
+        IReadOnlyList<SessionViewDescriptor> threads)
     {
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(threads);
@@ -233,7 +233,7 @@ internal sealed class ShellSelectionCoordinator
         return projects.FirstOrDefault()?.Id;
     }
 
-    private static WorkThreadDescriptor? FindThread(IReadOnlyList<WorkThreadDescriptor> threads, string threadId)
+    private static SessionViewDescriptor? FindThread(IReadOnlyList<SessionViewDescriptor> threads, string threadId)
     {
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);

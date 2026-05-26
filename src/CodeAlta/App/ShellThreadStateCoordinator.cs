@@ -11,7 +11,7 @@ internal sealed partial class ShellThreadStateCoordinator
 {
     internal sealed record InitialCatalogState(
         IReadOnlyList<ProjectDescriptor> Projects,
-        IReadOnlyList<WorkThreadDescriptor> Threads,
+        IReadOnlyList<SessionViewDescriptor> Threads,
         WorkThreadViewState ViewState);
 
     private readonly ShellSelectionCoordinator _selectionCoordinator = new();
@@ -70,7 +70,7 @@ internal sealed partial class ShellThreadStateCoordinator
 
     public IReadOnlyList<ProjectDescriptor> Projects => _catalogStateCoordinator.Projects;
 
-    public IReadOnlyList<WorkThreadDescriptor> Threads => _catalogStateCoordinator.Threads;
+    public IReadOnlyList<SessionViewDescriptor> Threads => _catalogStateCoordinator.Threads;
 
     public WorkThreadViewState ViewState
     {
@@ -136,7 +136,7 @@ internal sealed partial class ShellThreadStateCoordinator
 
     public void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         bool pruneMissingThreads = true)
     {
         ArgumentNullException.ThrowIfNull(projects);
@@ -160,10 +160,10 @@ internal sealed partial class ShellThreadStateCoordinator
         SyncStateStore(catalogChanged: true, selectionChanged: true);
     }
 
-    public async Task PersistThreadLocalStateAsync(WorkThreadDescriptor thread)
+    public async Task PersistThreadLocalStateAsync(SessionViewDescriptor thread)
         => await _viewStateCoordinator.PersistThreadLocalStateAsync(ViewState, thread);
 
-    public void UpsertRuntimeThread(WorkThreadDescriptor thread)
+    public void UpsertRuntimeThread(SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
 
@@ -184,7 +184,7 @@ internal sealed partial class ShellThreadStateCoordinator
         SyncStateStore(catalogChanged: true);
     }
 
-    public void RekeyThreadIdentity(string oldThreadId, WorkThreadDescriptor thread)
+    public void RekeyThreadIdentity(string oldThreadId, SessionViewDescriptor thread)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(oldThreadId);
         ArgumentNullException.ThrowIfNull(thread);
@@ -310,7 +310,7 @@ internal sealed partial class ShellThreadStateCoordinator
         }
     }
 
-    public async Task RegisterCreatedThreadAsync(WorkThreadDescriptor thread)
+    public async Task RegisterCreatedThreadAsync(SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
 
@@ -347,7 +347,7 @@ internal sealed partial class ShellThreadStateCoordinator
         ViewState.SelectedThreadId = threadId;
         ViewState.UpdatedAt = DateTimeOffset.UtcNow;
         _selectionCoordinator.SelectThread(thread);
-        if (ThreadHistoryCoordinator.CanLoadThreadHistory(thread) && !_modelProviderReadiness.IsModelProviderReady(thread))
+        if (SessionHistoryCoordinator.CanLoadThreadHistory(thread) && !_modelProviderReadiness.IsModelProviderReady(thread))
         {
             PendingStartupThreadRestoreId = thread.ThreadId;
         }
@@ -534,7 +534,7 @@ internal sealed partial class ShellThreadStateCoordinator
         SyncStateStore(catalogChanged: true, selectionChanged: true);
     }
 
-    public OpenThreadState EnsureThreadTab(WorkThreadDescriptor thread)
+    public OpenThreadState EnsureThreadTab(SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
 
@@ -589,10 +589,10 @@ internal sealed partial class ShellThreadStateCoordinator
         return _catalogStateCoordinator.GetProjectById(projectId);
     }
 
-    public WorkThreadDescriptor? GetSelectedThread()
+    public SessionViewDescriptor? GetSelectedThread()
         => FindThread(SelectedThreadId);
 
-    public WorkThreadDescriptor? FindThread(string? threadId)
+    public SessionViewDescriptor? FindThread(string? threadId)
     {
         if (string.IsNullOrWhiteSpace(threadId))
         {

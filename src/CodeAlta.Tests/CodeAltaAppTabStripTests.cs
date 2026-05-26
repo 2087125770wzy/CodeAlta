@@ -626,10 +626,10 @@ public sealed class CodeAltaAppTabStripTests
         };
     }
 
-    private static WorkThreadDescriptor CreateThread(string threadId, string projectId)
+    private static SessionViewDescriptor CreateThread(string threadId, string projectId)
     {
         var timestamp = DateTimeOffset.Parse("2026-03-29T12:00:00+00:00");
-        return new WorkThreadDescriptor
+        return new SessionViewDescriptor
         {
             ThreadId = threadId,
             Kind = WorkThreadKind.ProjectThread,

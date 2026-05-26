@@ -1,5 +1,5 @@
 namespace CodeAlta.App;
 
-internal sealed record DeleteThreadResult(
+internal sealed record DeleteSessionResult(
     IReadOnlyList<string> DeletedThreadIds,
     bool DeletedByBackend);

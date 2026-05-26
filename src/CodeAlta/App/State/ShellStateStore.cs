@@ -87,7 +87,7 @@ internal sealed record ShellFrontendStateSnapshot(
     string? ActiveTabId,
     string? StatusText,
     IReadOnlyList<ProjectDescriptor> Projects,
-    IReadOnlyList<WorkThreadDescriptor> Threads,
+    IReadOnlyList<SessionViewDescriptor> Threads,
     ShellSelection Selection,
     IReadOnlyList<string> OpenThreadIds,
     NavigatorSettings NavigatorSettings)
@@ -153,7 +153,7 @@ internal sealed record ShellFrontendStateSnapshot(
     /// <summary>Returns a snapshot with updated catalog projects and threads.</summary>
     public ShellFrontendStateSnapshot SetCatalog(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads)
+        IReadOnlyList<SessionViewDescriptor> threads)
     {
         ArgumentNullException.ThrowIfNull(projects);
         ArgumentNullException.ThrowIfNull(threads);

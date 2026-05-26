@@ -55,7 +55,7 @@ public sealed record WorkThreadLifecycleRuntimeEvent(
 public sealed record WorkThreadCatalogRuntimeEvent(
     string ThreadId,
     DateTimeOffset Timestamp,
-    WorkThreadDescriptor Thread)
+    SessionViewDescriptor Thread)
     : WorkThreadRuntimeEvent(ThreadId, Timestamp);
 
 /// <summary>

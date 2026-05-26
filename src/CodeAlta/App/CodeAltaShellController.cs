@@ -15,8 +15,8 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
     private readonly ICodeAltaShell _shell;
     private readonly IKnownProjectImporter _knownProjectImporter;
     private readonly IProjectCatalogStore _projectCatalog;
-    private readonly IRecoverableThreadSource _recoverableThreadSource;
-    private readonly IWorkThreadDeleter _threadDeleter;
+    private readonly IRecoverableSessionSource _recoverableSessionSource;
+    private readonly ISessionDeleter _sessionDeleter;
     private readonly IReadOnlyList<ModelProviderDescriptor> _backendDescriptors;
     private readonly CancellationTokenSource _disposeCts = new();
     private readonly ConcurrentQueue<WorkThreadRuntimeEvent> _pendingRuntimeEvents = new();
@@ -30,21 +30,21 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         ICodeAltaShell shell,
         IKnownProjectImporter knownProjectImporter,
         IProjectCatalogStore projectCatalog,
-        IRecoverableThreadSource recoverableThreadSource,
-        IWorkThreadDeleter threadDeleter,
+        IRecoverableSessionSource recoverableSessionSource,
+        ISessionDeleter sessionDeleter,
         IReadOnlyList<ModelProviderDescriptor>? backendDescriptors = null)
     {
         ArgumentNullException.ThrowIfNull(shell);
         ArgumentNullException.ThrowIfNull(knownProjectImporter);
         ArgumentNullException.ThrowIfNull(projectCatalog);
-        ArgumentNullException.ThrowIfNull(recoverableThreadSource);
-        ArgumentNullException.ThrowIfNull(threadDeleter);
+        ArgumentNullException.ThrowIfNull(recoverableSessionSource);
+        ArgumentNullException.ThrowIfNull(sessionDeleter);
 
         _shell = shell;
         _knownProjectImporter = knownProjectImporter;
         _projectCatalog = projectCatalog;
-        _recoverableThreadSource = recoverableThreadSource;
-        _threadDeleter = threadDeleter;
+        _recoverableSessionSource = recoverableSessionSource;
+        _sessionDeleter = sessionDeleter;
         _backendDescriptors = backendDescriptors ?? [];
     }
 
@@ -84,7 +84,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
 
             await _knownProjectImporter.ImportAsync(cancellationToken).ConfigureAwait(false);
             var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
-            await ApplyRecoverableThreadsProgressivelyAsync(projects, shouldListBackendSessions: null, cancellationToken).ConfigureAwait(false);
+            await ApplyRecoverableSessionsProgressivelyAsync(projects, shouldListProviderSessions: null, cancellationToken).ConfigureAwait(false);
 
             await UiDispatcher.InvokeAsync(
                     () =>
@@ -204,13 +204,13 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         return project;
     }
 
-    public async Task<IReadOnlyList<WorkThreadDescriptor>> LoadProjectThreadsAsync(
+    public async Task<IReadOnlyList<SessionViewDescriptor>> LoadProjectThreadsAsync(
         string projectId,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
 
-        var threads = await _recoverableThreadSource.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
+        var threads = await _recoverableSessionSource.ListRecoverableSessionsAsync(cancellationToken).ConfigureAwait(false);
         return threads
             .Where(thread =>
                 string.Equals(thread.ProjectRef, projectId, StringComparison.OrdinalIgnoreCase))
@@ -234,17 +234,17 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         await ReloadCatalogAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<DeleteThreadResult> DeleteThreadAsync(string threadId, CancellationToken cancellationToken)
+    public async Task<DeleteSessionResult> DeleteSessionAsync(string threadId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
 
-        var threads = await _recoverableThreadSource.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
-        return await DeleteThreadAsync(threadId, threads, cancellationToken).ConfigureAwait(false);
+        var threads = await _recoverableSessionSource.ListRecoverableSessionsAsync(cancellationToken).ConfigureAwait(false);
+        return await DeleteSessionAsync(threadId, threads, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<DeleteThreadResult> DeleteThreadAsync(
+    public async Task<DeleteSessionResult> DeleteSessionAsync(
         string threadId,
-        IReadOnlyList<WorkThreadDescriptor> knownThreads,
+        IReadOnlyList<SessionViewDescriptor> knownThreads,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
@@ -252,12 +252,12 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
 
         var thread = knownThreads.FirstOrDefault(candidate => string.Equals(candidate.ThreadId, threadId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"Thread '{threadId}' was not found.");
-        return await DeleteThreadAsync(thread, knownThreads, cancellationToken).ConfigureAwait(false);
+        return await DeleteSessionAsync(thread, knownThreads, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<DeleteThreadResult> DeleteThreadAsync(
-        WorkThreadDescriptor thread,
-        IReadOnlyList<WorkThreadDescriptor> knownThreads,
+    public async Task<DeleteSessionResult> DeleteSessionAsync(
+        SessionViewDescriptor thread,
+        IReadOnlyList<SessionViewDescriptor> knownThreads,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(thread);
@@ -267,11 +267,11 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         var deletedByBackend = false;
         foreach (var candidate in threadsToDelete)
         {
-            deletedByBackend |= await _threadDeleter.DeleteThreadAsync(candidate, cancellationToken).ConfigureAwait(false);
+            deletedByBackend |= await _sessionDeleter.DeleteSessionAsync(candidate, cancellationToken).ConfigureAwait(false);
         }
 
         var deletedThreadIds = threadsToDelete.Select(static candidate => candidate.ThreadId).ToArray();
-        return new DeleteThreadResult(
+        return new DeleteSessionResult(
             deletedThreadIds,
             deletedByBackend);
     }
@@ -288,7 +288,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
 
     public async Task<DeleteProjectResult> DeleteProjectAsync(
         ProjectDescriptor project,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -296,7 +296,7 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
 
         foreach (var thread in threads)
         {
-            await _threadDeleter.DeleteThreadAsync(thread, cancellationToken).ConfigureAwait(false);
+            await _sessionDeleter.DeleteSessionAsync(thread, cancellationToken).ConfigureAwait(false);
         }
 
         project.Archived = true;
@@ -328,21 +328,21 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
     private IUiDispatcher UiDispatcher
         => _uiDispatcher ?? throw new InvalidOperationException("The UI dispatcher must be attached before shell operations begin.");
 
-    private static IReadOnlyList<WorkThreadDescriptor> CollectThreadSubtree(
-        WorkThreadDescriptor root,
-        IReadOnlyList<WorkThreadDescriptor> threads)
+    private static IReadOnlyList<SessionViewDescriptor> CollectThreadSubtree(
+        SessionViewDescriptor root,
+        IReadOnlyList<SessionViewDescriptor> threads)
     {
         var byParentId = threads
             .Where(static thread => !string.IsNullOrWhiteSpace(thread.ParentThreadId))
             .GroupBy(static thread => thread.ParentThreadId!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(static group => group.Key, static group => group.ToArray(), StringComparer.OrdinalIgnoreCase);
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var result = new List<WorkThreadDescriptor>();
+        var result = new List<SessionViewDescriptor>();
         Collect(root);
         result.Reverse();
         return result;
 
-        void Collect(WorkThreadDescriptor thread)
+        void Collect(SessionViewDescriptor thread)
         {
             if (!visited.Add(thread.ThreadId))
             {
@@ -459,25 +459,14 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         try
         {
             var progress = new ProviderStartupLoadProgress(_backendDescriptors);
-            var recoveredThreads = new Dictionary<string, WorkThreadDescriptor>(StringComparer.OrdinalIgnoreCase);
-            using var applyGate = new SemaphoreSlim(initialCount: 1, maxCount: 1);
-
             ReportStartupProviderLoadProgress(progress.Snapshot(null));
             var providerTasks = _backendDescriptors
-                .Select(descriptor => InitializeLoadAndRecoverProviderAsync(descriptor, progressImporter, progress, recoveredThreads, applyGate, cancellationToken))
+                .Select(descriptor => InitializeStartupProviderAsync(descriptor, progressImporter, progress, cancellationToken))
                 .ToArray();
             await Task.WhenAll(providerTasks).ConfigureAwait(false);
 
-            var threads = await LoadCompleteRecoveredThreadsAsync(recoveredThreads, cancellationToken).ConfigureAwait(false);
             var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
-
-            await UiDispatcher.InvokeAsync(
-                    () =>
-                    {
-                        _shell.ApplyRecoveredCatalogState(projects, threads);
-                        _shell.TrySchedulePendingStartupThreadRestore(CancellationToken.None);
-                    })
-                .ConfigureAwait(false);
+            await ApplyRecoverableSessionsProgressivelyAsync(projects, shouldListProviderSessions: null, cancellationToken).ConfigureAwait(false);
             await SetProviderSessionLoadStatusAsync(null)
                 .ConfigureAwait(false);
         }
@@ -491,12 +480,10 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         }
     }
 
-    private async Task InitializeLoadAndRecoverProviderAsync(
+    private async Task InitializeStartupProviderAsync(
         ModelProviderDescriptor descriptor,
         IKnownProjectImporterWithProgress projectImporter,
         ProviderStartupLoadProgress progress,
-        Dictionary<string, WorkThreadDescriptor> recoveredThreads,
-        SemaphoreSlim applyGate,
         CancellationToken cancellationToken)
     {
         Task? backendInitializationTask = null;
@@ -504,7 +491,6 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         {
             backendInitializationTask = _shell.InitializeChatBackendAsync(descriptor.BackendId, cancellationToken);
             await projectImporter.ImportBackendAsync(descriptor, cancellationToken).ConfigureAwait(false);
-            await ApplyBackendRecoverableThreadsAsync(descriptor.BackendId, recoveredThreads, applyGate, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -539,14 +525,12 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
     {
         try
         {
-            var progressiveRecovery = new ProgressiveRecoveryCoordinator(this, cancellationToken);
             if (_knownProjectImporter is IKnownProjectImporterWithProgress progressImporter)
             {
                 await progressImporter.ImportAsync(
                         progress =>
                         {
                             ReportProviderSessionLoadProgress(progress);
-                            progressiveRecovery.TryStartBackendRecovery(progress.BackendId);
                         },
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -554,13 +538,10 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
             else
             {
                 await _knownProjectImporter.ImportAsync(cancellationToken).ConfigureAwait(false);
-                progressiveRecovery.StartAllBackendRecovery();
             }
 
-            await progressiveRecovery.WhenStartedRecoveriesCompleteAsync().ConfigureAwait(false);
-
             var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
-            await ApplyRecoverableThreadsProgressivelyAsync(projects, shouldListBackendSessions: null, cancellationToken).ConfigureAwait(false);
+            await ApplyRecoverableSessionsProgressivelyAsync(projects, shouldListProviderSessions: null, cancellationToken).ConfigureAwait(false);
             await SetProviderSessionLoadStatusAsync(null)
                 .ConfigureAwait(false);
         }
@@ -574,74 +555,17 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         }
     }
 
-    private async Task ApplyBackendRecoverableThreadsAsync(
-        AgentBackendId backendId,
-        Dictionary<string, WorkThreadDescriptor> recoveredThreads,
-        SemaphoreSlim applyGate,
-        CancellationToken cancellationToken)
-    {
-        var projects = await _projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            await foreach (var thread in _recoverableThreadSource
-                               .StreamRecoverableThreadsAsync(candidate => candidate == backendId, cancellationToken)
-                               .ConfigureAwait(false))
-            {
-                await ApplyRecoveredThreadSnapshotAsync(
-                        projects,
-                        recoveredThreads,
-                        thread,
-                        applyGate,
-                        pruneMissingThreads: false,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            CodeAltaApp.UiLogger.Debug(ex, $"Failed to progressively recover sessions for backend '{backendId.Value}'.");
-
-            return;
-        }
-    }
-
-    private async Task<IReadOnlyList<WorkThreadDescriptor>> LoadCompleteRecoveredThreadsAsync(
-        Dictionary<string, WorkThreadDescriptor> recoveredThreads,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await _recoverableThreadSource.ListRecoverableThreadsAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            CodeAltaApp.UiLogger.Debug(ex, "Failed to load complete recovered session catalog after provider startup; using progressive startup snapshot.");
-
-            return recoveredThreads.Values
-                .OrderByDescending(static thread => thread.LastActiveAt)
-                .ToArray();
-        }
-    }
-
-    private async Task ApplyRecoverableThreadsProgressivelyAsync(
+    private async Task ApplyRecoverableSessionsProgressivelyAsync(
         IReadOnlyList<ProjectDescriptor> projects,
-        Func<AgentBackendId, bool>? shouldListBackendSessions,
+        Func<ModelProviderId, bool>? shouldListProviderSessions,
         CancellationToken cancellationToken)
     {
-        var recoveredThreads = new Dictionary<string, WorkThreadDescriptor>(StringComparer.OrdinalIgnoreCase);
+        var recoveredThreads = new Dictionary<string, SessionViewDescriptor>(StringComparer.OrdinalIgnoreCase);
         using var applyGate = new SemaphoreSlim(initialCount: 1, maxCount: 1);
         var appliedAny = false;
-        var threads = shouldListBackendSessions is null
-            ? _recoverableThreadSource.StreamRecoverableThreadsAsync(cancellationToken)
-            : _recoverableThreadSource.StreamRecoverableThreadsAsync(shouldListBackendSessions, cancellationToken);
+        var threads = shouldListProviderSessions is null
+            ? _recoverableSessionSource.StreamRecoverableSessionsAsync(cancellationToken)
+            : _recoverableSessionSource.StreamRecoverableSessionsAsync(shouldListProviderSessions, cancellationToken);
         await foreach (var thread in threads.ConfigureAwait(false))
         {
             appliedAny = true;
@@ -679,8 +603,8 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
 
     private async Task ApplyRecoveredThreadSnapshotAsync(
         IReadOnlyList<ProjectDescriptor> projects,
-        Dictionary<string, WorkThreadDescriptor> recoveredThreads,
-        WorkThreadDescriptor? thread,
+        Dictionary<string, SessionViewDescriptor> recoveredThreads,
+        SessionViewDescriptor? thread,
         SemaphoreSlim applyGate,
         bool pruneMissingThreads,
         CancellationToken cancellationToken)
@@ -708,66 +632,6 @@ internal sealed class CodeAltaShellController : IThreadRuntimeEventProjector, IA
         finally
         {
             applyGate.Release();
-        }
-    }
-
-    private sealed class ProgressiveRecoveryCoordinator
-    {
-        private readonly CodeAltaShellController _owner;
-        private readonly CancellationToken _cancellationToken;
-        private readonly object _gate = new();
-        private readonly Dictionary<string, WorkThreadDescriptor> _recoveredThreads = new(StringComparer.OrdinalIgnoreCase);
-        private readonly SemaphoreSlim _applyGate = new(initialCount: 1, maxCount: 1);
-        private readonly HashSet<AgentBackendId> _startedBackendIds = [];
-        private readonly List<Task> _tasks = [];
-
-        public ProgressiveRecoveryCoordinator(CodeAltaShellController owner, CancellationToken cancellationToken)
-        {
-            _owner = owner;
-            _cancellationToken = cancellationToken;
-        }
-
-        public void StartAllBackendRecovery()
-        {
-            foreach (var descriptor in _owner._backendDescriptors)
-            {
-                TryStartBackendRecovery(descriptor.BackendId);
-            }
-        }
-
-        public void TryStartBackendRecovery(AgentBackendId backendId)
-        {
-            if (string.IsNullOrWhiteSpace(backendId.Value))
-            {
-                return;
-            }
-
-            Task task;
-            lock (_gate)
-            {
-                if (!_startedBackendIds.Add(backendId))
-                {
-                    return;
-                }
-
-                task = _owner.ApplyBackendRecoverableThreadsAsync(
-                    backendId,
-                    _recoveredThreads,
-                    _applyGate,
-                    _cancellationToken);
-                _tasks.Add(task);
-            }
-        }
-
-        public Task WhenStartedRecoveriesCompleteAsync()
-        {
-            Task[] tasks;
-            lock (_gate)
-            {
-                tasks = _tasks.ToArray();
-            }
-
-            return tasks.Length == 0 ? Task.CompletedTask : Task.WhenAll(tasks);
         }
     }
 

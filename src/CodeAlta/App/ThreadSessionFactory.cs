@@ -35,7 +35,7 @@ internal interface IThreadProjectRootResolver
 
     ProjectDescriptor? GetProjectById(string? projectId);
 
-    string? ResolveProjectRoot(WorkThreadDescriptor thread);
+    string? ResolveProjectRoot(SessionViewDescriptor thread);
 }
 
 internal sealed class ThreadTimelineSurface : IThreadTimelineSurface
@@ -127,7 +127,7 @@ internal sealed class ThreadProjectRootResolver : IThreadProjectRootResolver
     public ProjectDescriptor? GetProjectById(string? projectId)
         => _getProjectById(projectId);
 
-    public string? ResolveProjectRoot(WorkThreadDescriptor thread)
+    public string? ResolveProjectRoot(SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
         return PromptReferenceProjectRootResolver.Resolve(thread, GetProjectById, GetSelectedProject);
@@ -162,7 +162,7 @@ internal sealed class ThreadSessionFactory
         _projectRootResolver = projectRootResolver;
     }
 
-    public OpenThreadState CreateThreadSession(WorkThreadDescriptor thread)
+    public OpenThreadState CreateThreadSession(SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
 
@@ -184,7 +184,7 @@ internal sealed class ThreadSessionFactory
         return state;
     }
 
-    public void UpdateThreadSession(OpenThreadState state, WorkThreadDescriptor thread)
+    public void UpdateThreadSession(OpenThreadState state, SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(thread);

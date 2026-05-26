@@ -65,7 +65,7 @@ public sealed class WorkThreadSkillActivationPlannerTests
         StringAssert.Contains(decision.Message, "Thread");
     }
 
-    private static WorkThreadDescriptorSnapshot CreateThread(string backendId)
+    private static SessionViewDescriptorSnapshot CreateThread(string backendId)
         => new()
         {
             ThreadId = "thread-1",

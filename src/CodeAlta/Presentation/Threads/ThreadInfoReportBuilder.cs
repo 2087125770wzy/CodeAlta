@@ -7,7 +7,7 @@ namespace CodeAlta.Presentation.Threads;
 internal static class ThreadInfoReportBuilder
 {
     public static ThreadInfoReport Build(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         string backendName,
         string? modelName,
         AgentReasoningEffort? reasoningEffort,

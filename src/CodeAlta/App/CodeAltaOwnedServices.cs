@@ -43,7 +43,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         WorkThreadCatalog threadCatalog,
         SkillCatalog skillCatalog,
         AgentHub agentHub,
-        WorkThreadRuntimeService runtimeService,
+        SessionRuntimeService runtimeService,
         IProjectFileSearchService projectFileSearchService)
     {
         _ownsLogging = ownsLogging;
@@ -88,7 +88,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
 
     public AgentHub AgentHub { get; }
 
-    public WorkThreadRuntimeService RuntimeService { get; }
+    public SessionRuntimeService RuntimeService { get; }
 
     public IProjectFileSearchService ProjectFileSearchService { get; }
 

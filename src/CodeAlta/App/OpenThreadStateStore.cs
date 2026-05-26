@@ -14,7 +14,7 @@ internal sealed class OpenThreadStateStore
         _threadSessionFactory = threadSessionFactory;
     }
 
-    public OpenThreadState EnsureThreadTab(WorkThreadDescriptor thread)
+    public OpenThreadState EnsureThreadTab(SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
 
@@ -56,7 +56,7 @@ internal sealed class OpenThreadStateStore
         return _threadTabs.GetValueOrDefault(threadId);
     }
 
-    public void RekeyThreadTab(string oldThreadId, WorkThreadDescriptor thread)
+    public void RekeyThreadTab(string oldThreadId, SessionViewDescriptor thread)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(oldThreadId);
         ArgumentNullException.ThrowIfNull(thread);
@@ -79,7 +79,7 @@ internal sealed class OpenThreadStateStore
         _threadTabs.Remove(threadId);
     }
 
-    public void PruneRetainedThreadState(IReadOnlyList<WorkThreadDescriptor> threads)
+    public void PruneRetainedThreadState(IReadOnlyList<SessionViewDescriptor> threads)
     {
         ArgumentNullException.ThrowIfNull(threads);
 

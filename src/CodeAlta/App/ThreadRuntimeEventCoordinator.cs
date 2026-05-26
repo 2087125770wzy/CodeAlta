@@ -20,7 +20,7 @@ internal sealed class ThreadRuntimeEventCoordinator
     private readonly IShellStatusPort _statusPort;
     private readonly Func<OpenThreadState, CancellationToken, Task> _drainQueuedPromptAsync;
     private readonly IProjectFileSearchService _projectFileSearchService;
-    private readonly Action<WorkThreadDescriptor> _upsertRuntimeThread;
+    private readonly Action<SessionViewDescriptor> _upsertRuntimeThread;
     private readonly IPluginAgentEventObserver _pluginAgentEventObserver;
     private readonly FrontendEventPublisher? _frontendEvents;
     private readonly ThreadRuntimeStateReducer _stateReducer;
@@ -35,7 +35,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         IShellStatusPort statusPort,
         Func<OpenThreadState, CancellationToken, Task> drainQueuedPromptAsync,
         IProjectFileSearchService projectFileSearchService,
-        Action<WorkThreadDescriptor>? upsertRuntimeThread = null,
+        Action<SessionViewDescriptor>? upsertRuntimeThread = null,
         IPluginAgentEventObserver? pluginAgentEventObserver = null,
         FrontendEventPublisher? frontendEvents = null)
     {
@@ -134,7 +134,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         ApplyReduction(tab, reduction);
     }
 
-    public void HandleAgentEvent(WorkThreadDescriptor thread, OpenThreadState tab, AgentEvent @event)
+    public void HandleAgentEvent(SessionViewDescriptor thread, OpenThreadState tab, AgentEvent @event)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(tab);
@@ -167,7 +167,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         ApplyReduction(tab, reduction);
     }
 
-    public async Task HandleAgentEventAsync(WorkThreadDescriptor thread, OpenThreadState tab, AgentEvent @event)
+    public async Task HandleAgentEventAsync(SessionViewDescriptor thread, OpenThreadState tab, AgentEvent @event)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(tab);
@@ -201,7 +201,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         await Task.CompletedTask;
     }
 
-    public void ProjectLoadedHistory(WorkThreadDescriptor thread, OpenThreadState tab, IReadOnlyList<AgentEvent> events)
+    public void ProjectLoadedHistory(SessionViewDescriptor thread, OpenThreadState tab, IReadOnlyList<AgentEvent> events)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(tab);
@@ -211,7 +211,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         _frontendEvents?.Publish(new RuntimeTimelineChangedEvent(thread.ThreadId));
     }
 
-    private void PublishRuntimeTimelineChanged(WorkThreadDescriptor thread, OpenThreadState tab)
+    private void PublishRuntimeTimelineChanged(SessionViewDescriptor thread, OpenThreadState tab)
     {
         if (!tab.HistoryLoading)
         {
@@ -238,13 +238,13 @@ internal sealed class ThreadRuntimeEventCoordinator
         }
     }
 
-    private void ObservePluginAgentEvent(WorkThreadDescriptor thread, AgentEvent @event)
+    private void ObservePluginAgentEvent(SessionViewDescriptor thread, AgentEvent @event)
         => global::CodeAlta.CodeAltaTaskMonitor.Observe(
             _pluginAgentEventObserver.ObserveAgentEventAsync(thread, @event),
             $"Plugin agent event observer for thread {thread.ThreadId}");
 
     private void ProjectPluginThreadEvents(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         IReadOnlyList<AgentEvent> events,
         bool isReplay)
@@ -266,7 +266,7 @@ internal sealed class ThreadRuntimeEventCoordinator
     }
 
     private async Task ProjectPluginThreadEventsAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         IReadOnlyList<AgentEvent> events,
         bool isReplay,
@@ -381,7 +381,7 @@ internal sealed class ThreadRuntimeEventCoordinator
             });
 
     private void UpdateDynamicProjectionSubscription(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         PluginTransientEventProjection projection)
     {
@@ -412,7 +412,7 @@ internal sealed class ThreadRuntimeEventCoordinator
         }
     }
 
-    private Task RefreshDynamicPluginProjectionAsync(WorkThreadDescriptor thread, OpenThreadState tab, string eventId)
+    private Task RefreshDynamicPluginProjectionAsync(SessionViewDescriptor thread, OpenThreadState tab, string eventId)
     {
         lock (tab.Session.PluginProjectionSyncRoot)
         {
@@ -464,13 +464,13 @@ internal sealed class ThreadRuntimeEventCoordinator
         }
     }
 
-    private WorkThreadDescriptor? FindThread(string threadId)
+    private SessionViewDescriptor? FindThread(string threadId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         return _stateStore.Snapshot.Threads.FirstOrDefault(thread => string.Equals(thread.ThreadId, threadId, StringComparison.OrdinalIgnoreCase));
     }
 
-    private void InvalidateProjectFileSearchIfNeeded(WorkThreadDescriptor thread, AgentEvent @event)
+    private void InvalidateProjectFileSearchIfNeeded(SessionViewDescriptor thread, AgentEvent @event)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(@event);

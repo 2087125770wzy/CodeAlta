@@ -17,7 +17,7 @@ namespace CodeAlta.App;
 
 internal sealed class ThreadCommandCoordinator
 {
-    private readonly WorkThreadRuntimeService _runtimeService;
+    private readonly SessionRuntimeService _runtimeService;
     private readonly IReadOnlyList<ModelProviderDescriptor> _backendDescriptors;
     private readonly Dictionary<string, ModelProviderState> _chatBackendStates;
     private readonly ThreadSelectionContext _threadSelection;
@@ -31,7 +31,7 @@ internal sealed class ThreadCommandCoordinator
     private readonly PluginHostBridge? _pluginHostBridge;
 
     public ThreadCommandCoordinator(
-        WorkThreadRuntimeService runtimeService,
+        SessionRuntimeService runtimeService,
         CatalogOptions catalogOptions,
         Dictionary<string, ModelProviderState> chatBackendStates,
         ThreadSelectionContext threadSelection,
@@ -65,7 +65,7 @@ internal sealed class ThreadCommandCoordinator
     }
 
     public ThreadCommandCoordinator(
-        WorkThreadRuntimeService runtimeService,
+        SessionRuntimeService runtimeService,
         CatalogOptions catalogOptions,
         IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         Dictionary<string, ModelProviderState> chatBackendStates,
@@ -352,14 +352,14 @@ internal sealed class ThreadCommandCoordinator
         return _promptDispatchCoordinator.DispatchPromptAsync(tab.Thread, tab, prompt, steer, cancellationToken);
     }
 
-    public WorkThreadExecutionOptions BuildPreferredExecutionOptions(
+    public SessionExecutionOptions BuildPreferredExecutionOptions(
         AgentBackendId backendId,
         string workingDirectory,
         IReadOnlyList<string> projectRoots,
         Func<string?>? sourceThreadIdProvider = null)
         => _promptDispatchCoordinator.BuildPreferredExecutionOptions(backendId, workingDirectory, projectRoots, sourceThreadIdProvider);
 
-    public WorkThreadExecutionOptions BuildExecutionOptions(WorkThreadDescriptor thread, OpenThreadState tab)
+    public SessionExecutionOptions BuildExecutionOptions(SessionViewDescriptor thread, OpenThreadState tab)
         => _promptDispatchCoordinator.BuildExecutionOptions(thread, tab);
 
     public async Task ActivateSelectedSkillAsync(string skillName, CancellationToken cancellationToken = default)
@@ -422,7 +422,7 @@ internal sealed class ThreadCommandCoordinator
                state.Availability == ModelProviderAvailability.Ready;
     }
 
-    private bool CurrentPromptModelSupportsImages(WorkThreadDescriptor? thread, OpenThreadState? tab)
+    private bool CurrentPromptModelSupportsImages(SessionViewDescriptor? thread, OpenThreadState? tab)
     {
         var providerId = tab is not null
             ? new ModelProviderId(tab.BackendId.Value)

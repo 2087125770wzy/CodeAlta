@@ -52,7 +52,7 @@ internal sealed class CodeAltaFrontendComposition
         IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         ProjectCatalog projectCatalog,
         WorkThreadCatalog threadCatalog,
-        WorkThreadRuntimeService runtimeService,
+        SessionRuntimeService runtimeService,
         CatalogOptions catalogOptions,
         AgentHub agentHub,
         IProjectFileSearchService projectFileSearchService,
@@ -98,7 +98,7 @@ internal sealed class CodeAltaFrontendComposition
             frontend.GetPromptText,
             () => frontendEvents.Publish(new PromptAvailabilityChangedEvent()),
             frontend.UpdatePromptImageAttachmentsUi);
-        knownProjectImporter.ShouldLoadProviderSessions = ShouldLoadProviderSessions;
+        knownProjectImporter.ShouldLoadProviderSessions = backendId => ShouldLoadProviderSessions(new ModelProviderId(backendId.Value));
         var configStore = new CodeAltaConfigStore(catalogOptions);
         var modelProviderPreferences = new ModelProviderPreferenceCoordinator(configStore, CodeAlta.Views.CodeAltaApp.UiLogger);
         var altaToolBackendIds = ResolveAltaToolBackendIds(configStore);
@@ -138,8 +138,8 @@ internal sealed class CodeAltaFrontendComposition
             shell,
             knownProjectImporter,
             new ProjectCatalogStore(projectCatalog),
-            new RecoverableThreadSource(runtimeService) { ShouldListBackendSessions = ShouldLoadProviderSessions },
-            new WorkThreadDeleter(runtimeService),
+            new RecoverableSessionSource(runtimeService) { ShouldListProviderSessions = ShouldLoadProviderSessions },
+            new SessionDeleter(runtimeService),
             backendDescriptors);
         var runtimeEventPump = new RuntimeEventPump(runtimeService, shellController);
         var terminalLoopCoordinator = new TerminalLoopCoordinator(
@@ -207,7 +207,7 @@ internal sealed class CodeAltaFrontendComposition
             () => frontendEvents.Publish(new CatalogChangedEvent()),
             frontend.SetStatus,
             frontend.SetReadyStatusForCurrentSelection);
-        var threadProviderSwitchCoordinator = new ThreadProviderSwitchCoordinator(
+        var threadProviderSwitchCoordinator = new SessionProviderSwitchCoordinator(
             configStore,
             chatBackendStates,
             tab =>
@@ -403,9 +403,9 @@ internal sealed class CodeAltaFrontendComposition
             WorkspaceRefreshContext = workspaceRefreshContext,
         };
 
-        bool ShouldLoadProviderSessions(AgentBackendId backendId)
+        bool ShouldLoadProviderSessions(ModelProviderId providerId)
         {
-            return backendDescriptors.Any(descriptor => descriptor.BackendId == backendId);
+            return backendDescriptors.Any(descriptor => descriptor.ProviderId == providerId);
         }
     }
 

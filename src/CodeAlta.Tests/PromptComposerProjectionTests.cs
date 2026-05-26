@@ -272,9 +272,9 @@ public sealed class PromptComposerProjectionTests
         Assert.IsTrue(projection.CanCloseTab);
     }
 
-    private static WorkThreadDescriptor CreateThread(string title)
+    private static SessionViewDescriptor CreateThread(string title)
     {
-        return new WorkThreadDescriptor
+        return new SessionViewDescriptor
         {
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,

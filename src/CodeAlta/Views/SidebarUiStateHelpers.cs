@@ -9,7 +9,7 @@ namespace CodeAlta.Views;
 
 internal static class SidebarUiStateHelpers
 {
-    public static string? GetExpandedProjectId(WorkThreadDescriptor? selectedThread)
+    public static string? GetExpandedProjectId(SessionViewDescriptor? selectedThread)
         => SidebarSelectionResolver.ResolvePreferredExpandedProjectId(selectedThread?.ProjectRef);
 
     public static void ToggleNavigator(SidebarView sidebarView, Action focusPromptTarget)

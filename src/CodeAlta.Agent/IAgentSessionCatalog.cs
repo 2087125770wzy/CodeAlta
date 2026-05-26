@@ -59,6 +59,15 @@ public interface IAgentSessionCatalog
     Task NotifySessionDeletedAsync(string sessionId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Deletes a persisted session by session identifier and invalidates cached metadata.
+    /// </summary>
+    /// <param name="sessionId">Session identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true" /> when the session existed and was deleted; otherwise <see langword="false" />.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="sessionId" /> is empty.</exception>
+    Task<bool> DeleteSessionAsync(string sessionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Notifies the catalog that a session was updated and invalidates cached metadata.
     /// </summary>
     /// <param name="sessionId">Session identifier.</param>

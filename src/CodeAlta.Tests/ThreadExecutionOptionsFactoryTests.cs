@@ -166,8 +166,8 @@ public sealed class ThreadExecutionOptionsFactoryTests
     private static ThreadCommandContext CreateCommandContext(IUiDispatcher uiDispatcher)
         => new(
             new DelegatingThreadLifecycleCommandPort(
-                static _ => Task.FromResult<WorkThreadDescriptor?>(null),
-                static _ => Task.FromResult<WorkThreadDescriptor?>(null),
+                static _ => Task.FromResult<SessionViewDescriptor?>(null),
+                static _ => Task.FromResult<SessionViewDescriptor?>(null),
                 static () => Task.CompletedTask),
             new ThreadCommandUiPort(
                 uiDispatcher,
@@ -191,7 +191,7 @@ public sealed class ThreadExecutionOptionsFactoryTests
                 static (_, _, _) => { },
                 static (_, _, _, _) => { }));
 
-    private static async Task<JsonElement> InvokeToolStatusAsync(WorkThreadExecutionOptions options)
+    private static async Task<JsonElement> InvokeToolStatusAsync(SessionExecutionOptions options)
     {
         Assert.IsNotNull(options.Tools);
         var tool = options.Tools.Single(static candidate => string.Equals(candidate.Spec.Name, "alta", StringComparison.Ordinal));

@@ -438,7 +438,7 @@ public sealed class AltaLiveToolTests
         var backend = new StatefulBackend(backendId);
         var runtime = CreateRuntime(options, backend);
         await using var _ = runtime.ConfigureAwait(false);
-        var parentOptions = new WorkThreadExecutionOptions
+        var parentOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -449,7 +449,7 @@ public sealed class AltaLiveToolTests
             OnPermissionRequest = static (_, _) => Task.FromResult(new AgentPermissionDecision(AgentPermissionDecisionKind.AllowOnce)),
         };
         var parent = await runtime.CreateGlobalThreadAsync(parentOptions, "Parent").ConfigureAwait(false);
-        var childOptions = new WorkThreadExecutionOptions
+        var childOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -958,7 +958,7 @@ public sealed class AltaLiveToolTests
         var backend = new StatefulBackend(backendId);
         var runtime = CreateRuntime(options, backend);
         await using var _ = runtime.ConfigureAwait(false);
-        var executionOptions = new WorkThreadExecutionOptions
+        var executionOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -1291,7 +1291,7 @@ public sealed class AltaLiveToolTests
         var backend = new StatefulBackend(backendId);
         var runtime = CreateRuntime(options, backend);
         await using var _ = runtime.ConfigureAwait(false);
-        var executionOptions = new WorkThreadExecutionOptions
+        var executionOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -1493,7 +1493,7 @@ public sealed class AltaLiveToolTests
         var backend = new StatefulBackend(backendId);
         var runtime = CreateRuntime(options, backend);
         await using var _ = runtime.ConfigureAwait(false);
-        var executionOptions = new WorkThreadExecutionOptions
+        var executionOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -1541,7 +1541,7 @@ public sealed class AltaLiveToolTests
             .Add(runtime)
             .Add<IAltaSessionToolBackendPolicy>(new AltaSessionToolBackendPolicy([AgentBackendIds.Codex.Value])));
         var timestamp = DateTimeOffset.UtcNow;
-        var parent = new WorkThreadDescriptor
+        var parent = new SessionViewDescriptor
         {
             ThreadId = "draft-parent",
             Kind = WorkThreadKind.GlobalThread,
@@ -1554,7 +1554,7 @@ public sealed class AltaLiveToolTests
             UpdatedAt = timestamp,
             LastActiveAt = timestamp,
         };
-        var parentOptions = new WorkThreadExecutionOptions
+        var parentOptions = new SessionExecutionOptions
         {
             BackendId = AgentBackendIds.Codex,
             ProviderKey = AgentBackendIds.Codex.Value,
@@ -1742,7 +1742,7 @@ public sealed class AltaLiveToolTests
         var backend = new StatefulBackend(backendId);
         var runtime = CreateRuntime(options, backend);
         await using var _ = runtime.ConfigureAwait(false);
-        var executionOptions = new WorkThreadExecutionOptions
+        var executionOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -1796,7 +1796,7 @@ public sealed class AltaLiveToolTests
         var backend = new StatefulBackend(backendId);
         var runtime = CreateRuntime(options, backend);
         await using var _ = runtime.ConfigureAwait(false);
-        var executionOptions = new WorkThreadExecutionOptions
+        var executionOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -1840,7 +1840,7 @@ public sealed class AltaLiveToolTests
         var backend = new StatefulBackend(backendId);
         var runtime = CreateRuntime(options, backend);
         await using var _ = runtime.ConfigureAwait(false);
-        var executionOptions = new WorkThreadExecutionOptions
+        var executionOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -2061,7 +2061,7 @@ public sealed class AltaLiveToolTests
         var backend = new StatefulBackend(backendId) { SendBlocker = sendBlocker, PublishRunEventOnSend = true };
         var runtime = CreateRuntime(options, backend);
         await using var _ = runtime.ConfigureAwait(false);
-        var executionOptions = new WorkThreadExecutionOptions
+        var executionOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -2103,7 +2103,7 @@ public sealed class AltaLiveToolTests
         var backend = new StatefulBackend(backendId) { SendBlocker = sendBlocker, PublishRunEventOnSend = true };
         var runtime = CreateRuntime(options, backend);
         await using var _ = runtime.ConfigureAwait(false);
-        var executionOptions = new WorkThreadExecutionOptions
+        var executionOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -2493,7 +2493,7 @@ public sealed class AltaLiveToolTests
             "alta",
             arguments.Clone());
 
-    private static WorkThreadDescriptor CreateThreadDescriptor(
+    private static SessionViewDescriptor CreateThreadDescriptor(
         string threadId,
         string title,
         string projectId,
@@ -2514,18 +2514,20 @@ public sealed class AltaLiveToolTests
             LastActiveAt = timestamp,
         };
 
-    private static WorkThreadRuntimeService CreateRuntime(CatalogOptions options, AgentBackendId backendId)
+    private static SessionRuntimeService CreateRuntime(CatalogOptions options, AgentBackendId backendId)
         => CreateRuntime(options, new SharedMetadataBackend(backendId));
 
-    private static WorkThreadRuntimeService CreateRuntime(CatalogOptions options, IAgentBackend backend)
+    private static SessionRuntimeService CreateRuntime(CatalogOptions options, IAgentBackend backend)
     {
         var factory = new AgentBackendFactory();
         factory.Register(backend.BackendId, () => backend);
         var hub = new AgentHub(factory);
         var projectCatalog = new ProjectCatalog(options);
         var threadCatalog = new WorkThreadCatalog(options);
-        return new WorkThreadRuntimeService(
+        var sessionCatalog = new AgentSessionCatalog(threadCatalog.JournalStore.CreateSessionStore());
+        return new SessionRuntimeService(
             hub,
+            sessionCatalog,
             projectCatalog,
             threadCatalog,
             new AgentInstructionTemplateProvider(catalogOptions: options),
@@ -2577,7 +2579,7 @@ public sealed class AltaLiveToolTests
         return state;
     }
 
-    private static async Task AppendJournalStateAsync(WorkThreadCatalog catalog, WorkThreadDescriptor thread, WorkThreadLocalState state)
+    private static async Task AppendJournalStateAsync(WorkThreadCatalog catalog, SessionViewDescriptor thread, WorkThreadLocalState state)
         => await catalog.JournalStore.AppendStateAsync(thread, state).ConfigureAwait(false);
 
     private static string ExtractText(AgentInput input)
@@ -2598,7 +2600,7 @@ public sealed class AltaLiveToolTests
     }
 
     private static async Task<TEvent> ReadRuntimeEventAsync<TEvent>(
-        WorkThreadRuntimeService runtime,
+        SessionRuntimeService runtime,
         Func<TEvent, bool> predicate)
         where TEvent : WorkThreadRuntimeEvent
     {

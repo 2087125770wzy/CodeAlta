@@ -38,10 +38,10 @@ internal sealed class ThreadCommandContext
     public bool TrySetPromptUnavailableStatus()
         => _uiPort.TrySetPromptUnavailableStatus();
 
-    public Task<WorkThreadDescriptor?> CreateGlobalThreadAsync(string? title = null)
+    public Task<SessionViewDescriptor?> CreateGlobalThreadAsync(string? title = null)
         => _threadLifecyclePort.CreateGlobalThreadAsync(title);
 
-    public Task<WorkThreadDescriptor?> CreateProjectThreadAsync(string? title = null)
+    public Task<SessionViewDescriptor?> CreateProjectThreadAsync(string? title = null)
         => _threadLifecyclePort.CreateProjectThreadAsync(title);
 
     public Task PersistViewStateAsync()
@@ -83,7 +83,7 @@ internal sealed class ThreadCommandContext
     public void ApplyCatalogProjection()
         => _uiPort.ApplyCatalogProjection();
 
-    public void RekeyThreadIdentity(string oldThreadId, WorkThreadDescriptor thread)
+    public void RekeyThreadIdentity(string oldThreadId, SessionViewDescriptor thread)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(oldThreadId);
         ArgumentNullException.ThrowIfNull(thread);

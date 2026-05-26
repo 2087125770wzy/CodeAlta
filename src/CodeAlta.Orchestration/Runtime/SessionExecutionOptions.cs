@@ -5,7 +5,7 @@ namespace CodeAlta.Orchestration.Runtime;
 /// <summary>
 /// Options used when creating or reusing a thread coordinator session.
 /// </summary>
-public sealed class WorkThreadExecutionOptions
+public sealed class SessionExecutionOptions
 {
     /// <summary>
     /// Gets or initializes the backend identifier.

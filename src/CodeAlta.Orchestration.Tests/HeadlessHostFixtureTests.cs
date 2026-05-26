@@ -28,7 +28,7 @@ public sealed class HeadlessHostFixtureTests
                 ConfigureAgentBackends = factory => factory.Register(backendId, () => new FakeAgentBackend(backendId)),
             },
             CancellationToken.None);
-        var executionOptions = new WorkThreadExecutionOptions
+        var executionOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -155,7 +155,7 @@ public sealed class HeadlessHostFixtureTests
                 ConfigureAgentBackends = factory => factory.Register(backendId, () => new FakeAgentBackend(backendId)),
             },
             CancellationToken.None);
-        var executionOptions = new WorkThreadExecutionOptions
+        var executionOptions = new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,

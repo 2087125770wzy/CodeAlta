@@ -82,7 +82,7 @@ public sealed class WorkThreadPluginToolServiceTests
             new AgentToolSpec(name, name, JsonDocument.Parse("{}").RootElement.Clone()),
             static (_, _) => Task.FromResult(new AgentToolResult(Success: true, [])));
 
-    private static WorkThreadExecutionOptions CreateOptions(
+    private static SessionExecutionOptions CreateOptions(
         IReadOnlyList<AgentToolDefinition> tools,
         IReadOnlyList<string> preferredToolNames)
         => new()

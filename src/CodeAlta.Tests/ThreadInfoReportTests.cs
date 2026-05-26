@@ -16,7 +16,7 @@ public sealed class ThreadInfoReportTests
         try
         {
             File.WriteAllText(tempFile, "1234567890");
-            var thread = new WorkThreadDescriptor
+            var thread = new SessionViewDescriptor
             {
                 ThreadId = "codex:thread-1",
                 BackendId = AgentBackendIds.Codex.Value,

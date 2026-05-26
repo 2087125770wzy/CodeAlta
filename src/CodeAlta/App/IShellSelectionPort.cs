@@ -6,7 +6,7 @@ namespace CodeAlta.App;
 internal sealed record ShellSelectionSnapshot(
     ShellSelection Selection,
     ProjectDescriptor? SelectedProject,
-    WorkThreadDescriptor? SelectedThread,
+    SessionViewDescriptor? SelectedThread,
     PromptSessionBinding? PromptSession);
 
 internal interface IShellSelectionPort
@@ -19,7 +19,7 @@ internal interface IShellSelectionPort
 
     ProjectDescriptor? GetSelectedProject();
 
-    WorkThreadDescriptor? GetSelectedThread();
+    SessionViewDescriptor? GetSelectedThread();
 
     PromptSessionBinding? GetSelectedPromptSession();
 }
@@ -28,7 +28,7 @@ internal sealed class DelegatingShellSelectionPort : IShellSelectionPort
 {
     private readonly Func<ShellSelection> _getSelection;
     private readonly Func<ProjectDescriptor?> _getSelectedProject;
-    private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
+    private readonly Func<SessionViewDescriptor?> _getSelectedThread;
     private readonly Func<PromptSessionBinding?> _getSelectedPromptSession;
     private readonly Func<ShellSelection, CancellationToken, Task> _selectAsync;
     private readonly Func<string, bool> _isSelectedThread;
@@ -36,7 +36,7 @@ internal sealed class DelegatingShellSelectionPort : IShellSelectionPort
     public DelegatingShellSelectionPort(
         Func<ShellSelection> getSelection,
         Func<ProjectDescriptor?> getSelectedProject,
-        Func<WorkThreadDescriptor?> getSelectedThread,
+        Func<SessionViewDescriptor?> getSelectedThread,
         Func<PromptSessionBinding?> getSelectedPromptSession,
         Func<ShellSelection, CancellationToken, Task> selectAsync,
         Func<string, bool> isSelectedThread)
@@ -71,7 +71,7 @@ internal sealed class DelegatingShellSelectionPort : IShellSelectionPort
     public ProjectDescriptor? GetSelectedProject()
         => _getSelectedProject();
 
-    public WorkThreadDescriptor? GetSelectedThread()
+    public SessionViewDescriptor? GetSelectedThread()
         => _getSelectedThread();
 
     public PromptSessionBinding? GetSelectedPromptSession()

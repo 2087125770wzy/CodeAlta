@@ -24,7 +24,7 @@ internal readonly record struct ThreadRuntimeReductionResult(
 internal sealed class ThreadRuntimeStateReducer
 {
     public ThreadRuntimeReductionResult ReduceRuntimeEvent(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState? tab,
         WorkThreadRuntimeEvent runtimeEvent,
         bool isSelectedThread)
@@ -43,7 +43,7 @@ internal sealed class ThreadRuntimeStateReducer
     }
 
     public ThreadRuntimeReductionResult ReduceAgentEvent(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         AgentEvent @event,
         bool isSelectedThread)
@@ -129,7 +129,7 @@ internal sealed class ThreadRuntimeStateReducer
     }
 
     private static ThreadRuntimeReductionResult ReduceHostEvent(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState? tab,
         WorkThreadHostEvent hostEvent)
     {
@@ -163,7 +163,7 @@ internal sealed class ThreadRuntimeStateReducer
     }
 
     private static ThreadRuntimeReductionResult ReduceAgentEvent(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState? tab,
         AgentEvent @event,
         bool isSelectedThread,
@@ -370,7 +370,7 @@ internal sealed class ThreadRuntimeStateReducer
         return false;
     }
 
-    private static void UpdateThreadFromAgentEvent(WorkThreadDescriptor thread, AgentEvent @event)
+    private static void UpdateThreadFromAgentEvent(SessionViewDescriptor thread, AgentEvent @event)
     {
         thread.UpdatedAt = @event.Timestamp;
         thread.LastActiveAt = @event.Timestamp;
@@ -394,7 +394,7 @@ internal sealed class ThreadRuntimeStateReducer
         }
     }
 
-    private static void UpdateThreadSummary(WorkThreadDescriptor thread, string message, DateTimeOffset timestamp)
+    private static void UpdateThreadSummary(SessionViewDescriptor thread, string message, DateTimeOffset timestamp)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);

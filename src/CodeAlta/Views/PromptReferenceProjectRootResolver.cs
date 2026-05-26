@@ -5,7 +5,7 @@ namespace CodeAlta.Views;
 internal static class PromptReferenceProjectRootResolver
 {
     public static string? Resolve(
-        WorkThreadDescriptor? selectedThread,
+        SessionViewDescriptor? selectedThread,
         Func<string?, ProjectDescriptor?> getProjectById,
         Func<ProjectDescriptor?> getSelectedProject,
         string? globalRoot = null)

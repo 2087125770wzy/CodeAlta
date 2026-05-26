@@ -6,10 +6,10 @@ using CodeAlta.Orchestration.Runtime;
 namespace CodeAlta.Orchestration.Tests;
 
 [TestClass]
-public sealed class WorkThreadRuntimeServiceTests
+public sealed class SessionRuntimeServiceTests
 {
     [TestMethod]
-    public async Task ListRecoverableThreadsAsync_IncludesLocalRuntimeSessionsForUnregisteredProviders()
+    public async Task ListRecoverableSessionsAsync_IncludesLocalRuntimeSessionsForUnregisteredProviders()
     {
         using var temp = new TempDirectory();
         var factory = new AgentBackendFactory();
@@ -30,12 +30,44 @@ public sealed class WorkThreadRuntimeServiceTests
                 UpdatedAt = createdAt.AddMinutes(1),
             }).ConfigureAwait(false);
 
-        var threads = await runtime.ListRecoverableThreadsAsync().ConfigureAwait(false);
+        var threads = await runtime.ListRecoverableSessionsAsync().ConfigureAwait(false);
 
         Assert.AreEqual(1, threads.Count);
         Assert.AreEqual("session-1", threads[0].ThreadId);
         Assert.AreEqual("old-provider", threads[0].BackendId);
         Assert.AreEqual("old-provider", threads[0].ProviderKey);
+    }
+
+    [TestMethod]
+    public async Task ListRecoverableSessionsAsync_DoesNotInitializeProviders()
+    {
+        using var temp = new TempDirectory();
+        var backendId = new AgentBackendId("registered-provider");
+        var backend = new ThrowingListSessionsBackend(backendId);
+        var factory = new AgentBackendFactory();
+        factory.Register(backendId, () => backend);
+        await using var hub = new AgentHub(factory);
+        await using var runtime = CreateRuntime(temp.Path, hub);
+        var store = new WorkThreadCatalog(new CatalogOptions { GlobalRoot = temp.Path }).JournalStore.CreateSessionStore();
+        var createdAt = DateTimeOffset.Parse("2026-05-16T12:00:00+00:00");
+        await store.UpsertSessionAsync(
+            new LocalAgentSessionSummary
+            {
+                SessionId = "session-1",
+                BackendId = backendId,
+                ProtocolFamily = "openai-responses",
+                ProviderKey = backendId.Value,
+                WorkingDirectory = temp.Path,
+                Title = "Recovered provider",
+                CreatedAt = createdAt,
+                UpdatedAt = createdAt.AddMinutes(1),
+            }).ConfigureAwait(false);
+
+        var threads = await runtime.ListRecoverableSessionsAsync().ConfigureAwait(false);
+
+        Assert.AreEqual(1, threads.Count);
+        Assert.AreEqual(0, backend.StartAttempts);
+        Assert.AreEqual(0, backend.ListSessionsAttempts);
     }
 
     [TestMethod]
@@ -61,18 +93,21 @@ public sealed class WorkThreadRuntimeServiceTests
         Assert.AreEqual(0, history.Count);
     }
 
-    private static WorkThreadRuntimeService CreateRuntime(string root, AgentHub hub)
+    private static SessionRuntimeService CreateRuntime(string root, AgentHub hub)
     {
         var options = new CatalogOptions { GlobalRoot = root };
-        return new WorkThreadRuntimeService(
+        var threadCatalog = new WorkThreadCatalog(options);
+        var sessionCatalog = new AgentSessionCatalog(threadCatalog.JournalStore.CreateSessionStore());
+        return new SessionRuntimeService(
             hub,
+            sessionCatalog,
             new ProjectCatalog(options),
-            new WorkThreadCatalog(options),
+            threadCatalog,
             new AgentInstructionTemplateProvider(catalogOptions: options),
             options);
     }
 
-    private static WorkThreadDescriptor CreateThread(string threadId, AgentBackendId backendId, string root)
+    private static SessionViewDescriptor CreateThread(string threadId, AgentBackendId backendId, string root)
         => new()
         {
             ThreadId = threadId,
@@ -87,7 +122,7 @@ public sealed class WorkThreadRuntimeServiceTests
             LastActiveAt = DateTimeOffset.UtcNow,
         };
 
-    private static WorkThreadExecutionOptions CreateOptions(AgentBackendId backendId, string root)
+    private static SessionExecutionOptions CreateOptions(AgentBackendId backendId, string root)
         => new()
         {
             BackendId = backendId,
@@ -142,6 +177,53 @@ public sealed class WorkThreadRuntimeServiceTests
             ResumeAttempts++;
             throw new KeyNotFoundException($"The session '{sessionId}' was not found for backend '{BackendId.Value}'.");
         }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class ThrowingListSessionsBackend(AgentBackendId backendId) : IAgentBackend
+    {
+        public AgentBackendId BackendId { get; } = backendId;
+
+        public string DisplayName => "Throwing List Sessions";
+
+        public int StartAttempts { get; private set; }
+
+        public int ListSessionsAttempts { get; private set; }
+
+        public Task StartAsync(CancellationToken cancellationToken = default)
+        {
+            StartAttempts++;
+            throw new InvalidOperationException("Provider should not be initialized while listing recoverable sessions.");
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Provider models should not be listed while listing recoverable sessions.");
+
+        public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
+            AgentSessionListFilter? filter = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            ListSessionsAttempts++;
+            await Task.CompletedTask.ConfigureAwait(false);
+            throw new InvalidOperationException("Provider sessions should not be listed while listing recoverable sessions.");
+#pragma warning disable CS0162
+            yield break;
+#pragma warning restore CS0162
+        }
+
+        public Task<IAgentSession> CreateSessionAsync(
+            AgentSessionCreateOptions options,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IAgentSession> ResumeSessionAsync(
+            string sessionId,
+            AgentSessionResumeOptions options,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

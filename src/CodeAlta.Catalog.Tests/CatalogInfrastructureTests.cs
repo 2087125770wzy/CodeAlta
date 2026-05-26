@@ -465,7 +465,7 @@ public sealed class CatalogInfrastructureTests
             MarkdownBody = "# Main Repo"
         };
         var timestamp = new DateTimeOffset(2026, 03, 10, 12, 0, 0, TimeSpan.Zero);
-        var internalThread = new WorkThreadDescriptor
+        var internalThread = new SessionViewDescriptor
         {
             ThreadId = "019cc85b",
             Kind = WorkThreadKind.InternalThread,
@@ -497,7 +497,7 @@ public sealed class CatalogInfrastructureTests
     {
         using var root = TempDirectory.Create();
         var catalog = new WorkThreadCatalog(new CatalogOptions { GlobalRoot = root.Path });
-        var descriptor = new WorkThreadDescriptor
+        var descriptor = new SessionViewDescriptor
         {
             ThreadId = "019cc700",
             Kind = WorkThreadKind.ProjectThread,
@@ -521,7 +521,7 @@ public sealed class CatalogInfrastructureTests
         var options = new CatalogOptions { GlobalRoot = root.Path };
         var catalog = new WorkThreadCatalog(options);
         var createdAt = new DateTimeOffset(2026, 05, 12, 10, 00, 00, TimeSpan.Zero);
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = "thread-header-test",
             Kind = WorkThreadKind.ProjectThread,
@@ -565,7 +565,7 @@ public sealed class CatalogInfrastructureTests
         var catalog = new WorkThreadCatalog(options);
         var sessionStore = catalog.JournalStore.CreateSessionStore();
         var createdAt = new DateTimeOffset(2026, 05, 12, 10, 00, 00, TimeSpan.Zero);
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = "thread-concurrent-log-test",
             Kind = WorkThreadKind.ProjectThread,
@@ -611,7 +611,7 @@ public sealed class CatalogInfrastructureTests
         var options = new CatalogOptions { GlobalRoot = root.Path };
         var catalog = new WorkThreadCatalog(options);
         var createdAt = new DateTimeOffset(2026, 05, 12, 10, 00, 00, TimeSpan.Zero);
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = "thread-exclusive-file-test",
             Kind = WorkThreadKind.ProjectThread,
@@ -653,7 +653,7 @@ public sealed class CatalogInfrastructureTests
         var catalog = new WorkThreadCatalog(options);
         var sessionStore = catalog.JournalStore.CreateSessionStore();
         var createdAt = new DateTimeOffset(2026, 05, 12, 10, 00, 00, TimeSpan.Zero);
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = "thread-backend-first-test",
             Kind = WorkThreadKind.ProjectThread,
@@ -698,7 +698,7 @@ public sealed class CatalogInfrastructureTests
         var options = new CatalogOptions { GlobalRoot = root.Path };
         var catalog = new WorkThreadCatalog(options);
         var createdAt = new DateTimeOffset(2026, 05, 12, 10, 00, 00, TimeSpan.Zero);
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = "thread-tail-probe-test",
             Kind = WorkThreadKind.ProjectThread,
@@ -1149,10 +1149,10 @@ public sealed class CatalogInfrastructureTests
         };
     }
 
-    private static WorkThreadDescriptor CreateInternalThreadDescriptor()
+    private static SessionViewDescriptor CreateInternalThreadDescriptor()
     {
         var timestamp = new DateTimeOffset(2026, 03, 10, 12, 0, 0, TimeSpan.Zero);
-        return new WorkThreadDescriptor
+        return new SessionViewDescriptor
         {
             ThreadId = "platform-search-review",
             Kind = WorkThreadKind.InternalThread,

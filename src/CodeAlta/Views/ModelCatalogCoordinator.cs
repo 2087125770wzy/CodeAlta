@@ -13,7 +13,7 @@ internal sealed class ModelCatalogCoordinator
 {
     private readonly IReadOnlyDictionary<string, ModelProviderState> _chatBackendStates;
     private readonly ModelProviderSelectorCoordinator _modelProviderSelectorCoordinator;
-    private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
+    private readonly Func<SessionViewDescriptor?> _getSelectedThread;
     private readonly Func<string, OpenThreadState?> _findOpenThread;
     private readonly Func<ModelProviderId> _getPreferredModelProviderId;
     private readonly Func<Rectangle?> _getDialogBounds;
@@ -25,7 +25,7 @@ internal sealed class ModelCatalogCoordinator
     public ModelCatalogCoordinator(
         IReadOnlyDictionary<string, ModelProviderState> chatBackendStates,
         ModelProviderSelectorCoordinator modelProviderSelectorCoordinator,
-        Func<WorkThreadDescriptor?> getSelectedThread,
+        Func<SessionViewDescriptor?> getSelectedThread,
         Func<string, OpenThreadState?> findOpenThread,
         Func<ModelProviderId> getPreferredModelProviderId,
         Func<Rectangle?> getDialogBounds,

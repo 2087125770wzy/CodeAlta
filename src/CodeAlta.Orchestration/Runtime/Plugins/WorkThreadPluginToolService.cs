@@ -28,8 +28,8 @@ public sealed class WorkThreadPluginToolService
     /// <param name="operationOptions">Plugin operation scope options.</param>
     /// <returns>Execution options with merged plugin tools.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="options"/> is <see langword="null"/>.</exception>
-    public WorkThreadExecutionOptions MergeTools(
-        WorkThreadExecutionOptions options,
+    public SessionExecutionOptions MergeTools(
+        SessionExecutionOptions options,
         PluginAdapterOperationOptions? operationOptions = null)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -59,7 +59,7 @@ public sealed class WorkThreadPluginToolService
             }
         }
 
-        return new WorkThreadExecutionOptions
+        return new SessionExecutionOptions
         {
             BackendId = options.BackendId,
             ProviderKey = options.ProviderKey,

@@ -13,7 +13,7 @@ flowchart TD
     BuiltIns[BuiltInAltaCommandContributor]
     PluginContributor[PluginAltaCommandContributor]
     Services[AltaServiceCollection]
-    Runtime[WorkThreadRuntimeService]
+    Runtime[SessionRuntimeService]
     Catalog[Project/Thread/Skill catalogs]
     Plugins[Plugin runtime]
 

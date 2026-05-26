@@ -973,7 +973,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             static _ => false);
     }
 
-    private static ShellThreadStateCoordinator CreateThreadStateCoordinator(string rootPath, out WorkThreadDescriptor thread)
+    private static ShellThreadStateCoordinator CreateThreadStateCoordinator(string rootPath, out SessionViewDescriptor thread)
     {
         var options = new CatalogOptions { GlobalRoot = rootPath };
         var coordinator = TestThreadStateServices.CreateCoordinator(
@@ -991,7 +991,7 @@ public sealed class ModelProviderSelectorCoordinatorTests
             ProjectPath = Path.Combine(rootPath, "project-1"),
             DefaultBranch = "main",
         };
-        thread = new WorkThreadDescriptor
+        thread = new SessionViewDescriptor
         {
             ThreadId = "openai:session-1",
             Kind = WorkThreadKind.ProjectThread,

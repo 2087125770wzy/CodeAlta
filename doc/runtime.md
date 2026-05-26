@@ -7,7 +7,7 @@ The runtime turns shell or live-tool requests into ordered work-thread commands,
 ```mermaid
 flowchart TD
     Request[Create/send/queue/steer/abort/compact request]
-    Service[WorkThreadRuntimeService]
+    Service[SessionRuntimeService]
     Actor[Per-thread WorkThreadActor]
     Hub[AgentHub]
     Backend[IAgentBackend]
@@ -29,7 +29,7 @@ flowchart TD
     Service --> RuntimeEvents
 ```
 
-`WorkThreadRuntimeService` is the public runtime service used by the TUI, `alta` commands, and plugin orchestration adapters. It owns work-thread creation, coordinator-session setup, prompt queueing, prompt sending, steering fallback, abort, manual compaction, skill activation, runtime event publication, and thread metadata journaling.
+`SessionRuntimeService` is the public runtime service used by the TUI, `alta` commands, and plugin orchestration adapters. It owns work-thread creation, coordinator-session setup, prompt queueing, prompt sending, steering fallback, abort, manual compaction, skill activation, runtime event publication, and thread metadata journaling.
 
 `AgentHub` owns backend/session lifecycle. It lazily creates and starts backends from `AgentBackendFactory`, caches active sessions, lists models and recoverable sessions, resumes sessions, and exposes normalized metadata to orchestration.
 
@@ -72,7 +72,7 @@ Runtime projections should be derived from these normalized events rather than p
 A normal prompt follows this path:
 
 1. The caller selects a global or project thread and model provider.
-2. `WorkThreadRuntimeService` ensures a coordinator session exists for the thread.
+2. `SessionRuntimeService` ensures a coordinator session exists for the thread.
 3. System/developer instructions, runtime context, project context, skills metadata, and tool definitions are composed.
 4. `AgentHub` starts or resumes the selected backend/session.
 5. The prompt is sent through `IAgentSession.SendAsync`.

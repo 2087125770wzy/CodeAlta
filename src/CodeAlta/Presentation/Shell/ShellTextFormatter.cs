@@ -85,7 +85,7 @@ internal static class ShellTextFormatter
     }
 
     public static string BuildReadyStatusText(
-        WorkThreadDescriptor? thread,
+        SessionViewDescriptor? thread,
         ProjectDescriptor? selectedProject,
         bool globalScopeSelected)
     {

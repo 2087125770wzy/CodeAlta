@@ -27,7 +27,7 @@ namespace CodeAlta.Presentation.Prompting
             => BuildReadyPromptPlaceholder(isContinuation: false, hasProjectContext: false);
 
         public static PromptComposerProjection Build(
-            WorkThreadDescriptor? selectedThread,
+            SessionViewDescriptor? selectedThread,
             ProjectDescriptor? selectedProject,
             bool globalScopeSelected,
             string providerDisplayName,
@@ -71,7 +71,7 @@ namespace CodeAlta.Presentation.Prompting
         }
 
         internal static string BuildPromptPlaceholder(
-            WorkThreadDescriptor? thread,
+            SessionViewDescriptor? thread,
             ProjectDescriptor? selectedProject,
             bool globalScopeSelected,
             IReadOnlyList<string>? promptPlaceholderContributions = null)
@@ -84,7 +84,7 @@ namespace CodeAlta.Presentation.Prompting
         }
 
         internal static string BuildPromptUnavailablePlaceholder(
-            WorkThreadDescriptor? thread,
+            SessionViewDescriptor? thread,
             string providerDisplayName,
             ModelProviderAvailability availability,
             bool anyBackendReady)
@@ -107,7 +107,7 @@ namespace CodeAlta.Presentation.Prompting
         }
 
         internal static string BuildPromptUnavailableStatusText(
-            WorkThreadDescriptor? thread,
+            SessionViewDescriptor? thread,
             string providerDisplayName,
             ModelProviderAvailability availability,
             bool anyBackendReady)

@@ -13,7 +13,7 @@ public sealed class InitialCatalogStateCoordinatorTests
     {
         var state = new ShellThreadStateCoordinator.InitialCatalogState(
             Array.Empty<ProjectDescriptor>(),
-            Array.Empty<WorkThreadDescriptor>(),
+            Array.Empty<SessionViewDescriptor>(),
             new WorkThreadViewState());
         var sequence = new List<string>();
         var stateApplied = false;

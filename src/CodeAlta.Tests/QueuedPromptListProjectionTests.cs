@@ -57,7 +57,7 @@ public sealed class QueuedPromptListProjectionTests
 
     private static OpenThreadState CreateOpenThreadState()
     {
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,

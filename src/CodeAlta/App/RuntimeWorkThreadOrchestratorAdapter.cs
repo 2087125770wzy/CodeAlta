@@ -6,12 +6,12 @@ namespace CodeAlta.App;
 
 internal sealed class RuntimeWorkThreadOrchestratorAdapter : IWorkThreadOrchestrator
 {
-    private readonly WorkThreadRuntimeService _runtimeService;
-    private readonly Func<string, WorkThreadDescriptor?> _findThread;
+    private readonly SessionRuntimeService _runtimeService;
+    private readonly Func<string, SessionViewDescriptor?> _findThread;
 
     public RuntimeWorkThreadOrchestratorAdapter(
-        WorkThreadRuntimeService runtimeService,
-        Func<string, WorkThreadDescriptor?> findThread)
+        SessionRuntimeService runtimeService,
+        Func<string, SessionViewDescriptor?> findThread)
     {
         ArgumentNullException.ThrowIfNull(runtimeService);
         ArgumentNullException.ThrowIfNull(findThread);
@@ -36,7 +36,7 @@ internal sealed class RuntimeWorkThreadOrchestratorAdapter : IWorkThreadOrchestr
         return new WorkThreadCommandResult
         {
             Outcome = WorkThreadCommandOutcomeKind.Submitted,
-            Thread = WorkThreadDescriptorSnapshot.FromDescriptor(thread),
+            Thread = SessionViewDescriptorSnapshot.FromDescriptor(thread),
             RunId = runId.Value,
         };
     }
@@ -52,7 +52,7 @@ internal sealed class RuntimeWorkThreadOrchestratorAdapter : IWorkThreadOrchestr
         return new WorkThreadCommandResult
         {
             Outcome = WorkThreadCommandOutcomeKind.Steered,
-            Thread = WorkThreadDescriptorSnapshot.FromDescriptor(thread),
+            Thread = SessionViewDescriptorSnapshot.FromDescriptor(thread),
             RunId = runId.Value,
         };
     }
@@ -73,7 +73,7 @@ internal sealed class RuntimeWorkThreadOrchestratorAdapter : IWorkThreadOrchestr
         return new WorkThreadCommandResult
         {
             Outcome = WorkThreadCommandOutcomeKind.Completed,
-            Thread = WorkThreadDescriptorSnapshot.FromDescriptor(thread),
+            Thread = SessionViewDescriptorSnapshot.FromDescriptor(thread),
         };
     }
 
@@ -88,14 +88,14 @@ internal sealed class RuntimeWorkThreadOrchestratorAdapter : IWorkThreadOrchestr
         return new WorkThreadCommandResult
         {
             Outcome = WorkThreadCommandOutcomeKind.Queued,
-            Thread = WorkThreadDescriptorSnapshot.FromDescriptor(thread),
+            Thread = SessionViewDescriptorSnapshot.FromDescriptor(thread),
             Message = item.QueueItemId,
         };
     }
 
     public ValueTask<WorkThreadSnapshot?> GetThreadSnapshotAsync(string threadId, CancellationToken cancellationToken = default)
         => ValueTask.FromResult(_findThread(threadId) is { } thread
-            ? new WorkThreadSnapshot { Thread = WorkThreadDescriptorSnapshot.FromDescriptor(thread), IsRunning = false, QueuedPromptCount = 0 }
+            ? new WorkThreadSnapshot { Thread = SessionViewDescriptorSnapshot.FromDescriptor(thread), IsRunning = false, QueuedPromptCount = 0 }
             : null);
 
     public async IAsyncEnumerable<WorkThreadOrchestratorEvent> StreamEventsAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -104,7 +104,7 @@ internal sealed class RuntimeWorkThreadOrchestratorAdapter : IWorkThreadOrchestr
         yield break;
     }
 
-    private WorkThreadDescriptor ResolveThread(WorkThreadCommandContext context)
+    private SessionViewDescriptor ResolveThread(WorkThreadCommandContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         if (string.IsNullOrWhiteSpace(context.ThreadId))

@@ -25,8 +25,9 @@ public sealed class CodeAltaHost : IAsyncDisposable
         AgentBackendFactory backendFactory,
         ModelProviderRegistry modelProviderRegistry,
         ModelProviderInitializationService modelProviderInitializationService,
+        IAgentSessionCatalog sessionCatalog,
         AgentHub agentHub,
-        WorkThreadRuntimeService runtimeService,
+        SessionRuntimeService runtimeService,
         IProjectFileSearchService projectFileSearchService,
         PluginRuntimeManager pluginRuntime,
         bool ownsPluginRuntime,
@@ -40,6 +41,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
         BackendFactory = backendFactory;
         ModelProviderRegistry = modelProviderRegistry;
         ModelProviderInitializationService = modelProviderInitializationService;
+        SessionCatalog = sessionCatalog;
         AgentHub = agentHub;
         RuntimeService = runtimeService;
         ProjectFileSearchService = projectFileSearchService;
@@ -85,6 +87,11 @@ public sealed class CodeAltaHost : IAsyncDisposable
     public ModelProviderInitializationService ModelProviderInitializationService { get; }
 
     /// <summary>
+    /// Gets the provider-independent session catalog used by the host.
+    /// </summary>
+    public IAgentSessionCatalog SessionCatalog { get; }
+
+    /// <summary>
     /// Gets the agent hub.
     /// </summary>
     public AgentHub AgentHub { get; }
@@ -92,7 +99,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
     /// <summary>
     /// Gets the work-thread runtime service.
     /// </summary>
-    public WorkThreadRuntimeService RuntimeService { get; }
+    public SessionRuntimeService RuntimeService { get; }
 
     /// <summary>
     /// Gets the project-file search service.
@@ -190,8 +197,10 @@ public sealed class CodeAltaHost : IAsyncDisposable
         _ = CodeAltaHostPluginBackendRegistrar.RegisterPluginBackends(backendFactory, modelProviderRegistry, pluginRuntime, pluginOperationOptions);
         var modelProviderInitializationService = new ModelProviderInitializationService(modelProviderRegistry);
         var agentHub = new AgentHub(backendFactory);
-        var runtimeService = new WorkThreadRuntimeService(
+        var sessionCatalog = new AgentSessionCatalog(threadCatalog.JournalStore.CreateSessionStore());
+        var runtimeService = new SessionRuntimeService(
             agentHub,
+            sessionCatalog,
             projectCatalog,
             threadCatalog,
             instructionTemplateProvider,
@@ -209,6 +218,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
             backendFactory,
             modelProviderRegistry,
             modelProviderInitializationService,
+            sessionCatalog,
             agentHub,
             runtimeService,
             projectFileSearchService,

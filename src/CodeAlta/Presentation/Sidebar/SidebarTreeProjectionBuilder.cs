@@ -10,7 +10,7 @@ internal static class SidebarTreeProjectionBuilder
 {
     public static SidebarTreeProjection Build(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         string globalRoot,
         IReadOnlyCollection<string> expandedProjectIds,
         NavigatorSettings settings,
@@ -36,7 +36,7 @@ internal static class SidebarTreeProjectionBuilder
     }
 
     private static SidebarTreeNodeProjection CreateGlobalNode(
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         NavigatorSettings settings,
         Func<string, ThreadVisualState> getThreadVisualState,
         Func<string?, bool, bool> hasDraftPrompt,
@@ -79,7 +79,7 @@ internal static class SidebarTreeProjectionBuilder
 
     private static SidebarTreeNodeProjection CreateProjectsNode(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         IReadOnlyCollection<string> expandedProjectIds,
         NavigatorSettings settings,
         Func<string, ThreadVisualState> getThreadVisualState,
@@ -116,7 +116,7 @@ internal static class SidebarTreeProjectionBuilder
 
     private static SidebarTreeNodeProjection CreateProjectNode(
         ProjectDescriptor project,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         IReadOnlyCollection<string> expandedProjectIds,
         NavigatorSettings settings,
         Func<string, ThreadVisualState> getThreadVisualState,
@@ -204,9 +204,9 @@ internal static class SidebarTreeProjectionBuilder
     }
 
     private static IReadOnlyList<ThreadHierarchyNode> CreateThreadHierarchy(
-        this IReadOnlyList<WorkThreadDescriptor> threads,
+        this IReadOnlyList<SessionViewDescriptor> threads,
         int rootLimit,
-        IReadOnlyList<WorkThreadDescriptor> lineageThreads)
+        IReadOnlyList<SessionViewDescriptor> lineageThreads)
     {
         ArgumentNullException.ThrowIfNull(lineageThreads);
 
@@ -243,8 +243,8 @@ internal static class SidebarTreeProjectionBuilder
     }
 
     private static ThreadHierarchyNode BuildHierarchyNode(
-        WorkThreadDescriptor thread,
-        IReadOnlyDictionary<string, WorkThreadDescriptor[]> children,
+        SessionViewDescriptor thread,
+        IReadOnlyDictionary<string, SessionViewDescriptor[]> children,
         IReadOnlyDictionary<string, ThreadLineageDiagnostic> diagnosticsById,
         HashSet<string> visiting)
     {
@@ -263,15 +263,15 @@ internal static class SidebarTreeProjectionBuilder
     }
 
     private static bool IsHierarchyChild(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         IReadOnlyDictionary<string, ThreadLineageDiagnostic> diagnosticsById)
         => !string.IsNullOrWhiteSpace(thread.ParentThreadId) &&
            diagnosticsById.TryGetValue(thread.ThreadId, out var diagnostic) &&
            diagnostic == ThreadLineageDiagnostic.None;
 
     private static ThreadLineageDiagnostic GetLineageDiagnostic(
-        WorkThreadDescriptor thread,
-        IReadOnlyDictionary<string, WorkThreadDescriptor> byId)
+        SessionViewDescriptor thread,
+        IReadOnlyDictionary<string, SessionViewDescriptor> byId)
     {
         if (string.IsNullOrWhiteSpace(thread.ParentThreadId))
         {
@@ -292,8 +292,8 @@ internal static class SidebarTreeProjectionBuilder
     }
 
     private static bool HasLineageCycle(
-        WorkThreadDescriptor thread,
-        IReadOnlyDictionary<string, WorkThreadDescriptor> byId)
+        SessionViewDescriptor thread,
+        IReadOnlyDictionary<string, SessionViewDescriptor> byId)
     {
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { thread.ThreadId };
         var current = thread.ParentThreadId;
@@ -311,8 +311,8 @@ internal static class SidebarTreeProjectionBuilder
     }
 
     private static DateTimeOffset GetSubtreeLastActiveAt(
-        WorkThreadDescriptor thread,
-        IReadOnlyDictionary<string, WorkThreadDescriptor> byId,
+        SessionViewDescriptor thread,
+        IReadOnlyDictionary<string, SessionViewDescriptor> byId,
         IReadOnlyDictionary<string, ThreadLineageDiagnostic> diagnosticsById)
     {
         var latest = thread.LastActiveAt;
@@ -356,7 +356,7 @@ internal static class SidebarTreeProjectionBuilder
     private static string BuildLineageDiagnosticIconMarkup()
         => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Warning)}]{NerdFont.MdAlertCircleOutline}[/]";
 
-    private static string? ResolveLineageDiagnosticTooltip(ThreadLineageDiagnostic diagnostic, WorkThreadDescriptor thread)
+    private static string? ResolveLineageDiagnosticTooltip(ThreadLineageDiagnostic diagnostic, SessionViewDescriptor thread)
     {
         return diagnostic switch
         {
@@ -375,7 +375,7 @@ internal static class SidebarTreeProjectionBuilder
         Cycle,
     }
 
-    private sealed record ThreadHierarchyNode(WorkThreadDescriptor Thread, IReadOnlyList<ThreadHierarchyNode> Children, ThreadLineageDiagnostic LineageDiagnostic);
+    private sealed record ThreadHierarchyNode(SessionViewDescriptor Thread, IReadOnlyList<ThreadHierarchyNode> Children, ThreadLineageDiagnostic LineageDiagnostic);
 
     private static IReadOnlyList<SidebarRowActionDescriptor> CreateProjectActions()
         =>
@@ -404,7 +404,7 @@ internal static class SidebarTreeProjectionBuilder
 
     private static IEnumerable<ProjectDescriptor> OrderProjectsByDate(
         IEnumerable<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         bool includeInternal = true)
     {
         ArgumentNullException.ThrowIfNull(projects);

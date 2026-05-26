@@ -27,7 +27,7 @@ Add a rule here when it is important enough that contributors and agents should 
 
 Phase 0 of the backend refactor locks the target boundaries and names before code churn starts:
 
-- Final target names are `AgentRuntime`/`IAgentRuntime` for the CodeAlta-owned active-session facade, `SessionRuntimeService` for the orchestration service currently named `WorkThreadRuntimeService`, `SessionViewDescriptor` for the UI/catalog projection currently named `WorkThreadDescriptor`, `ModelProviderId`, `ModelProviderDescriptor`, `ModelProviderState`, and `IAgentSessionStore`. Avoid introducing a broad `SessionDescriptor`; use `AgentSessionMetadata` for durable stored session metadata unless a narrower descriptor is required.
+- Final target names are `AgentRuntime`/`IAgentRuntime` for the CodeAlta-owned active-session facade, `SessionRuntimeService` for the session orchestration service, `SessionViewDescriptor` for the UI/catalog projection, `ModelProviderId`, `ModelProviderDescriptor`, `ModelProviderState`, and `IAgentSessionStore`. Avoid introducing a broad `SessionDescriptor`; use `AgentSessionMetadata` for durable stored session metadata unless a narrower descriptor is required.
 - `AgentRuntime` owns active session handles, per-session run coordination, abort/steer/compact flow, and provider resolution for start/resume/run. It must not own persisted session discovery or model-provider probing.
 - `IAgentSessionStore` and the session catalog are the durable session owners. Session listing, metadata reads, history reads, and deletion are provider-independent and should scan one configured sessions root once per runtime/catalog instance.
 - Model providers own configured provider identity, protocol adaptation, readiness, capabilities, and model catalogs only. Provider initialization must be independent per provider and must not gate local session listing or history loading.
@@ -41,7 +41,7 @@ Phase 0 baseline on 2026-05-26: `dotnet test -c Release` from `src` passed with 
 Tests identified as assuming backend-owned sessions or the current backend/session coupling and therefore expected to move or change during the refactor:
 
 - `src/CodeAlta.Orchestration.Tests/AgentHubTests.cs`: `UsesSharedSessionMetadataStoreAsync_UsesRegistrationMetadataWithoutStartingBackend`.
-- `src/CodeAlta.Orchestration.Tests/WorkThreadRuntimeServiceTests.cs`: `ListRecoverableThreadsAsync_IncludesLocalRuntimeSessionsForUnregisteredProviders`, `EnsureCoordinatorSessionAsync_RecreatesSharedMetadataSessionWhenResumeTargetIsMissing`.
+- `src/CodeAlta.Orchestration.Tests/SessionRuntimeServiceTests.cs`: session-runtime recovery and missing-resume coverage that moved off backend-owned session enumeration.
 - `src/CodeAlta.Tests/AgentBackendFactoryTests.cs`: `UsesSharedSessionMetadataStore_ReturnsRegistrationMetadata`.
 - `src/CodeAlta.Tests/AgentHubBackendReloadTests.cs`: `ListSessionsAsync_CachesProcessBackedBackendSessions`, `ListSessionsAsync_CachesRegularBackendSessions`, `DeleteSessionAsync_InvalidatesProcessBackedSessionCache`.
 - `src/CodeAlta.Tests/FileSystemLocalAgentSessionStoreTests.cs`: provider-scoped `ListSessionsAsync` and persisted `BackendId`/provider metadata coverage.

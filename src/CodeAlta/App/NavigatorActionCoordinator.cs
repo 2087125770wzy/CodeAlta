@@ -73,7 +73,7 @@ internal sealed class NavigatorActionCoordinator : IProjectDetailsDialogService
             bodyLines,
             "Delete",
             ControlTone.Error,
-            () => DeleteThreadAsync(thread),
+            () => DeleteSessionAsync(thread),
             _getDialogBounds,
             _getFocusTarget)
             .Show();
@@ -208,12 +208,12 @@ internal sealed class NavigatorActionCoordinator : IProjectDetailsDialogService
         await SaveProjectAsync(updatedProject);
     }
 
-    private async Task DeleteThreadAsync(WorkThreadDescriptor thread)
+    private async Task DeleteSessionAsync(SessionViewDescriptor thread)
     {
         try
         {
             _setStatus($"Deleting thread '{thread.Title}'...", true, StatusTone.Info);
-            var result = await _shellController.DeleteThreadAsync(thread, _threadStateCoordinator.Threads, CancellationToken.None);
+            var result = await _shellController.DeleteSessionAsync(thread, _threadStateCoordinator.Threads, CancellationToken.None);
             _threadStateCoordinator.RemoveDeletedThreads(result.DeletedThreadIds, thread.ProjectRef);
             await _threadStateCoordinator.RemoveDeletedThreadArtifactsAsync(result.DeletedThreadIds);
             _setReadyStatusForCurrentSelection();
@@ -224,7 +224,7 @@ internal sealed class NavigatorActionCoordinator : IProjectDetailsDialogService
         }
     }
 
-    private async Task DeleteProjectAsync(ProjectDescriptor project, IReadOnlyList<WorkThreadDescriptor> threads)
+    private async Task DeleteProjectAsync(ProjectDescriptor project, IReadOnlyList<SessionViewDescriptor> threads)
     {
         try
         {
@@ -257,7 +257,7 @@ internal sealed class NavigatorActionCoordinator : IProjectDetailsDialogService
                 var knownThreads = _threadStateCoordinator.Threads
                     .Where(thread => !deletedThreadIdSet.Contains(thread.ThreadId))
                     .ToArray();
-                var result = await _shellController.DeleteThreadAsync(threadId, knownThreads, CancellationToken.None);
+                var result = await _shellController.DeleteSessionAsync(threadId, knownThreads, CancellationToken.None);
                 deletedThreadIds.AddRange(result.DeletedThreadIds);
                 foreach (var deletedThreadId in result.DeletedThreadIds)
                 {

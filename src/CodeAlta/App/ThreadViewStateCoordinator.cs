@@ -30,8 +30,8 @@ internal sealed class ThreadViewStateCoordinator
         }
     }
 
-    public IReadOnlyList<WorkThreadDescriptor> ApplyThreadLocalState(
-        IReadOnlyList<WorkThreadDescriptor> threads,
+    public IReadOnlyList<SessionViewDescriptor> ApplyThreadLocalState(
+        IReadOnlyList<SessionViewDescriptor> threads,
         WorkThreadViewState viewState,
         bool readJournal = false)
     {
@@ -55,8 +55,8 @@ internal sealed class ThreadViewStateCoordinator
         return threads;
     }
 
-    public async Task<IReadOnlyList<WorkThreadDescriptor>> ApplyThreadLocalStateAsync(
-        IReadOnlyList<WorkThreadDescriptor> threads,
+    public async Task<IReadOnlyList<SessionViewDescriptor>> ApplyThreadLocalStateAsync(
+        IReadOnlyList<SessionViewDescriptor> threads,
         WorkThreadViewState viewState,
         bool readJournal = true,
         CancellationToken cancellationToken = default)
@@ -85,7 +85,7 @@ internal sealed class ThreadViewStateCoordinator
         return threads;
     }
 
-    public async Task PersistThreadLocalStateAsync(WorkThreadViewState viewState, WorkThreadDescriptor thread)
+    public async Task PersistThreadLocalStateAsync(WorkThreadViewState viewState, SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(viewState);
         ArgumentNullException.ThrowIfNull(thread);
@@ -96,7 +96,7 @@ internal sealed class ThreadViewStateCoordinator
         await PersistThreadLocalStateSnapshotAsync(thread, localState).ConfigureAwait(false);
     }
 
-    public WorkThreadLocalState RememberThreadLocalState(WorkThreadViewState viewState, WorkThreadDescriptor thread)
+    public WorkThreadLocalState RememberThreadLocalState(WorkThreadViewState viewState, SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(viewState);
         ArgumentNullException.ThrowIfNull(thread);
@@ -108,7 +108,7 @@ internal sealed class ThreadViewStateCoordinator
     }
 
     public async Task PersistThreadLocalStateSnapshotAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         WorkThreadLocalState localState,
         CancellationToken cancellationToken = default)
     {
@@ -162,7 +162,7 @@ internal sealed class ThreadViewStateCoordinator
         await PersistViewStateAsync(viewState).ConfigureAwait(false);
     }
 
-    private static WorkThreadLocalState CreateThreadLocalState(WorkThreadDescriptor thread)
+    private static WorkThreadLocalState CreateThreadLocalState(SessionViewDescriptor thread)
         => new()
         {
             ProviderKey = thread.ResolvedProviderKey,
@@ -177,7 +177,7 @@ internal sealed class ThreadViewStateCoordinator
     private static string? NormalizeThemeSchemeName(string? themeSchemeName)
         => string.IsNullOrWhiteSpace(themeSchemeName) ? null : themeSchemeName.Trim();
 
-    private static void ApplyLocalState(WorkThreadDescriptor thread, WorkThreadLocalState localState)
+    private static void ApplyLocalState(SessionViewDescriptor thread, WorkThreadLocalState localState)
     {
         if (localState.Archived)
         {

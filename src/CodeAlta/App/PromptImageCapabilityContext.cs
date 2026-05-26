@@ -8,13 +8,13 @@ namespace CodeAlta.App;
 
 internal sealed class PromptImageCapabilityContext
 {
-    private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
+    private readonly Func<SessionViewDescriptor?> _getSelectedThread;
     private readonly Func<string, OpenThreadState?> _findOpenThread;
     private readonly Func<AgentBackendId> _getPreferredBackendId;
     private readonly IReadOnlyDictionary<string, ModelProviderState> _chatBackendStates;
 
     public PromptImageCapabilityContext(
-        Func<WorkThreadDescriptor?> getSelectedThread,
+        Func<SessionViewDescriptor?> getSelectedThread,
         Func<string, OpenThreadState?> findOpenThread,
         Func<AgentBackendId> getPreferredBackendId,
         IReadOnlyDictionary<string, ModelProviderState> chatBackendStates)

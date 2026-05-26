@@ -741,7 +741,7 @@ public sealed class ShellThreadStateCoordinatorTests
         Func<IReadOnlyList<string>>? getOpenThreadTabIds = null,
         ShellStateStore? stateStore = null,
         FrontendEventPublisher? frontendEvents = null,
-        Func<WorkThreadDescriptor, CancellationToken, Task>? ensureThreadHistoryLoadedAsync = null)
+        Func<SessionViewDescriptor, CancellationToken, Task>? ensureThreadHistoryLoadedAsync = null)
     {
         threadCatalog ??= new WorkThreadCatalog(options);
         return TestThreadStateServices.CreateCoordinator(
@@ -758,13 +758,13 @@ public sealed class ShellThreadStateCoordinatorTests
             frontendEvents: frontendEvents);
     }
 
-    private static WorkThreadDescriptor CreateThread(string threadId)
+    private static SessionViewDescriptor CreateThread(string threadId)
         => CreateThread(threadId, "project-1");
 
-    private static WorkThreadDescriptor CreateThread(string threadId, string projectId)
+    private static SessionViewDescriptor CreateThread(string threadId, string projectId)
     {
         var timestamp = DateTimeOffset.Parse("2026-03-29T12:00:00+00:00");
-        return new WorkThreadDescriptor
+        return new SessionViewDescriptor
         {
             ThreadId = threadId,
             Kind = WorkThreadKind.ProjectThread,
@@ -779,10 +779,10 @@ public sealed class ShellThreadStateCoordinatorTests
         };
     }
 
-    private static WorkThreadDescriptor CreateGlobalThread(string threadId, string globalRoot)
+    private static SessionViewDescriptor CreateGlobalThread(string threadId, string globalRoot)
     {
         var timestamp = DateTimeOffset.Parse("2026-03-29T12:00:00+00:00");
-        return new WorkThreadDescriptor
+        return new SessionViewDescriptor
         {
             ThreadId = threadId,
             Kind = WorkThreadKind.GlobalThread,

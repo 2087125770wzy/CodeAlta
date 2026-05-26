@@ -92,7 +92,7 @@ public sealed class WorkThreadYamlSerializer
     /// </summary>
     /// <param name="markdown">The markdown content.</param>
     /// <returns>The parsed descriptor.</returns>
-    public WorkThreadDescriptor DeserializeThreadMarkdown(string markdown)
+    public SessionViewDescriptor DeserializeThreadMarkdown(string markdown)
     {
         ArgumentNullException.ThrowIfNull(markdown);
         var document = ParseFrontMatter(markdown);
@@ -100,7 +100,7 @@ public sealed class WorkThreadYamlSerializer
 
         var threadId = MigrateThreadId(frontMatter.ThreadId, ExtractLegacySessionId(document.FrontMatter), frontMatter.BackendId, frontMatter.ProviderKey);
 
-        return new WorkThreadDescriptor
+        return new SessionViewDescriptor
         {
             ThreadId = threadId,
             Kind = ParseKind(frontMatter.Kind),
@@ -127,7 +127,7 @@ public sealed class WorkThreadYamlSerializer
     /// </summary>
     /// <param name="descriptor">The descriptor to serialize.</param>
     /// <returns>Markdown text.</returns>
-    public string SerializeThreadMarkdown(WorkThreadDescriptor descriptor)
+    public string SerializeThreadMarkdown(SessionViewDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 

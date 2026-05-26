@@ -43,7 +43,7 @@ internal sealed class ThreadExecutionOptionsFactory
         _altaToolBackendIds = altaToolBackendIds ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
-    public WorkThreadExecutionOptions BuildPreferredExecutionOptions(
+    public SessionExecutionOptions BuildPreferredExecutionOptions(
         AgentBackendId backendId,
         string workingDirectory,
         IReadOnlyList<string> projectRoots,
@@ -58,7 +58,7 @@ internal sealed class ThreadExecutionOptionsFactory
         var sourceProjectId = projectRoots.Count == 0
             ? null
             : _threadSelection.GetSelectedProjectId();
-        return new WorkThreadExecutionOptions
+        return new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = backendId.Value,
@@ -76,7 +76,7 @@ internal sealed class ThreadExecutionOptionsFactory
         };
     }
 
-    public WorkThreadExecutionOptions BuildExecutionOptions(WorkThreadDescriptor thread, OpenThreadState tab)
+    public SessionExecutionOptions BuildExecutionOptions(SessionViewDescriptor thread, OpenThreadState tab)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(tab);
@@ -84,7 +84,7 @@ internal sealed class ThreadExecutionOptionsFactory
         var workingDirectory = ResolveWorkingDirectory(thread);
         var projectRoots = ResolveProjectRoots(thread);
         var backendId = new AgentBackendId(thread.BackendId);
-        return new WorkThreadExecutionOptions
+        return new SessionExecutionOptions
         {
             BackendId = backendId,
             ProviderKey = thread.ResolvedProviderKey,
@@ -143,7 +143,7 @@ internal sealed class ThreadExecutionOptionsFactory
         ];
     }
 
-    private string ResolveWorkingDirectory(WorkThreadDescriptor thread)
+    private string ResolveWorkingDirectory(SessionViewDescriptor thread)
     {
         return thread.Kind switch
         {
@@ -153,7 +153,7 @@ internal sealed class ThreadExecutionOptionsFactory
         };
     }
 
-    private IReadOnlyList<string> ResolveProjectRoots(WorkThreadDescriptor thread)
+    private IReadOnlyList<string> ResolveProjectRoots(SessionViewDescriptor thread)
     {
         if (_threadSelection.GetProjectById(thread.ProjectRef) is { } project)
         {

@@ -621,7 +621,7 @@ public sealed class CodeAltaAppSidebarTests
 
     private static SidebarTreeProjection BuildProjection(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         IReadOnlyCollection<string> expandedProjectIds,
         DateTimeOffset nowUtc,
         NavigatorProjectSortMode sortMode = NavigatorProjectSortMode.Name)
@@ -680,7 +680,7 @@ public sealed class CodeAltaAppSidebarTests
         };
     }
 
-    private static WorkThreadDescriptor CreateThread(
+    private static SessionViewDescriptor CreateThread(
         string threadId,
         string title,
         WorkThreadKind kind,
@@ -689,7 +689,7 @@ public sealed class CodeAltaAppSidebarTests
         string workingDirectory,
         DateTimeOffset lastActiveAt)
     {
-        return new WorkThreadDescriptor
+        return new SessionViewDescriptor
         {
             ThreadId = threadId,
             Kind = kind,

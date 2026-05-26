@@ -553,7 +553,7 @@ public sealed class ThreadRuntimeEventCoordinatorTests
     {
         var thread = CreateThread();
         var tab = CreateOpenThreadState(thread);
-        WorkThreadDescriptor? upserted = null;
+        SessionViewDescriptor? upserted = null;
         var coordinator = CreateCoordinator(thread, tab, upsertRuntimeThread: descriptor => upserted = descriptor);
 
         coordinator.ApplyRuntimeEvent(new WorkThreadCatalogRuntimeEvent(thread.ThreadId, DateTimeOffset.UtcNow, thread));
@@ -658,12 +658,12 @@ public sealed class ThreadRuntimeEventCoordinatorTests
     }
 
     private static ThreadRuntimeEventCoordinator CreateCoordinator(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState? tab,
         IProjectFileSearchService? projectFileSearchService = null,
         IPluginAgentEventObserver? pluginAgentEventObserver = null,
         FrontendEventPublisher? frontendEvents = null,
-        Action<WorkThreadDescriptor>? upsertRuntimeThread = null,
+        Action<SessionViewDescriptor>? upsertRuntimeThread = null,
         bool exposeOpenThread = true)
     {
         var stateStore = new ShellStateStore(new InlineUiDispatcher());
@@ -683,7 +683,7 @@ public sealed class ThreadRuntimeEventCoordinatorTests
 
     private sealed class RecordingPluginAgentEventObserver : IPluginAgentEventObserver
     {
-        public WorkThreadDescriptor? ObservedThread { get; private set; }
+        public SessionViewDescriptor? ObservedThread { get; private set; }
 
         public AgentEvent? ObservedEvent { get; private set; }
 
@@ -693,7 +693,7 @@ public sealed class ThreadRuntimeEventCoordinatorTests
 
         private TaskCompletionSource _projectionCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task ObserveAgentEventAsync(WorkThreadDescriptor thread, AgentEvent agentEvent, CancellationToken cancellationToken = default)
+        public Task ObserveAgentEventAsync(SessionViewDescriptor thread, AgentEvent agentEvent, CancellationToken cancellationToken = default)
         {
             ObservedThread = thread;
             ObservedEvent = agentEvent;
@@ -701,7 +701,7 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         }
 
         public Task<WorkThreadPluginDerivedEventProjectionResult> ProjectThreadEventsAsync(
-            WorkThreadDescriptor thread,
+            SessionViewDescriptor thread,
             OpenThreadState tab,
             IReadOnlyList<AgentEvent> events,
             bool isReplay,
@@ -744,15 +744,15 @@ public sealed class ThreadRuntimeEventCoordinatorTests
         }
     }
 
-    private static OpenThreadState CreateOpenThreadState(WorkThreadDescriptor thread)
+    private static OpenThreadState CreateOpenThreadState(SessionViewDescriptor thread)
     {
         var timeline = new ThreadTimelinePresenter(new InlineUiDispatcher(), static () => null);
         return new OpenThreadState(thread, timeline);
     }
 
-    private static WorkThreadDescriptor CreateThread()
+    private static SessionViewDescriptor CreateThread()
     {
-        return new WorkThreadDescriptor
+        return new SessionViewDescriptor
         {
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,

@@ -12,7 +12,7 @@ public sealed class ShellSelectionPortTests
     public void GetSnapshot_CapturesSelectionProjectThreadAndPromptSession()
     {
         var project = new ProjectDescriptor { Id = "project-1", DisplayName = "CodeAlta", ProjectPath = @"C:\repo", Slug = "codealta" };
-        var thread = new WorkThreadDescriptor { ThreadId = "thread-1", ProjectRef = project.Id, Title = "Thread" };
+        var thread = new SessionViewDescriptor { ThreadId = "thread-1", ProjectRef = project.Id, Title = "Thread" };
         var promptSession = new PromptSessionBinding(
             new PromptSessionId("prompt-1"),
             ProjectId.NewVersion7(),

@@ -8,28 +8,28 @@ namespace CodeAlta.App;
 
 internal sealed class ThreadCreationCoordinator
 {
-    private readonly WorkThreadRuntimeService _runtimeService;
+    private readonly SessionRuntimeService _runtimeService;
     private readonly CatalogOptions _catalogOptions;
     private readonly Func<AgentBackendId> _getPreferredBackendId;
     private readonly Func<ProjectDescriptor?> _getSelectedProject;
     private readonly Func<ShellSelection> _getSelection;
     private readonly Func<string?> _readDraftTitle;
-    private readonly Func<AgentBackendId, string, IReadOnlyList<string>, Func<string?>?, WorkThreadExecutionOptions> _buildPreferredExecutionOptions;
+    private readonly Func<AgentBackendId, string, IReadOnlyList<string>, Func<string?>?, SessionExecutionOptions> _buildPreferredExecutionOptions;
     private readonly Action<string, string?, AgentReasoningEffort?, bool> _rememberThreadPreference;
-    private readonly Func<WorkThreadDescriptor, Task> _registerCreatedThreadAsync;
+    private readonly Func<SessionViewDescriptor, Task> _registerCreatedThreadAsync;
     private readonly Action _clearThreadTitleDraft;
     private readonly Action<string, bool, StatusTone> _setStatus;
 
     public ThreadCreationCoordinator(
-        WorkThreadRuntimeService runtimeService,
+        SessionRuntimeService runtimeService,
         CatalogOptions catalogOptions,
         Func<AgentBackendId> getPreferredBackendId,
         Func<ProjectDescriptor?> getSelectedProject,
         Func<ShellSelection> getSelection,
         Func<string?> readDraftTitle,
-        Func<AgentBackendId, string, IReadOnlyList<string>, Func<string?>?, WorkThreadExecutionOptions> buildPreferredExecutionOptions,
+        Func<AgentBackendId, string, IReadOnlyList<string>, Func<string?>?, SessionExecutionOptions> buildPreferredExecutionOptions,
         Action<string, string?, AgentReasoningEffort?, bool> rememberThreadPreference,
-        Func<WorkThreadDescriptor, Task> registerCreatedThreadAsync,
+        Func<SessionViewDescriptor, Task> registerCreatedThreadAsync,
         Action clearThreadTitleDraft,
         Action<string, bool, StatusTone> setStatus)
     {
@@ -58,7 +58,7 @@ internal sealed class ThreadCreationCoordinator
         _setStatus = setStatus;
     }
 
-    public async Task<WorkThreadDescriptor?> CreateGlobalThreadAsync(string? titleOverride = null)
+    public async Task<SessionViewDescriptor?> CreateGlobalThreadAsync(string? titleOverride = null)
     {
         try
         {
@@ -88,7 +88,7 @@ internal sealed class ThreadCreationCoordinator
         }
     }
 
-    public async Task<WorkThreadDescriptor?> CreateProjectThreadAsync(string? titleOverride = null)
+    public async Task<SessionViewDescriptor?> CreateProjectThreadAsync(string? titleOverride = null)
     {
         var project = _getSelectedProject();
         if (project is null)

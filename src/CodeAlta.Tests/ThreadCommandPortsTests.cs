@@ -13,16 +13,16 @@ public sealed class ThreadCommandPortsTests
     [TestMethod]
     public async Task LifecyclePort_ForwardsCreationPersistenceAndRekey()
     {
-        var created = new WorkThreadDescriptor { ThreadId = "thread-1", BackendId = "codex", ProviderKey = "codex" };
+        var created = new SessionViewDescriptor { ThreadId = "thread-1", BackendId = "codex", ProviderKey = "codex" };
         var persisted = false;
-        (string OldThreadId, WorkThreadDescriptor Thread)? rekey = null;
+        (string OldThreadId, SessionViewDescriptor Thread)? rekey = null;
         var port = new DelegatingThreadLifecycleCommandPort(
             title =>
             {
                 Assert.AreEqual("hello", title);
-                return Task.FromResult<WorkThreadDescriptor?>(created);
+                return Task.FromResult<SessionViewDescriptor?>(created);
             },
-            static _ => Task.FromResult<WorkThreadDescriptor?>(null),
+            static _ => Task.FromResult<SessionViewDescriptor?>(null),
             () =>
             {
                 persisted = true;
@@ -75,7 +75,7 @@ public sealed class ThreadCommandPortsTests
 
     private static OpenThreadState CreateThreadState()
     {
-        var thread = new WorkThreadDescriptor { ThreadId = "thread-1", BackendId = "codex", ProviderKey = "codex" };
+        var thread = new SessionViewDescriptor { ThreadId = "thread-1", BackendId = "codex", ProviderKey = "codex" };
         return new OpenThreadState(thread, new ThreadTimelinePresenter(new ImmediateUiDispatcher(), static () => null));
     }
 

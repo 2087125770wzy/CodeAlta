@@ -73,6 +73,15 @@ public sealed class AgentSessionCatalog : IAgentSessionCatalog
         => InvalidateAsync(sessionId, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<bool> DeleteSessionAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        var deleted = await _store.DeleteSessionAsync(sessionId, cancellationToken).ConfigureAwait(false);
+        await NotifySessionDeletedAsync(sessionId, cancellationToken).ConfigureAwait(false);
+        return deleted;
+    }
+
+    /// <inheritdoc />
     public Task NotifySessionUpdatedAsync(string sessionId, CancellationToken cancellationToken = default)
         => InvalidateAsync(sessionId, cancellationToken);
 

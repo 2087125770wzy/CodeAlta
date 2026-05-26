@@ -18,6 +18,7 @@ using CodeAlta.Presentation.Workspace;
 using CodeAlta.Plugins.Abstractions;
 using CodeAlta.ViewModels;
 using XenoAtom.Logging;
+using SessionView = CodeAlta.Catalog.SessionViewDescriptor;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
 using XenoAtom.Terminal.UI.Commands;
@@ -33,7 +34,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     internal static readonly Logger UiLogger = LogManager.GetLogger("CodeAlta.UI");
     internal const string DraftTabId = "__draft__";
     private readonly ModelProviderPreferenceCoordinator _modelProviderPreferences;
-    private readonly WorkThreadRuntimeService _runtimeService;
+    private readonly SessionRuntimeService _runtimeService;
     private readonly CatalogOptions _catalogOptions;
     private readonly AgentHub _agentHub;
     private readonly KnownProjectImporter _knownProjectImporter;
@@ -47,7 +48,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private readonly ChatBackendInitializationCoordinator _chatBackendInitializationCoordinator;
     private readonly ShellThreadStateCoordinator _threadStateCoordinator;
     private readonly ShellWorkspaceCoordinator _workspaceCoordinator;
-    private readonly ThreadHistoryCoordinator _threadHistoryCoordinator;
+    private readonly SessionHistoryCoordinator _threadHistoryCoordinator;
     private readonly ThreadRuntimeEventCoordinator _threadRuntimeEventCoordinator;
     private readonly ThreadPromptQueueCoordinator _threadPromptQueueCoordinator;
     private readonly ThreadCommandCoordinator _threadCommandCoordinator;
@@ -97,7 +98,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     public CodeAltaApp(
         ProjectCatalog projectCatalog,
         WorkThreadCatalog threadCatalog,
-        WorkThreadRuntimeService runtimeService,
+        SessionRuntimeService runtimeService,
         CatalogOptions catalogOptions,
         AgentHub agentHub)
         : this(
@@ -134,7 +135,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private CodeAltaApp(IReadOnlyList<ModelProviderDescriptor> backendDescriptors,
         ProjectCatalog projectCatalog,
         WorkThreadCatalog threadCatalog,
-        WorkThreadRuntimeService runtimeService,
+        SessionRuntimeService runtimeService,
         CatalogOptions catalogOptions,
         AgentHub agentHub,
         IProjectFileSearchService projectFileSearchService,
@@ -277,12 +278,12 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
         var status = new DelegatingShellStatusService(SetStatus);
         var plugins = new PluginHostCommandService(_ownedServices?.PluginHostBridge);
         _shellCommandSurfaceCoordinator = ShellCommandSurfaceComposition.Create(_promptComposerViewModel, _threadWorkspaceViewModel, _threadCommandCoordinator, input, threadSvc, dialogs, navigation, tabCommands, status, plugins, ToggleCommandBarMultiLine);
-        _threadHistoryCoordinator = new ThreadHistoryCoordinator(
+        _threadHistoryCoordinator = new SessionHistoryCoordinator(
             _runtimeService,
             EnsureThreadTab,
             _threadStateCoordinator.FindThread,
             threadId => _threadStateCoordinator.FindOpenThread(threadId),
-            ThreadHistoryCoordinator.CanLoadThreadHistory,
+            SessionHistoryCoordinator.CanLoadThreadHistory,
             _threadCommandCoordinator.BuildExecutionOptions,
             (tab, message, showSpinner, tone) => SetThreadStatus(tab, message, showSpinner, tone),
             ClearThreadStatus,
@@ -321,7 +322,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             ? null
             : GetSelectedProject()?.Id;
 
-    private string? GetThreadProjectRoot(WorkThreadDescriptor thread)
+    private string? GetThreadProjectRoot(SessionView thread)
         => GetProjectById(thread.ProjectRef)?.ProjectPath;
 
 
@@ -625,7 +626,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
 
     internal IReadOnlyList<ShellTabSnapshot> GetShellTabs() => _shellTabService.GetTabs();
 
-    internal void RekeyThreadIdentity(string oldThreadId, WorkThreadDescriptor thread)
+    internal void RekeyThreadIdentity(string oldThreadId, SessionView thread)
         => _threadStateCoordinator.RekeyThreadIdentity(oldThreadId, thread);
 
     internal bool HasWorkspaceSurface()
@@ -703,7 +704,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
 
     internal void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionView> threads,
         bool pruneMissingThreads = true)
         => _threadStateCoordinator.ApplyRecoveredCatalogState(projects, threads, pruneMissingThreads);
 
@@ -716,7 +717,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private async Task RestoreStartupThreadHistoryAsync(string? threadId, CancellationToken cancellationToken)
         => await _threadStateCoordinator.RestoreStartupThreadHistoryAsync(threadId, cancellationToken);
 
-    internal Task RegisterCreatedThreadAsync(WorkThreadDescriptor thread)
+    internal Task RegisterCreatedThreadAsync(SessionView thread)
         => _threadStateCoordinator.RegisterCreatedThreadAsync(thread);
 
     internal void OpenThread(string threadId)
@@ -765,13 +766,13 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private async Task CloseThreadTabAsync(string threadId)
         => await _threadStateCoordinator.CloseThreadTabAsync(threadId);
 
-    internal Task EnsureThreadHistoryLoadedAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default)
+    internal Task EnsureThreadHistoryLoadedAsync(SessionView thread, CancellationToken cancellationToken = default)
         => _threadHistoryCoordinator.EnsureLoadedAsync(thread, cancellationToken);
 
     internal void HandleRuntimeEvent(WorkThreadRuntimeEvent runtimeEvent)
         => _threadRuntimeEventCoordinator.ApplyRuntimeEvent(runtimeEvent);
 
-    private OpenThreadState EnsureThreadTab(WorkThreadDescriptor thread)
+    private OpenThreadState EnsureThreadTab(SessionView thread)
         => _threadStateCoordinator.EnsureThreadTab(thread);
 
     private void ResetThreadTab(OpenThreadState tab)
@@ -791,7 +792,7 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
     private ProjectDescriptor? GetProjectById(string? projectId)
         => _threadStateCoordinator.GetProjectById(projectId);
 
-    private WorkThreadDescriptor? GetSelectedThread()
+    private SessionView? GetSelectedThread()
         => _threadStateCoordinator.GetSelectedThread();
 
 }

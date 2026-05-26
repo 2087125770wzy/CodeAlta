@@ -7,27 +7,27 @@ namespace CodeAlta.App;
 
 internal interface IThreadLifecycleCommandPort
 {
-    Task<WorkThreadDescriptor?> CreateGlobalThreadAsync(string? title = null);
+    Task<SessionViewDescriptor?> CreateGlobalThreadAsync(string? title = null);
 
-    Task<WorkThreadDescriptor?> CreateProjectThreadAsync(string? title = null);
+    Task<SessionViewDescriptor?> CreateProjectThreadAsync(string? title = null);
 
     Task PersistViewStateAsync();
 
-    void RekeyThreadIdentity(string oldThreadId, WorkThreadDescriptor thread);
+    void RekeyThreadIdentity(string oldThreadId, SessionViewDescriptor thread);
 }
 
 internal sealed class DelegatingThreadLifecycleCommandPort : IThreadLifecycleCommandPort
 {
-    private readonly Func<string?, Task<WorkThreadDescriptor?>> _createGlobalThreadAsync;
-    private readonly Func<string?, Task<WorkThreadDescriptor?>> _createProjectThreadAsync;
+    private readonly Func<string?, Task<SessionViewDescriptor?>> _createGlobalThreadAsync;
+    private readonly Func<string?, Task<SessionViewDescriptor?>> _createProjectThreadAsync;
     private readonly Func<Task> _persistViewStateAsync;
-    private readonly Action<string, WorkThreadDescriptor>? _rekeyThreadIdentity;
+    private readonly Action<string, SessionViewDescriptor>? _rekeyThreadIdentity;
 
     public DelegatingThreadLifecycleCommandPort(
-        Func<string?, Task<WorkThreadDescriptor?>> createGlobalThreadAsync,
-        Func<string?, Task<WorkThreadDescriptor?>> createProjectThreadAsync,
+        Func<string?, Task<SessionViewDescriptor?>> createGlobalThreadAsync,
+        Func<string?, Task<SessionViewDescriptor?>> createProjectThreadAsync,
         Func<Task> persistViewStateAsync,
-        Action<string, WorkThreadDescriptor>? rekeyThreadIdentity = null)
+        Action<string, SessionViewDescriptor>? rekeyThreadIdentity = null)
     {
         ArgumentNullException.ThrowIfNull(createGlobalThreadAsync);
         ArgumentNullException.ThrowIfNull(createProjectThreadAsync);
@@ -39,16 +39,16 @@ internal sealed class DelegatingThreadLifecycleCommandPort : IThreadLifecycleCom
         _rekeyThreadIdentity = rekeyThreadIdentity;
     }
 
-    public Task<WorkThreadDescriptor?> CreateGlobalThreadAsync(string? title = null)
+    public Task<SessionViewDescriptor?> CreateGlobalThreadAsync(string? title = null)
         => _createGlobalThreadAsync(title);
 
-    public Task<WorkThreadDescriptor?> CreateProjectThreadAsync(string? title = null)
+    public Task<SessionViewDescriptor?> CreateProjectThreadAsync(string? title = null)
         => _createProjectThreadAsync(title);
 
     public Task PersistViewStateAsync()
         => _persistViewStateAsync();
 
-    public void RekeyThreadIdentity(string oldThreadId, WorkThreadDescriptor thread)
+    public void RekeyThreadIdentity(string oldThreadId, SessionViewDescriptor thread)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(oldThreadId);
         ArgumentNullException.ThrowIfNull(thread);

@@ -14,7 +14,7 @@ namespace CodeAlta.App;
 
 internal sealed class ThreadPromptDispatchCoordinator
 {
-    private readonly WorkThreadRuntimeService _runtimeService;
+    private readonly SessionRuntimeService _runtimeService;
     private readonly IWorkThreadOrchestrator _orchestrator;
     private readonly ThreadExecutionOptionsFactory _executionOptionsFactory;
     private readonly ThreadPromptQueueCoordinator _queueCoordinator;
@@ -24,7 +24,7 @@ internal sealed class ThreadPromptDispatchCoordinator
     private readonly PromptImageAttachmentStore _promptImageAttachmentStore;
 
     public ThreadPromptDispatchCoordinator(
-        WorkThreadRuntimeService runtimeService,
+        SessionRuntimeService runtimeService,
         ThreadExecutionOptionsFactory executionOptionsFactory,
         ThreadPromptQueueCoordinator queueCoordinator,
         ThreadCommandContext commandContext,
@@ -51,7 +51,7 @@ internal sealed class ThreadPromptDispatchCoordinator
     }
 
     public Task DispatchPromptAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         string prompt,
         bool steer,
@@ -59,7 +59,7 @@ internal sealed class ThreadPromptDispatchCoordinator
         => DispatchPromptAsync(thread, tab, PromptSubmission.TextOnly(prompt), steer, cancellationToken);
 
     public Task DispatchPromptAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         PromptSubmission prompt,
         bool steer,
@@ -76,11 +76,11 @@ internal sealed class ThreadPromptDispatchCoordinator
         return DispatchPromptCoreAsync(thread, tab, prompt, steer, cancellationToken);
     }
 
-    public WorkThreadExecutionOptions BuildExecutionOptions(WorkThreadDescriptor thread, OpenThreadState tab)
+    public SessionExecutionOptions BuildExecutionOptions(SessionViewDescriptor thread, OpenThreadState tab)
         => _executionOptionsFactory.BuildExecutionOptions(thread, tab);
 
-    public WorkThreadExecutionOptions AppendAdditionalDeveloperInstructions(
-        WorkThreadExecutionOptions options,
+    public SessionExecutionOptions AppendAdditionalDeveloperInstructions(
+        SessionExecutionOptions options,
         string additionalDeveloperInstructions)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -89,7 +89,7 @@ internal sealed class ThreadPromptDispatchCoordinator
         var combinedInstructions = string.IsNullOrWhiteSpace(options.AdditionalDeveloperInstructions)
             ? additionalDeveloperInstructions
             : $"{options.AdditionalDeveloperInstructions}\n\n{additionalDeveloperInstructions}";
-        return new WorkThreadExecutionOptions
+        return new SessionExecutionOptions
         {
             BackendId = options.BackendId,
             ProviderKey = options.ProviderKey,
@@ -106,7 +106,7 @@ internal sealed class ThreadPromptDispatchCoordinator
         };
     }
 
-    public WorkThreadExecutionOptions BuildPreferredExecutionOptions(
+    public SessionExecutionOptions BuildPreferredExecutionOptions(
         AgentBackendId backendId,
         string workingDirectory,
         IReadOnlyList<string> projectRoots,
@@ -127,7 +127,7 @@ internal sealed class ThreadPromptDispatchCoordinator
     }
 
     private async Task DispatchPromptCoreAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         PromptSubmission prompt,
         bool steer,
@@ -285,7 +285,7 @@ internal sealed class ThreadPromptDispatchCoordinator
         }
     }
 
-    private static WorkThreadExecutionOptions CopyExecutionOptions(WorkThreadExecutionOptions source, PluginAgentRunAugmentation augmentation)
+    private static SessionExecutionOptions CopyExecutionOptions(SessionExecutionOptions source, PluginAgentRunAugmentation augmentation)
         => new()
         {
             BackendId = source.BackendId,
@@ -307,8 +307,8 @@ internal sealed class ThreadPromptDispatchCoordinator
            !string.Equals(backendId.Value, AgentBackendIds.Copilot.Value, StringComparison.OrdinalIgnoreCase);
 
     private static SubmitWorkThreadPromptRequest CreateSubmitRequest(
-        WorkThreadDescriptor thread,
-        WorkThreadExecutionOptions executionOptions,
+        SessionViewDescriptor thread,
+        SessionExecutionOptions executionOptions,
         AgentInput input,
         PromptSubmission prompt)
         => new()
@@ -319,8 +319,8 @@ internal sealed class ThreadPromptDispatchCoordinator
         };
 
     private static SteerWorkThreadRequest CreateSteerRequest(
-        WorkThreadDescriptor thread,
-        WorkThreadExecutionOptions executionOptions,
+        SessionViewDescriptor thread,
+        SessionExecutionOptions executionOptions,
         AgentInput input,
         PromptSubmission prompt)
         => new()
@@ -331,8 +331,8 @@ internal sealed class ThreadPromptDispatchCoordinator
         };
 
     private static WorkThreadCommandContext CreateCommandContext(
-        WorkThreadDescriptor thread,
-        WorkThreadExecutionOptions executionOptions)
+        SessionViewDescriptor thread,
+        SessionExecutionOptions executionOptions)
         => new()
         {
             ProjectId = thread.ProjectRef ?? "legacy-global",
@@ -344,7 +344,7 @@ internal sealed class ThreadPromptDispatchCoordinator
             ExecutionOptions = executionOptions,
         };
 
-    private void RekeyThreadIfNeeded(string oldThreadId, WorkThreadDescriptor thread, OpenThreadState tab)
+    private void RekeyThreadIfNeeded(string oldThreadId, SessionViewDescriptor thread, OpenThreadState tab)
     {
         if (string.IsNullOrWhiteSpace(oldThreadId) ||
             string.Equals(oldThreadId, thread.ThreadId, StringComparison.OrdinalIgnoreCase))
@@ -357,7 +357,7 @@ internal sealed class ThreadPromptDispatchCoordinator
         _commandContext.RekeyThreadIdentity(oldThreadId, thread);
     }
 
-    private static string? ResolveReferenceProjectRoot(WorkThreadExecutionOptions executionOptions)
+    private static string? ResolveReferenceProjectRoot(SessionExecutionOptions executionOptions)
     {
         ArgumentNullException.ThrowIfNull(executionOptions);
 

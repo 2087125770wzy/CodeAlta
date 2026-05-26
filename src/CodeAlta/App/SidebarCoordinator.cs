@@ -68,7 +68,7 @@ internal sealed class SidebarCoordinator
 
     public void RefreshProjection(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         string? preferredExpandedProjectId,
         SidebarSelectionTarget currentTarget,
         NavigatorSettings settings,

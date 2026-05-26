@@ -8,7 +8,7 @@ namespace CodeAlta.App.State;
 
 internal sealed class OpenThreadState
 {
-    public OpenThreadState(WorkThreadDescriptor thread, ThreadTimelinePresenter timeline)
+    public OpenThreadState(SessionViewDescriptor thread, ThreadTimelinePresenter timeline)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(timeline);
@@ -24,7 +24,7 @@ internal sealed class OpenThreadState
         TimelineState = new ThreadTimelineState(timeline);
     }
 
-    public WorkThreadDescriptor Thread { get; set; }
+    public SessionViewDescriptor Thread { get; set; }
 
     public ThreadSessionState Session { get; }
 

@@ -672,7 +672,7 @@ public sealed class CodeAltaAppTests
             new AgentContentCompletedEvent(AgentBackendIds.Copilot, "session-1", timestamp, null, AgentContentKind.Assistant, "assistant-2", null, "Second reply"),
         ];
 
-        var plan = ThreadHistoryCoordinator.CreateInitialLoadPlan(history);
+        var plan = SessionHistoryCoordinator.CreateInitialLoadPlan(history);
 
         Assert.AreEqual(3, plan.EventsToRender.Count);
         Assert.AreSame(history[3], plan.EventsToRender[0]);
@@ -703,7 +703,7 @@ public sealed class CodeAltaAppTests
             new AgentContentCompletedEvent(AgentBackendIds.Copilot, "session-1", timestamp, null, AgentContentKind.Assistant, "assistant-2", null, "Second reply"),
         ];
 
-        var plan = ThreadHistoryCoordinator.CreateInitialLoadPlan(history);
+        var plan = SessionHistoryCoordinator.CreateInitialLoadPlan(history);
 
         Assert.AreEqual(5, plan.EventsToRender.Count);
         Assert.AreSame(modelChanged, plan.EventsToRender[0]);
@@ -734,8 +734,8 @@ public sealed class CodeAltaAppTests
             new AgentContentCompletedEvent(AgentBackendIds.OpenAIResponses, "session-1", timestamp.AddSeconds(3), null, AgentContentKind.User, "user-2", null, "Second prompt"),
         ];
 
-        var plan = ThreadHistoryCoordinator.CreateInitialLoadPlan(history);
-        var recovered = ThreadHistoryCoordinator.RecoverUsageFromHistory(history);
+        var plan = SessionHistoryCoordinator.CreateInitialLoadPlan(history);
+        var recovered = SessionHistoryCoordinator.RecoverUsageFromHistory(history);
 
         Assert.IsFalse(plan.EventsToRender.OfType<AgentSessionUpdateEvent>().Any(static @event => @event.Usage is not null));
         Assert.IsNotNull(recovered);
@@ -769,7 +769,7 @@ public sealed class CodeAltaAppTests
                 JsonSerializer.SerializeToElement(new { modelId = "gpt-5.5", reasoningEffort = "High" })),
         ];
 
-        var preference = ThreadHistoryCoordinator.RecoverModelProviderPreferenceFromHistory(history);
+        var preference = SessionHistoryCoordinator.RecoverModelProviderPreferenceFromHistory(history);
 
         Assert.IsNotNull(preference);
         Assert.AreEqual(AgentBackendIds.OpenAIResponses.Value, preference.ModelProviderId.Value);
@@ -792,13 +792,13 @@ public sealed class CodeAltaAppTests
             new AgentContentCompletedEvent(AgentBackendIds.Copilot, "session-1", timestamp.AddSeconds(4), null, AgentContentKind.User, "user-2", null, "Second prompt"),
             new AgentContentCompletedEvent(AgentBackendIds.Copilot, "session-1", timestamp.AddSeconds(5), null, AgentContentKind.Assistant, "assistant-2", null, "Second reply"),
         ];
-        var plan = ThreadHistoryCoordinator.CreateInitialLoadPlan(history);
+        var plan = SessionHistoryCoordinator.CreateInitialLoadPlan(history);
 
-        var seed = ThreadHistoryCoordinator.FindPriorSystemPromptForFirstRenderedSystemPrompt(history, plan.EventsToRender);
+        var seed = SessionHistoryCoordinator.FindPriorSystemPromptForFirstRenderedSystemPrompt(history, plan.EventsToRender);
 
         Assert.AreSame(changedSystemPrompt, plan.EventsToRender[0]);
         Assert.AreSame(initialSystemPrompt, seed);
-        Assert.IsNull(ThreadHistoryCoordinator.FindPriorSystemPromptForFirstRenderedSystemPrompt(history, history));
+        Assert.IsNull(SessionHistoryCoordinator.FindPriorSystemPromptForFirstRenderedSystemPrompt(history, history));
     }
 
     [TestMethod]
@@ -986,7 +986,7 @@ public sealed class CodeAltaAppTests
             ProjectPath = @"C:\code\CodeAlta",
         };
 
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,
@@ -1008,7 +1008,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildPromptUnavailablePlaceholder_UsesProviderStateAndSelection()
     {
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,
@@ -1033,7 +1033,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void BuildPromptUnavailableStatusText_DescribesConnectingAndMissingProviders()
     {
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,
@@ -1080,7 +1080,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void CanLoadThreadHistory_AllowsRecoveredActiveSessionsWithoutStartedAt()
     {
-        var recoverableThread = new WorkThreadDescriptor
+        var recoverableThread = new SessionViewDescriptor
         {
             ThreadId = "copilot:session-1",
             Kind = WorkThreadKind.ProjectThread,
@@ -1095,7 +1095,7 @@ public sealed class CodeAltaAppTests
             StartedAt = null,
         };
 
-        Assert.IsTrue(ThreadHistoryCoordinator.CanLoadThreadHistory(recoverableThread));
+        Assert.IsTrue(SessionHistoryCoordinator.CanLoadThreadHistory(recoverableThread));
     }
 
     [TestMethod]
@@ -1504,7 +1504,7 @@ public sealed class CodeAltaAppTests
     [TestMethod]
     public void ResolveInitialSelection_DefersSelectedThreadRestoreUntilUiLoopStarts()
     {
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,
@@ -2774,9 +2774,9 @@ public sealed class CodeAltaAppTests
         var project1 = ProjectId.NewVersion7().ToString();
         var project2 = ProjectId.NewVersion7().ToString();
 
-        WorkThreadDescriptor[] threads =
+        SessionViewDescriptor[] threads =
         [
-            new WorkThreadDescriptor
+            new SessionViewDescriptor
             {
                 ThreadId = "global",
                 Kind = WorkThreadKind.GlobalThread,
@@ -2788,7 +2788,7 @@ public sealed class CodeAltaAppTests
                 UpdatedAt = timestamp,
                 LastActiveAt = timestamp,
             },
-            new WorkThreadDescriptor
+            new SessionViewDescriptor
             {
                 ThreadId = "thread-a",
                 Kind = WorkThreadKind.ProjectThread,
@@ -2801,7 +2801,7 @@ public sealed class CodeAltaAppTests
                 UpdatedAt = timestamp,
                 LastActiveAt = timestamp.AddMinutes(1),
             },
-            new WorkThreadDescriptor
+            new SessionViewDescriptor
             {
                 ThreadId = "thread-b",
                 Kind = WorkThreadKind.InternalThread,
@@ -2815,7 +2815,7 @@ public sealed class CodeAltaAppTests
                 UpdatedAt = timestamp,
                 LastActiveAt = timestamp.AddMinutes(2),
             },
-            new WorkThreadDescriptor
+            new SessionViewDescriptor
             {
                 ThreadId = "thread-c",
                 Kind = WorkThreadKind.ProjectThread,
@@ -2853,7 +2853,7 @@ public sealed class CodeAltaAppTests
         ];
 
         var globalSummary = ThreadScopePresentation.BuildScopeSummary(
-            new WorkThreadDescriptor
+            new SessionViewDescriptor
             {
                 ThreadId = "global",
                 Kind = WorkThreadKind.GlobalThread,
@@ -2869,7 +2869,7 @@ public sealed class CodeAltaAppTests
             @"C:\Users\alexa\.alta");
 
         var projectSummary = ThreadScopePresentation.BuildScopeSummary(
-            new WorkThreadDescriptor
+            new SessionViewDescriptor
             {
                 ThreadId = "project",
                 Kind = WorkThreadKind.ProjectThread,
@@ -2886,7 +2886,7 @@ public sealed class CodeAltaAppTests
             @"C:\Users\alexa\.alta");
 
         var internalSummary = ThreadScopePresentation.BuildScopeSummary(
-            new WorkThreadDescriptor
+            new SessionViewDescriptor
             {
                 ThreadId = "internal",
                 Kind = WorkThreadKind.InternalThread,

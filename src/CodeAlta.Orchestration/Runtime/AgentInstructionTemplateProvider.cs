@@ -39,7 +39,7 @@ public sealed class AgentInstructionTemplateProvider
     /// while orchestration-specific prompting is disabled.
     /// </returns>
     public AgentInstructionBundle BuildCoordinatorInstructions(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         ProjectDescriptor? project,
         string? model = null)
     {
@@ -63,7 +63,7 @@ public sealed class AgentInstructionTemplateProvider
     /// while orchestration-specific prompting is disabled.
     /// </returns>
     public AgentInstructionBundle BuildGeneralInstructions(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         ProjectDescriptor? project,
         string? model = null)
     {
@@ -78,7 +78,7 @@ public sealed class AgentInstructionTemplateProvider
     }
 
     private SystemPromptBundle BuildPromptBundle(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         ProjectDescriptor? project,
         string? model = null)
     {
@@ -100,7 +100,7 @@ public sealed class AgentInstructionTemplateProvider
     }
 
     private string? BuildSkillsDeveloperInstructions(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         ProjectDescriptor? project,
         string? model = null)
     {
@@ -162,7 +162,7 @@ public sealed class AgentInstructionTemplateProvider
         return builder.ToString();
     }
 
-    private SkillDiscoveryContext CreateDiscoveryContext(WorkThreadDescriptor thread, ProjectDescriptor? project)
+    private SkillDiscoveryContext CreateDiscoveryContext(SessionViewDescriptor thread, ProjectDescriptor? project)
     {
         var projectRoots = new List<string>();
         if (!string.IsNullOrWhiteSpace(project?.ProjectPath))

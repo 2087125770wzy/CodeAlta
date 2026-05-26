@@ -15,7 +15,7 @@ public sealed class WorkThreadSkillActivationPlanner
     /// <param name="isThreadBusy">Whether the target thread is currently busy.</param>
     /// <returns>The skill activation decision.</returns>
     public WorkThreadSkillActivationDecision Plan(
-        WorkThreadDescriptorSnapshot? thread,
+        SessionViewDescriptorSnapshot? thread,
         bool isModelProviderReady,
         bool isThreadBusy)
     {

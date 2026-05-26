@@ -10,7 +10,7 @@ namespace CodeAlta.App;
 internal sealed class ThreadInfoService
 {
     private readonly record struct ThreadInfoSnapshot(
-        WorkThreadDescriptor Thread,
+        SessionViewDescriptor Thread,
         string BackendDisplayName,
         string? ModelId,
         AgentReasoningEffort? ReasoningEffort,

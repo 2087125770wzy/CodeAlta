@@ -132,8 +132,8 @@ public sealed class ThreadCommandContextTests
 
         return new ThreadCommandContext(
             new DelegatingThreadLifecycleCommandPort(
-                static _ => Task.FromResult<WorkThreadDescriptor?>(null),
-                static _ => Task.FromResult<WorkThreadDescriptor?>(null),
+                static _ => Task.FromResult<SessionViewDescriptor?>(null),
+                static _ => Task.FromResult<SessionViewDescriptor?>(null),
                 static () => Task.CompletedTask),
             new ThreadCommandUiPort(
                 dispatcher,

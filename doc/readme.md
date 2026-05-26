@@ -28,7 +28,7 @@ flowchart TD
     Host[CodeAltaHost - shared runtime composition]
     Frontend[CodeAlta TUI frontend - CodeAltaApp + views + coordinators]
     LiveTool[CodeAlta.LiveTool - alta registry + dispatcher]
-    Orchestration[CodeAlta.Orchestration - AgentHub + WorkThreadRuntimeService]
+    Orchestration[CodeAlta.Orchestration - AgentHub + SessionRuntimeService]
     Agent[CodeAlta.Agent - backend/session/event contracts - local runtime]
     Providers[Provider packages - OpenAI-compatible, Anthropic, Google, direct HTTP, ACP]
     Catalog[CodeAlta.Catalog - projects, config, threads, skills]
@@ -55,7 +55,7 @@ flowchart TD
     Agent --> State
 ```
 
-The executable is the interactive terminal host. Reusable session/thread orchestration lives in runtime libraries, not in terminal controls. `CodeAltaHost.CreateAsync` is the shared composition entry point: it creates the catalog, plugin runtime, skill catalog, backend factory, `AgentHub`, `WorkThreadRuntimeService`, and project-file search service. The TUI then composes views and frontend coordinators around those services.
+The executable is the interactive terminal host. Reusable session/thread orchestration lives in runtime libraries, not in terminal controls. `CodeAltaHost.CreateAsync` is the shared composition entry point: it creates the catalog, plugin runtime, skill catalog, backend factory, `AgentHub`, `SessionRuntimeService`, and project-file search service. The TUI then composes views and frontend coordinators around those services.
 
 ## Current source roles
 

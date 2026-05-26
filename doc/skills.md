@@ -72,7 +72,7 @@ The browser can show combined, current-project, or user/global scopes. It displa
 
 Available actions:
 
-- **Activate** loads a valid unshadowed skill into the selected local-runtime thread through `WorkThreadRuntimeService`.
+- **Activate** loads a valid unshadowed skill into the selected local-runtime thread through `SessionRuntimeService`.
 - **Open SKILL.md** opens the selected skill document in the editor.
 - **Open related** opens selected files under `scripts/`, `references/`, or `assets/` for inspection/editing.
 - **New skill** scaffolds a skill under `<project>/.alta/skills/<name>/` when a project is selected, otherwise under `~/.alta/skills/<name>/`.

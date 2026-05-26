@@ -761,7 +761,7 @@ public sealed class SystemPromptBuildRequest
     public string? Model { get; init; }
 
     /// <summary>Gets the active work thread.</summary>
-    public required WorkThreadDescriptor Thread { get; init; }
+    public required SessionViewDescriptor Thread { get; init; }
 
     /// <summary>Gets the owning project, if any.</summary>
     public ProjectDescriptor? Project { get; init; }

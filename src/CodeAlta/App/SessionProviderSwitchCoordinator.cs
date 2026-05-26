@@ -6,21 +6,21 @@ using CodeAlta.Presentation.Chat;
 
 namespace CodeAlta.App;
 
-internal sealed class ThreadProviderSwitchCoordinator
+internal sealed class SessionProviderSwitchCoordinator
 {
     private readonly IReadOnlyDictionary<string, ModelProviderState> _chatBackendStates;
     private readonly IReadOnlyDictionary<string, LocalRuntimeBackendInfo> _localRuntimeBackends;
     private readonly Func<OpenThreadState, Task> _applyThreadPreferenceAsync;
     private readonly Func<string, Task<bool>> _detachThreadSessionAsync;
-    private readonly Action<WorkThreadDescriptor> _updateThreadState;
+    private readonly Action<SessionViewDescriptor> _updateThreadState;
     private readonly Func<Task> _persistViewStateAsync;
 
-    public ThreadProviderSwitchCoordinator(
+    public SessionProviderSwitchCoordinator(
         CodeAltaConfigStore configStore,
         IReadOnlyDictionary<string, ModelProviderState> chatBackendStates,
         Func<OpenThreadState, Task> applyThreadPreferenceAsync,
         Func<string, Task<bool>> detachThreadSessionAsync,
-        Action<WorkThreadDescriptor> updateThreadState,
+        Action<SessionViewDescriptor> updateThreadState,
         Func<Task> persistViewStateAsync)
     {
         ArgumentNullException.ThrowIfNull(configStore);
@@ -50,7 +50,7 @@ internal sealed class ThreadProviderSwitchCoordinator
             .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.OrdinalIgnoreCase);
     }
 
-    public bool CanSelectThreadProvider(WorkThreadDescriptor thread, OpenThreadState tab)
+    public bool CanSelectThreadProvider(SessionViewDescriptor thread, OpenThreadState tab)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(tab);
@@ -61,7 +61,7 @@ internal sealed class ThreadProviderSwitchCoordinator
     }
 
     public bool CanSwitchThreadProvider(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         ModelProviderId targetProviderId)
     {
@@ -76,7 +76,7 @@ internal sealed class ThreadProviderSwitchCoordinator
     }
 
     public async Task<bool> SwitchThreadProviderAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         ModelProviderId targetProviderId,
         CancellationToken cancellationToken = default)

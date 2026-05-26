@@ -7,7 +7,7 @@ internal static class InitialThreadSelectionResolver
 {
     public static InitialThreadSelection Resolve(
         WorkThreadViewState viewState,
-        IReadOnlyList<WorkThreadDescriptor> threads)
+        IReadOnlyList<SessionViewDescriptor> threads)
     {
         ArgumentNullException.ThrowIfNull(viewState);
         ArgumentNullException.ThrowIfNull(threads);

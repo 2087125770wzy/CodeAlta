@@ -5,7 +5,7 @@ namespace CodeAlta.Presentation.Threads;
 internal static class ThreadScopePresentation
 {
     public static string BuildScopeSummary(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         IReadOnlyList<ProjectDescriptor> projects,
         string globalRoot)
     {
@@ -24,8 +24,8 @@ internal static class ThreadScopePresentation
         };
     }
 
-    public static IReadOnlyList<WorkThreadDescriptor> FilterThreadsForProject(
-        IReadOnlyList<WorkThreadDescriptor> threads,
+    public static IReadOnlyList<SessionViewDescriptor> FilterThreadsForProject(
+        IReadOnlyList<SessionViewDescriptor> threads,
         string? projectId,
         bool includeInternal)
     {

@@ -13,37 +13,37 @@ using XenoAtom.Terminal.UI.Controls;
 
 namespace CodeAlta.App;
 
-internal sealed class ThreadHistoryCoordinator
+internal sealed class SessionHistoryCoordinator
 {
-    private readonly WorkThreadRuntimeService _runtimeService;
-    private readonly Func<WorkThreadDescriptor, OpenThreadState> _ensureThreadTab;
-    private readonly Func<string, WorkThreadDescriptor?> _findThread;
+    private readonly SessionRuntimeService _runtimeService;
+    private readonly Func<SessionViewDescriptor, OpenThreadState> _ensureThreadTab;
+    private readonly Func<string, SessionViewDescriptor?> _findThread;
     private readonly Func<string, OpenThreadState?> _findOpenThread;
-    private readonly Func<WorkThreadDescriptor, bool> _canLoadHistory;
-    private readonly Func<WorkThreadDescriptor, OpenThreadState, WorkThreadExecutionOptions> _buildExecutionOptions;
+    private readonly Func<SessionViewDescriptor, bool> _canLoadHistory;
+    private readonly Func<SessionViewDescriptor, OpenThreadState, SessionExecutionOptions> _buildExecutionOptions;
     private readonly Action<OpenThreadState, string, bool, StatusTone> _setThreadStatus;
     private readonly Action<OpenThreadState> _clearThreadStatus;
     private readonly Action<OpenThreadState> _resetThreadTab;
-    private readonly Func<WorkThreadDescriptor, OpenThreadState, AgentEvent, Task> _handleAgentEventAsync;
-    private readonly Func<WorkThreadDescriptor, Task> _persistThreadLocalStateAsync;
+    private readonly Func<SessionViewDescriptor, OpenThreadState, AgentEvent, Task> _handleAgentEventAsync;
+    private readonly Func<SessionViewDescriptor, Task> _persistThreadLocalStateAsync;
     private readonly Action<OpenThreadState> _notifySessionUsageChanged;
-    private readonly Action<WorkThreadDescriptor, OpenThreadState, IReadOnlyList<AgentEvent>> _projectLoadedHistory;
+    private readonly Action<SessionViewDescriptor, OpenThreadState, IReadOnlyList<AgentEvent>> _projectLoadedHistory;
     private readonly Func<Func<Task>, Task> _dispatchToUiAsync;
 
-    public ThreadHistoryCoordinator(
-        WorkThreadRuntimeService runtimeService,
-        Func<WorkThreadDescriptor, OpenThreadState> ensureThreadTab,
-        Func<string, WorkThreadDescriptor?> findThread,
+    public SessionHistoryCoordinator(
+        SessionRuntimeService runtimeService,
+        Func<SessionViewDescriptor, OpenThreadState> ensureThreadTab,
+        Func<string, SessionViewDescriptor?> findThread,
         Func<string, OpenThreadState?> findOpenThread,
-        Func<WorkThreadDescriptor, bool> canLoadHistory,
-        Func<WorkThreadDescriptor, OpenThreadState, WorkThreadExecutionOptions> buildExecutionOptions,
+        Func<SessionViewDescriptor, bool> canLoadHistory,
+        Func<SessionViewDescriptor, OpenThreadState, SessionExecutionOptions> buildExecutionOptions,
         Action<OpenThreadState, string, bool, StatusTone> setThreadStatus,
         Action<OpenThreadState> clearThreadStatus,
         Action<OpenThreadState> resetThreadTab,
-        Func<WorkThreadDescriptor, OpenThreadState, AgentEvent, Task> handleAgentEventAsync,
-        Func<WorkThreadDescriptor, Task> persistThreadLocalStateAsync,
+        Func<SessionViewDescriptor, OpenThreadState, AgentEvent, Task> handleAgentEventAsync,
+        Func<SessionViewDescriptor, Task> persistThreadLocalStateAsync,
         Action<OpenThreadState>? notifySessionUsageChanged = null,
-        Action<WorkThreadDescriptor, OpenThreadState, IReadOnlyList<AgentEvent>>? projectLoadedHistory = null,
+        Action<SessionViewDescriptor, OpenThreadState, IReadOnlyList<AgentEvent>>? projectLoadedHistory = null,
         Func<Func<Task>, Task>? dispatchToUiAsync = null)
     {
         ArgumentNullException.ThrowIfNull(runtimeService);
@@ -74,7 +74,7 @@ internal sealed class ThreadHistoryCoordinator
         _dispatchToUiAsync = dispatchToUiAsync ?? (static action => action());
     }
 
-    public async Task EnsureLoadedAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default)
+    public async Task EnsureLoadedAsync(SessionViewDescriptor thread, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(thread);
 
@@ -109,7 +109,7 @@ internal sealed class ThreadHistoryCoordinator
                 CancellationToken.None));
     }
 
-    public static bool CanLoadThreadHistory(WorkThreadDescriptor thread)
+    public static bool CanLoadThreadHistory(SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
 
@@ -179,7 +179,7 @@ internal sealed class ThreadHistoryCoordinator
     }
 
     private static bool ApplyRecoveredModelProviderPreference(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         ModelProviderPreference? preference)
     {
@@ -459,7 +459,7 @@ internal sealed class ThreadHistoryCoordinator
 
     private Task GetOrStartLoadTask(
         OpenThreadState tab,
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(tab);
@@ -481,7 +481,7 @@ internal sealed class ThreadHistoryCoordinator
     }
 
     private async Task LoadCoreAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         CancellationToken cancellationToken)
     {
@@ -495,14 +495,14 @@ internal sealed class ThreadHistoryCoordinator
     }
 
     private async Task RebuildAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         bool loadOnlyFromLastUserPrompt,
         bool preferCachedHistory,
         CancellationToken cancellationToken)
     {
         IReadOnlyList<AgentEvent>? cachedHistory = null;
-        WorkThreadExecutionOptions? executionOptions = null;
+        SessionExecutionOptions? executionOptions = null;
         try
         {
             await _dispatchToUiAsync(
@@ -614,9 +614,9 @@ internal sealed class ThreadHistoryCoordinator
     }
 
     private async Task<IReadOnlyList<AgentEvent>> GetHistoryAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         IReadOnlyList<AgentEvent>? cachedHistory,
-        WorkThreadExecutionOptions executionOptions,
+        SessionExecutionOptions executionOptions,
         CancellationToken cancellationToken)
     {
         if (cachedHistory is not null)

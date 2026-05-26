@@ -49,7 +49,7 @@ public sealed class WorkThreadCatalog
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The internal thread descriptors.</returns>
-    public async Task<IReadOnlyList<WorkThreadDescriptor>> LoadInternalAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SessionViewDescriptor>> LoadInternalAsync(CancellationToken cancellationToken = default)
     {
         var root = _options.InternalThreadsRoot;
         if (!Directory.Exists(root))
@@ -57,7 +57,7 @@ public sealed class WorkThreadCatalog
             return [];
         }
 
-        var results = new List<WorkThreadDescriptor>();
+        var results = new List<SessionViewDescriptor>();
         foreach (var markdownPath in Directory.EnumerateFiles(root, "readme.md", SearchOption.AllDirectories))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -78,7 +78,7 @@ public sealed class WorkThreadCatalog
     /// </summary>
     /// <param name="thread">The internal thread descriptor.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task SaveInternalAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default)
+    public async Task SaveInternalAsync(SessionViewDescriptor thread, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(thread);
         if (thread.Kind != WorkThreadKind.InternalThread)

@@ -11,7 +11,7 @@ internal sealed class ShellCatalogStateCoordinator
     private readonly ThreadViewStateCoordinator _viewStateCoordinator;
     private readonly OpenThreadStateStore _OpenThreadStateStore;
     private IReadOnlyList<ProjectDescriptor> _projects = [];
-    private IReadOnlyList<WorkThreadDescriptor> _threads = [];
+    private IReadOnlyList<SessionViewDescriptor> _threads = [];
 
     public ShellCatalogStateCoordinator(
         ProjectCatalog projectCatalog,
@@ -32,7 +32,7 @@ internal sealed class ShellCatalogStateCoordinator
 
     public IReadOnlyList<ProjectDescriptor> Projects => _projects;
 
-    public IReadOnlyList<WorkThreadDescriptor> Threads => _threads;
+    public IReadOnlyList<SessionViewDescriptor> Threads => _threads;
 
     public async Task<ShellThreadStateCoordinator.InitialCatalogState> LoadInitialCatalogStateAsync(CancellationToken cancellationToken)
     {
@@ -53,7 +53,7 @@ internal sealed class ShellCatalogStateCoordinator
 
     public CatalogRecoveryResult ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         WorkThreadViewState viewState,
         string? pendingStartupThreadRestoreId,
         bool pruneMissingThreads = true)
@@ -108,7 +108,7 @@ internal sealed class ShellCatalogStateCoordinator
         return new CatalogRecoveryResult(restoredThreadId);
     }
 
-    public void UpsertThread(WorkThreadDescriptor thread)
+    public void UpsertThread(SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
 
@@ -169,7 +169,7 @@ internal sealed class ShellCatalogStateCoordinator
         return _projects.FirstOrDefault(project => string.Equals(project.Id, projectId, StringComparison.OrdinalIgnoreCase));
     }
 
-    public WorkThreadDescriptor? FindThread(string? threadId)
+    public SessionViewDescriptor? FindThread(string? threadId)
     {
         if (string.IsNullOrWhiteSpace(threadId))
         {

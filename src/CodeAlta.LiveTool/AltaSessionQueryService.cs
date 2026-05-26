@@ -17,7 +17,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
         ArgumentNullException.ThrowIfNull(context);
         cancellationToken = cancellationToken == default ? context.CancellationToken : cancellationToken;
 
-        var runtime = context.Services.Get<WorkThreadRuntimeService>();
+        var runtime = context.Services.Get<SessionRuntimeService>();
         var threadCatalog = context.Services.Get<WorkThreadCatalog>();
         if (runtime is null && threadCatalog is null)
         {
@@ -26,7 +26,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
                 context.CorrelationId,
                 "service.unavailable",
                 AltaExitCodes.ServiceUnavailable,
-                $"Required in-process service '{nameof(WorkThreadRuntimeService)}' or '{nameof(WorkThreadCatalog)}' is unavailable.");
+                $"Required in-process service '{nameof(SessionRuntimeService)}' or '{nameof(WorkThreadCatalog)}' is unavailable.");
             yield break;
         }
 
@@ -45,7 +45,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
 
         if (runtime is not null)
         {
-            await foreach (var thread in runtime.StreamRecoverableThreadsAsync(cancellationToken: cancellationToken).ConfigureAwait(false))
+            await foreach (var thread in runtime.StreamRecoverableSessionsAsync(cancellationToken: cancellationToken).ConfigureAwait(false))
             {
                 yield return await BuildSessionInfoAsync(runtime, threadCatalog, viewState, thread, cancellationToken).ConfigureAwait(false);
             }
@@ -63,10 +63,10 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
         => LoadAsync(context);
 
     private static async Task<AltaSessionInfo> BuildSessionInfoAsync(
-        WorkThreadRuntimeService? runtime,
+        SessionRuntimeService? runtime,
         WorkThreadCatalog? threadCatalog,
         WorkThreadViewState? viewState,
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         CancellationToken cancellationToken)
     {
         var localState = await TryGetLocalStateAsync(threadCatalog, viewState, thread, cancellationToken).ConfigureAwait(false);
@@ -114,7 +114,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
     private static async Task<WorkThreadLocalState?> TryGetLocalStateAsync(
         WorkThreadCatalog? threadCatalog,
         WorkThreadViewState? viewState,
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         CancellationToken cancellationToken)
     {
         if (threadCatalog is not null)
@@ -140,7 +140,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
     private static WorkThreadPreference? TryGetPreference(WorkThreadViewState? viewState, string threadId)
         => viewState is not null && viewState.ThreadPreferences.TryGetValue(threadId, out var preference) ? preference : null;
 
-    private static string ResolveState(WorkThreadDescriptor thread, bool isRunning, bool hasActiveSession)
+    private static string ResolveState(SessionViewDescriptor thread, bool isRunning, bool hasActiveSession)
     {
         if (thread.Status == WorkThreadStatus.Archived)
         {
@@ -157,7 +157,7 @@ internal sealed class AltaSessionQueryService : IAltaSessionQueryService
 }
 
 internal sealed record AltaSessionInfo(
-    WorkThreadDescriptor Thread,
+    SessionViewDescriptor Thread,
     WorkThreadLocalState? LocalState,
     WorkThreadPreference? Preference,
     bool IsRunning,

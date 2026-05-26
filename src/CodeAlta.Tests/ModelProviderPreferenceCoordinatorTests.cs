@@ -271,7 +271,7 @@ public sealed class ModelProviderPreferenceCoordinatorTests
 
     private static OpenThreadState CreateOpenThreadState(string threadId, string providerKey)
     {
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = threadId,
             Kind = WorkThreadKind.ProjectThread,

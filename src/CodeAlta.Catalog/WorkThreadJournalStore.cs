@@ -59,7 +59,7 @@ public sealed class WorkThreadJournalStore
     /// </summary>
     /// <param name="thread">Thread descriptor.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task EnsureHeaderAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default)
+    public async Task EnsureHeaderAsync(SessionViewDescriptor thread, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(thread);
         if (string.IsNullOrWhiteSpace(thread.ThreadId) || thread.CreatedAt == default)
@@ -82,7 +82,7 @@ public sealed class WorkThreadJournalStore
     /// <param name="thread">Thread descriptor.</param>
     /// <param name="state">State snapshot.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async Task AppendStateAsync(WorkThreadDescriptor thread, WorkThreadLocalState state, CancellationToken cancellationToken = default)
+    public async Task AppendStateAsync(SessionViewDescriptor thread, WorkThreadLocalState state, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(state);
@@ -245,7 +245,7 @@ public sealed class WorkThreadJournalStore
     private string GetPath(string threadId, DateTimeOffset createdAt)
         => _layout.GetSessionFilePath(threadId, createdAt);
 
-    private static AgentRawEvent CreateHeaderEvent(WorkThreadDescriptor thread)
+    private static AgentRawEvent CreateHeaderEvent(SessionViewDescriptor thread)
         => new(
             new AgentBackendId(thread.BackendId),
             thread.ThreadId,
@@ -253,7 +253,7 @@ public sealed class WorkThreadJournalStore
             ThreadHeaderEventType,
             JsonSerializer.SerializeToElement(WorkThreadJournalHeader.FromDescriptor(thread), WorkThreadJournalJsonSerializerContext.Default.WorkThreadJournalHeader));
 
-    private static AgentRawEvent CreateStateEvent(WorkThreadDescriptor thread, WorkThreadLocalState state)
+    private static AgentRawEvent CreateStateEvent(SessionViewDescriptor thread, WorkThreadLocalState state)
         => new(
             new AgentBackendId(thread.BackendId),
             thread.ThreadId,
@@ -463,7 +463,7 @@ public sealed class WorkThreadJournalHeader
     [JsonPropertyName("created_at")]
     public DateTimeOffset CreatedAt { get; set; }
 
-    public static WorkThreadJournalHeader FromDescriptor(WorkThreadDescriptor descriptor)
+    public static WorkThreadJournalHeader FromDescriptor(SessionViewDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
         return new WorkThreadJournalHeader
@@ -481,7 +481,7 @@ public sealed class WorkThreadJournalHeader
         };
     }
 
-    public WorkThreadDescriptor ToDescriptor()
+    public SessionViewDescriptor ToDescriptor()
         => new()
         {
             ThreadId = ThreadId,

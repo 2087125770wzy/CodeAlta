@@ -25,8 +25,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
     private readonly WorkspaceRefreshContext _workspaceRefresh;
     private readonly Func<string?, string?> _getEffectiveDefaultProviderKey;
     private readonly Action _syncModelProviderSelectorItems;
-    private readonly Func<WorkThreadDescriptor, OpenThreadState, bool> _canSelectThreadBackend;
-    private readonly Func<WorkThreadDescriptor, OpenThreadState, ModelProviderId, Task<bool>> _trySwitchThreadBackendAsync;
+    private readonly Func<SessionViewDescriptor, OpenThreadState, bool> _canSelectThreadBackend;
+    private readonly Func<SessionViewDescriptor, OpenThreadState, ModelProviderId, Task<bool>> _trySwitchThreadBackendAsync;
     private readonly Action _refreshSelectionAndThreadWorkspace;
     private readonly Func<IReadOnlyList<string>>? _getConfiguredProviderKeys;
     private readonly Func<ModelProviderPreference?> _getDraftModelProviderPreference;
@@ -45,8 +45,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         WorkspaceRefreshContext workspaceRefresh,
         Func<string?, string?> getEffectiveDefaultProviderKey,
         Action syncModelProviderSelectorItems,
-        Func<WorkThreadDescriptor, OpenThreadState, bool>? canSelectThreadBackend = null,
-        Func<WorkThreadDescriptor, OpenThreadState, ModelProviderId, Task<bool>>? trySwitchThreadBackendAsync = null,
+        Func<SessionViewDescriptor, OpenThreadState, bool>? canSelectThreadBackend = null,
+        Func<SessionViewDescriptor, OpenThreadState, ModelProviderId, Task<bool>>? trySwitchThreadBackendAsync = null,
         Action? refreshSelectionAndThreadWorkspace = null,
         Func<IReadOnlyList<string>>? getConfiguredProviderKeys = null,
         Func<ModelProviderPreference?>? getDraftModelProviderPreference = null,
@@ -84,8 +84,8 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         WorkspaceRefreshContext workspaceRefresh,
         Func<string?, string?> getEffectiveDefaultProviderKey,
         Action syncModelProviderSelectorItems,
-        Func<WorkThreadDescriptor, OpenThreadState, bool>? canSelectThreadBackend = null,
-        Func<WorkThreadDescriptor, OpenThreadState, ModelProviderId, Task<bool>>? trySwitchThreadBackendAsync = null,
+        Func<SessionViewDescriptor, OpenThreadState, bool>? canSelectThreadBackend = null,
+        Func<SessionViewDescriptor, OpenThreadState, ModelProviderId, Task<bool>>? trySwitchThreadBackendAsync = null,
         Action? refreshSelectionAndThreadWorkspace = null,
         Func<IReadOnlyList<string>>? getConfiguredProviderKeys = null,
         Func<ModelProviderPreference?>? getDraftModelProviderPreference = null,
@@ -753,7 +753,7 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
         AgentReasoningEffort? reasoningEffort)
         => new(modelProviderId, modelId, reasoningEffort);
 
-    private static string BuildUnavailableThreadProviderLabel(WorkThreadDescriptor thread, ModelProviderId providerId)
+    private static string BuildUnavailableThreadProviderLabel(SessionViewDescriptor thread, ModelProviderId providerId)
     {
         ArgumentNullException.ThrowIfNull(thread);
         var providerKey = string.IsNullOrWhiteSpace(thread.ResolvedProviderKey)

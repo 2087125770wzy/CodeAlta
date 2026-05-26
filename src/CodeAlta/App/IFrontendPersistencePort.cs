@@ -11,7 +11,7 @@ internal interface IFrontendPersistencePort
 
     Task PersistViewStateAsync(CancellationToken cancellationToken = default);
 
-    Task RegisterCreatedThreadAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default);
+    Task RegisterCreatedThreadAsync(SessionViewDescriptor thread, CancellationToken cancellationToken = default);
 }
 
 internal sealed class FrontendPersistencePort : IFrontendPersistencePort
@@ -19,13 +19,13 @@ internal sealed class FrontendPersistencePort : IFrontendPersistencePort
     private readonly Func<string, string?> _loadPromptDraft;
     private readonly Action<string> _deletePromptDraft;
     private readonly Func<CancellationToken, Task> _persistViewStateAsync;
-    private readonly Func<WorkThreadDescriptor, CancellationToken, Task> _registerCreatedThreadAsync;
+    private readonly Func<SessionViewDescriptor, CancellationToken, Task> _registerCreatedThreadAsync;
 
     public FrontendPersistencePort(
         Func<string, string?> loadPromptDraft,
         Action<string> deletePromptDraft,
         Func<CancellationToken, Task> persistViewStateAsync,
-        Func<WorkThreadDescriptor, CancellationToken, Task> registerCreatedThreadAsync)
+        Func<SessionViewDescriptor, CancellationToken, Task> registerCreatedThreadAsync)
     {
         ArgumentNullException.ThrowIfNull(loadPromptDraft);
         ArgumentNullException.ThrowIfNull(deletePromptDraft);
@@ -47,7 +47,7 @@ internal sealed class FrontendPersistencePort : IFrontendPersistencePort
     public async Task PersistViewStateAsync(CancellationToken cancellationToken = default)
         => await _persistViewStateAsync(cancellationToken);
 
-    public async Task RegisterCreatedThreadAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken = default)
+    public async Task RegisterCreatedThreadAsync(SessionViewDescriptor thread, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(thread);
         await _registerCreatedThreadAsync(thread, cancellationToken);

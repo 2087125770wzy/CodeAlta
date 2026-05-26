@@ -332,15 +332,15 @@ public sealed class ThreadRuntimeStateReducerTests
         Assert.IsTrue(reduction.DrainQueuedPrompt);
     }
 
-    private static OpenThreadState CreateOpenThreadState(WorkThreadDescriptor thread)
+    private static OpenThreadState CreateOpenThreadState(SessionViewDescriptor thread)
     {
         var timeline = new ThreadTimelinePresenter(new InlineUiDispatcher(), static () => null);
         return new OpenThreadState(thread, timeline);
     }
 
-    private static WorkThreadDescriptor CreateThread()
+    private static SessionViewDescriptor CreateThread()
     {
-        return new WorkThreadDescriptor
+        return new SessionViewDescriptor
         {
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,

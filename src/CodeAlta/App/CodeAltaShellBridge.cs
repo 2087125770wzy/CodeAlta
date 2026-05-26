@@ -30,7 +30,7 @@ internal sealed class CodeAltaShellBridge : ICodeAltaShell
 
     public void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         bool pruneMissingThreads = true)
         => _app.ApplyRecoveredCatalogState(projects, threads, pruneMissingThreads);
 

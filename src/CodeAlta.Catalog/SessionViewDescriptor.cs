@@ -5,7 +5,7 @@ namespace CodeAlta.Catalog;
 /// <summary>
 /// Describes a durable work thread.
 /// </summary>
-public sealed class WorkThreadDescriptor
+public sealed class SessionViewDescriptor
 {
     /// <summary>
     /// Gets or sets the stable thread identifier.

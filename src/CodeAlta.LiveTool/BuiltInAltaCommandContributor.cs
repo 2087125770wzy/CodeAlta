@@ -694,7 +694,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         ("catalog.project", context.Services.Get<ProjectCatalog>() is not null),
         ("catalog.thread", context.Services.Get<WorkThreadCatalog>() is not null),
         ("catalog.skill", context.Services.Get<SkillCatalog>() is not null),
-        ("runtime.workThread", context.Services.Get<WorkThreadRuntimeService>() is not null),
+        ("runtime.workThread", context.Services.Get<SessionRuntimeService>() is not null),
         ("providers.agentHub", context.Services.Get<AgentHub>() is not null),
         ("plugins.altaCatalog", context.Services.Get<IAltaPluginCatalog>() is not null),
         ("sessionTool.backendPolicy", context.Services.Get<IAltaSessionToolBackendPolicy>() is not null),
@@ -1120,7 +1120,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return UsageError(context, "usage.invalidScope", "--scope must be last-turn or session.", "alta session metrics");
         }
 
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime))
         {
             return AltaExitCodes.ServiceUnavailable;
         }
@@ -1201,7 +1201,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return UsageError(context, "usage.missingThread", "At least one thread id is required.", "alta session report");
         }
 
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime))
         {
             return AltaExitCodes.ServiceUnavailable;
         }
@@ -1265,7 +1265,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task<SessionReportItem> BuildSessionReportItemAsync(
         AltaCommandContext context,
-        WorkThreadRuntimeService runtime,
+        SessionRuntimeService runtime,
         AltaSessionInfo info,
         SessionMetricsScope scope,
         int index,
@@ -1347,7 +1347,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return UsageError(context, "usage.invalidLimit", fromTail ? "--last must be positive." : "--limit must be positive.", fromTail ? "alta session tail" : "alta session events");
         }
 
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime))
         {
             return AltaExitCodes.ServiceUnavailable;
         }
@@ -1396,7 +1396,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         AltaCommandContext context,
         IReadOnlyList<AltaSessionInfo> infos)
     {
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime))
         {
             return new Dictionary<string, SessionMetrics>(StringComparer.Ordinal);
         }
@@ -1413,7 +1413,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task<SessionMetrics?> BuildCompactMetricsAsync(AltaCommandContext context, AltaSessionInfo info)
     {
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime))
         {
             return null;
         }
@@ -1424,7 +1424,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task<SessionResultBuildResult> BuildSessionResultAsync(AltaCommandContext context, string threadId, SessionMetricsScope scope)
     {
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime))
         {
             return SessionResultBuildResult.Fail(AltaExitCodes.ServiceUnavailable);
         }
@@ -1444,7 +1444,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task<SessionResult> BuildSessionResultAsync(
         AltaCommandContext context,
-        WorkThreadRuntimeService runtime,
+        SessionRuntimeService runtime,
         AltaSessionInfo info,
         SessionMetricsScope scope)
     {
@@ -1474,7 +1474,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task<IReadOnlyList<AgentEvent>?> ReadSessionHistoryAsync(
         AltaCommandContext context,
-        WorkThreadRuntimeService runtime,
+        SessionRuntimeService runtime,
         AltaSessionInfo info)
     {
         var storedHistoryUnavailable = false;
@@ -1707,7 +1707,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return UsageError(context, "usage.parentConflict", "Use either --parent or --no-parent, not both.", "alta session create");
         }
 
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime) ||
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime) ||
             !context.TryGetRequired<ProjectCatalog>(nameof(ProjectCatalog), out var catalog))
         {
             return AltaExitCodes.ServiceUnavailable;
@@ -1747,7 +1747,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             () => createdThreadId,
             project?.Id);
 
-        WorkThreadDescriptor thread;
+        SessionViewDescriptor thread;
         if (project is null)
         {
             thread = await runtime.CreateGlobalThreadAsync(executionOptions, options.Title, parentResolution.ParentThreadId, createdBy, context.CancellationToken).ConfigureAwait(false);
@@ -1797,7 +1797,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return promptResult.ExitCode;
         }
 
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime))
         {
             return AltaExitCodes.ServiceUnavailable;
         }
@@ -1886,7 +1886,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return UsageError(context, "usage.missingThread", "Thread id is required.", "alta session abort");
         }
 
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime))
         {
             return AltaExitCodes.ServiceUnavailable;
         }
@@ -1930,7 +1930,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return UsageError(context, "usage.missingThread", "Thread id is required.", "alta session compact");
         }
 
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime))
         {
             return AltaExitCodes.ServiceUnavailable;
         }
@@ -2024,7 +2024,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             return UsageError(context, "usage.missingSession", "--session <thread-id> is required.", "alta skill activate");
         }
 
-        if (!context.TryGetRequired<WorkThreadRuntimeService>(nameof(WorkThreadRuntimeService), out var runtime))
+        if (!context.TryGetRequired<SessionRuntimeService>(nameof(SessionRuntimeService), out var runtime))
         {
             return AltaExitCodes.ServiceUnavailable;
         }
@@ -2247,7 +2247,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     {
         var queryService = context.Services.Get<IAltaSessionQueryService>();
         if (queryService is null &&
-            context.Services.Get<WorkThreadRuntimeService>() is null &&
+            context.Services.Get<SessionRuntimeService>() is null &&
             context.Services.Get<WorkThreadCatalog>() is null)
         {
             await foreach (var _ in new AltaSessionQueryService().LoadAsync(context).ConfigureAwait(false))
@@ -2269,7 +2269,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task<SessionInfoResolutionResult> ResolveSessionInfoAsync(AltaCommandContext context, string threadId, bool includeLocalState = false)
     {
-        if (context.Services.Get<WorkThreadRuntimeService>() is { } runtime)
+        if (context.Services.Get<SessionRuntimeService>() is { } runtime)
         {
             var activeThread = await runtime.TryGetActiveThreadDescriptorAsync(threadId, context.CancellationToken).ConfigureAwait(false);
             if (activeThread is not null)
@@ -2326,7 +2326,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         }
     }
 
-    private static WorkThreadExecutionOptions BuildExecutionOptions(
+    private static SessionExecutionOptions BuildExecutionOptions(
         AltaCommandContext context,
         AltaModelSelection selection,
         string workingDirectory,
@@ -2346,7 +2346,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             OnUserInputRequest = static (_, _) => Task.FromResult(new AgentUserInputResponse(new Dictionary<string, string>(StringComparer.Ordinal))),
         };
 
-    private static async Task<WorkThreadExecutionOptions> BuildExecutionOptionsForThreadAsync(AltaCommandContext context, AltaSessionInfo info)
+    private static async Task<SessionExecutionOptions> BuildExecutionOptionsForThreadAsync(AltaCommandContext context, AltaSessionInfo info)
     {
         var projectRoots = new List<string>();
         var workingDirectory = info.Thread.WorkingDirectory;
@@ -2360,7 +2360,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             }
         }
 
-        return new WorkThreadExecutionOptions
+        return new SessionExecutionOptions
         {
             BackendId = new AgentBackendId(info.Thread.BackendId),
             ProviderKey = info.Thread.ResolvedProviderKey,
@@ -2507,13 +2507,13 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task<ThreadModelSelectionResult> ResolveThreadModelSelectionAsync(AltaCommandContext context, string threadId)
     {
-        if (context.Services.Get<WorkThreadRuntimeService>() is not { } runtime)
+        if (context.Services.Get<SessionRuntimeService>() is not { } runtime)
         {
             return ThreadModelSelectionResult.NotFound();
         }
 
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        WorkThreadDescriptor? thread = null;
+        SessionViewDescriptor? thread = null;
         AltaModelSelection? selection = null;
         var currentThreadId = threadId;
         while (!string.IsNullOrWhiteSpace(currentThreadId) && visited.Add(currentThreadId))
@@ -2554,7 +2554,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
     private static IReadOnlyList<ModelProviderDescriptor> GetBackendDescriptors(AltaCommandContext context)
         => context.Services.Get<IReadOnlyList<ModelProviderDescriptor>>() ?? [];
 
-    private static AltaModelSelection CreateModelSelection(WorkThreadDescriptor thread, WorkThreadPreference? preference)
+    private static AltaModelSelection CreateModelSelection(SessionViewDescriptor thread, WorkThreadPreference? preference)
     {
         var providerKey = thread.ResolvedProviderKey;
         var modelId = preference?.ModelId ?? thread.ModelId;
@@ -2727,7 +2727,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             _ => "alta session send",
         };
 
-    private static async Task PersistThreadPreferenceAsync(AltaCommandContext context, WorkThreadDescriptor thread, AltaModelSelection selection)
+    private static async Task PersistThreadPreferenceAsync(AltaCommandContext context, SessionViewDescriptor thread, AltaModelSelection selection)
     {
         if (context.Services.Get<WorkThreadCatalog>() is not { } threadCatalog)
         {
@@ -2745,7 +2745,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task<WorkThreadLocalState?> TryReadLatestThreadStateAsync(
         WorkThreadCatalog threadCatalog,
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         CancellationToken cancellationToken)
     {
         try
@@ -2760,7 +2760,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static async Task PersistPromptProvenanceAsync(
         AltaCommandContext context,
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         string? runId,
         bool queued,
         PromptDispatchKind kind,
@@ -2815,8 +2815,8 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         => string.Equals(context.Caller.Kind, "agent", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<bool> WaitForAgentSubmissionAckAsync(
-        WorkThreadRuntimeService runtime,
-        WorkThreadDescriptor thread,
+        SessionRuntimeService runtime,
+        SessionViewDescriptor thread,
         Task<AgentRunId> sendTask)
     {
         var deadline = DateTimeOffset.UtcNow + AgentCallerSubmitAckTimeout;
@@ -2851,12 +2851,12 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         }
         catch
         {
-            // WorkThreadRuntimeService publishes runtime failure events for observers; this continuation
+            // SessionRuntimeService publishes runtime failure events for observers; this continuation
             // prevents detached live-tool submissions from surfacing as unobserved task exceptions.
         }
     }
 
-    private static string BuildPeerAgentMessage(AltaCommandContext context, WorkThreadDescriptor target, PromptOptions options, string body)
+    private static string BuildPeerAgentMessage(AltaCommandContext context, SessionViewDescriptor target, PromptOptions options, string body)
     {
         var kind = string.IsNullOrWhiteSpace(options.MessageKind) ? "note" : options.MessageKind;
         var replyRequested = options.ReplyRequested ? "true" : "false";
@@ -2885,7 +2885,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         if (!string.IsNullOrWhiteSpace(options.ParentThreadId))
         {
             var parentThreadId = options.ParentThreadId.Trim();
-            if (context.Services.Get<WorkThreadRuntimeService>() is not { } runtime)
+            if (context.Services.Get<SessionRuntimeService>() is not { } runtime)
             {
                 return ParentThreadResolutionResult.Fail(AltaExitCodes.ServiceUnavailable);
             }
@@ -3179,7 +3179,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
             selection.ModelRef,
         };
 
-    private static void WriteAgentEvent(AltaCommandContext context, WorkThreadDescriptor thread, AgentEvent agentEvent, long sequenceNumber, IReadOnlySet<string>? fields = null)
+    private static void WriteAgentEvent(AltaCommandContext context, SessionViewDescriptor thread, AgentEvent agentEvent, long sequenceNumber, IReadOnlySet<string>? fields = null)
     {
         var mapped = MapAgentEvent(agentEvent);
         if (fields is { Count: > 0 })
@@ -3211,7 +3211,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
 
     private static Dictionary<string, object?> CreateAgentEventFieldsRecord(
         AltaCommandContext context,
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         AgentEvent agentEvent,
         long sequenceNumber,
         MappedEvent mapped,
@@ -3360,7 +3360,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         return set;
     }
 
-    private static void WritePromptResult(AltaCommandContext context, string type, WorkThreadDescriptor thread, string? runId, string? queueItemId, bool queued, PromptDispatchKind kind, string prompt)
+    private static void WritePromptResult(AltaCommandContext context, string type, SessionViewDescriptor thread, string? runId, string? queueItemId, bool queued, PromptDispatchKind kind, string prompt)
     {
         var parentNotificationExpected = IsAgentCaller(context) && !string.IsNullOrWhiteSpace(thread.ParentThreadId);
         AltaJsonlWriter.WriteRecord(context.Stdout, new
@@ -3389,7 +3389,7 @@ internal sealed class BuiltInAltaCommandContributor : IAltaCommandContributor
         });
     }
 
-    private static object? CreatePromptNotificationPayload(AltaCommandContext context, WorkThreadDescriptor thread)
+    private static object? CreatePromptNotificationPayload(AltaCommandContext context, SessionViewDescriptor thread)
         => IsAgentCaller(context) && !string.IsNullOrWhiteSpace(thread.ParentThreadId)
             ? new
             {

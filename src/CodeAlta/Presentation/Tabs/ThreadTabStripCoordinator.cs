@@ -499,7 +499,7 @@ internal sealed class ThreadTabStripCoordinator
         return page;
     }
 
-    private ShellTabSnapshot EnsureThreadShellTab(ThreadWorkspaceView workspaceView, WorkThreadDescriptor thread)
+    private ShellTabSnapshot EnsureThreadShellTab(ThreadWorkspaceView workspaceView, SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(workspaceView);
         ArgumentNullException.ThrowIfNull(thread);
@@ -872,7 +872,7 @@ internal sealed class ThreadTabStripCoordinator
 
     private ShellTabSnapshot OpenThreadShellTab(
         ThreadWorkspaceView workspaceView,
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         Visual header)
     {

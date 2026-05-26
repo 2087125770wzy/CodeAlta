@@ -11,7 +11,7 @@ flowchart LR
     Registrar[RawApiBackendRegistrar]
     Factory[AgentBackendFactory]
     Hub[AgentHub]
-    Runtime[WorkThreadRuntimeService]
+    Runtime[SessionRuntimeService]
 
     Config --> Store
     Store --> Registrar

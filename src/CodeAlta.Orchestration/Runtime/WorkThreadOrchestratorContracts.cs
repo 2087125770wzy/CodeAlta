@@ -30,7 +30,7 @@ public sealed record WorkThreadCommandContext
     public string? ThreadId { get; init; }
 
     /// <summary>Gets backend execution options associated with the command.</summary>
-    public WorkThreadExecutionOptions? ExecutionOptions { get; init; }
+    public SessionExecutionOptions? ExecutionOptions { get; init; }
 }
 
 /// <summary>
@@ -273,7 +273,7 @@ public enum WorkThreadCommandOutcomeKind
 /// <summary>
 /// Immutable snapshot of a durable work-thread descriptor.
 /// </summary>
-public sealed record WorkThreadDescriptorSnapshot
+public sealed record SessionViewDescriptorSnapshot
 {
     /// <summary>Gets the stable thread identifier.</summary>
     public required string ThreadId { get; init; }
@@ -335,11 +335,11 @@ public sealed record WorkThreadDescriptorSnapshot
     /// <param name="descriptor">The descriptor to copy.</param>
     /// <returns>An immutable descriptor snapshot.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="descriptor"/> is <see langword="null"/>.</exception>
-    public static WorkThreadDescriptorSnapshot FromDescriptor(WorkThreadDescriptor descriptor)
+    public static SessionViewDescriptorSnapshot FromDescriptor(SessionViewDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
-        return new WorkThreadDescriptorSnapshot
+        return new SessionViewDescriptorSnapshot
         {
             ThreadId = descriptor.ThreadId,
             Kind = descriptor.Kind,
@@ -372,7 +372,7 @@ public sealed record WorkThreadCommandResult
     public required WorkThreadCommandOutcomeKind Outcome { get; init; }
 
     /// <summary>Gets the immutable durable thread snapshot, when a command materialized or affected a thread.</summary>
-    public WorkThreadDescriptorSnapshot? Thread { get; init; }
+    public SessionViewDescriptorSnapshot? Thread { get; init; }
 
     /// <summary>Gets a user- or log-facing message for the outcome.</summary>
     public string? Message { get; init; }
@@ -390,7 +390,7 @@ public sealed record WorkThreadCommandResult
 public sealed record WorkThreadSnapshot
 {
     /// <summary>Gets the immutable durable thread snapshot.</summary>
-    public required WorkThreadDescriptorSnapshot Thread { get; init; }
+    public required SessionViewDescriptorSnapshot Thread { get; init; }
 
     /// <summary>Gets a value indicating whether a run is currently active.</summary>
     public bool IsRunning { get; init; }

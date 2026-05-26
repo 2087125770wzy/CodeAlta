@@ -14,7 +14,7 @@ public sealed class PromptImageAttachmentStoreTests
         {
             var store = new PromptImageAttachmentStore(new CatalogOptions { GlobalRoot = rootPath });
             var createdAt = new DateTimeOffset(2026, 4, 27, 12, 30, 0, TimeSpan.Zero);
-            var thread = new WorkThreadDescriptor
+            var thread = new SessionViewDescriptor
             {
                 ThreadId = "thread-one",
                 CreatedAt = createdAt,

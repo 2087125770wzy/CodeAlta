@@ -15,7 +15,7 @@ internal sealed class PromptImageAttachmentStore
     }
 
     public async Task<IReadOnlyList<PromptImageAttachmentReference>> SaveAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         IReadOnlyList<PromptImageAttachment> images,
         CancellationToken cancellationToken = default)
     {
@@ -43,7 +43,7 @@ internal sealed class PromptImageAttachmentStore
         return references;
     }
 
-    internal string GetAttachmentDirectory(WorkThreadDescriptor thread)
+    internal string GetAttachmentDirectory(SessionViewDescriptor thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
 

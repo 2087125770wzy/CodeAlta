@@ -63,7 +63,7 @@ internal sealed class PluginHostBridge
         => _frontend.RenderAsync(region, target, payload, cancellationToken);
 
     public async Task<PromptSubmission?> ProcessPromptSubmittingAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         PromptSubmission prompt,
         bool isCodeAltaManagedBackend,
@@ -169,9 +169,9 @@ internal sealed class PluginHostBridge
     }
 
     public async Task<PluginAgentRunAugmentation> BuildAgentRunAugmentationAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
-        WorkThreadExecutionOptions executionOptions,
+        SessionExecutionOptions executionOptions,
         AgentInput input,
         CancellationToken cancellationToken)
     {
@@ -255,7 +255,7 @@ internal sealed class PluginHostBridge
         return await _frontend.ExecuteCommandAsync(name, arguments, cancellationToken);
     }
 
-    public async Task ObserveAgentEventAsync(WorkThreadDescriptor thread, AgentEvent @event, CancellationToken cancellationToken = default)
+    public async Task ObserveAgentEventAsync(SessionViewDescriptor thread, AgentEvent @event, CancellationToken cancellationToken = default)
     {
         var options = new PluginAdapterOperationOptions
         {
@@ -277,7 +277,7 @@ internal sealed class PluginHostBridge
     }
 
     public async Task<WorkThreadPluginDerivedEventProjectionResult> ProjectThreadEventsAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         IReadOnlyList<AgentEvent> events,
         bool isReplay,
@@ -311,7 +311,7 @@ internal sealed class PluginHostBridge
     }
 
     public async Task<PluginCompactionAugmentation> BeforeCompactionAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         CancellationToken cancellationToken = default)
     {
@@ -401,7 +401,7 @@ internal sealed class PluginHostBridge
     }
 
     public async Task AfterCompactionAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         bool succeeded,
         string? summary,
@@ -472,7 +472,7 @@ internal sealed class PluginHostBridge
         };
     }
 
-    private PluginAdapterOperationOptions CreateOptions(WorkThreadDescriptor? thread, OpenThreadState? tab, bool isCodeAltaManagedBackend = false)
+    private PluginAdapterOperationOptions CreateOptions(SessionViewDescriptor? thread, OpenThreadState? tab, bool isCodeAltaManagedBackend = false)
         => new()
         {
             ProjectId = thread?.ProjectRef ?? _getCurrentProject()?.Id,
@@ -485,7 +485,7 @@ internal sealed class PluginHostBridge
             HasInteractiveUi = true,
         };
 
-    private string? ResolveProjectPath(WorkThreadDescriptor? thread)
+    private string? ResolveProjectPath(SessionViewDescriptor? thread)
     {
         if (thread is null)
         {
@@ -529,7 +529,7 @@ internal sealed class PluginHostBridge
         return new AgentInput(items);
     }
 
-    private static PluginPromptContributionScopeKey CreatePromptContributionScopeKey(WorkThreadDescriptor thread, OpenThreadState tab)
+    private static PluginPromptContributionScopeKey CreatePromptContributionScopeKey(SessionViewDescriptor thread, OpenThreadState tab)
         => new(thread.ThreadId, tab.ActiveRunId?.Value);
 
     private static async Task<string?> BuildPromptTextAsync(

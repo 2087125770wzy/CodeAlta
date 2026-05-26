@@ -101,9 +101,9 @@ public sealed class ThreadTimelineMarkdownRootTests
         return Assert.IsInstanceOfType<MarkdownControl>(group.Content);
     }
 
-    private static WorkThreadDescriptor CreateThread()
+    private static SessionViewDescriptor CreateThread()
     {
-        return new WorkThreadDescriptor
+        return new SessionViewDescriptor
         {
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,

@@ -86,7 +86,7 @@ public sealed class WorkThreadOrchestratorContractsTests
     [TestMethod]
     public void CommandResult_CanRecommendPromptRestoreOnFailure()
     {
-        var thread = new WorkThreadDescriptorSnapshot
+        var thread = new SessionViewDescriptorSnapshot
         {
             ThreadId = "thread-1",
             Title = "Thread",
@@ -133,7 +133,7 @@ public sealed class WorkThreadOrchestratorContractsTests
     [TestMethod]
     public void DescriptorSnapshot_CopiesDescriptorWithoutRetainingMutableInstance()
     {
-        var descriptor = new WorkThreadDescriptor
+        var descriptor = new SessionViewDescriptor
         {
             ThreadId = "thread-1",
             Kind = WorkThreadKind.ProjectThread,
@@ -153,7 +153,7 @@ public sealed class WorkThreadOrchestratorContractsTests
             MarkdownBody = "body",
         };
 
-        var snapshot = WorkThreadDescriptorSnapshot.FromDescriptor(descriptor);
+        var snapshot = SessionViewDescriptorSnapshot.FromDescriptor(descriptor);
         descriptor.Title = "Changed";
         descriptor.MessageCount = 4;
 

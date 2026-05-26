@@ -17,7 +17,7 @@ internal interface ICodeAltaShell
 
     void ApplyRecoveredCatalogState(
         IReadOnlyList<ProjectDescriptor> projects,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         bool pruneMissingThreads = true);
 
     void UpsertProject(ProjectDescriptor project);

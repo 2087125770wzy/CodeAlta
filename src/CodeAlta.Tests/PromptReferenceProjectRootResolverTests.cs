@@ -34,7 +34,7 @@ public sealed class PromptReferenceProjectRootResolverTests
             ProjectPath = @"C:\Users\alex\.azuredevops",
             DefaultBranch = "main",
         };
-        var thread = new WorkThreadDescriptor
+        var thread = new SessionViewDescriptor
         {
             ThreadId = "global-thread",
             Kind = WorkThreadKind.GlobalThread,

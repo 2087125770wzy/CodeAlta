@@ -28,7 +28,7 @@ internal sealed class ProjectThreadsDialog
 
     public ProjectThreadsDialog(
         ProjectDescriptor project,
-        IReadOnlyList<WorkThreadDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor> threads,
         Func<string?, string> resolveProviderDisplayName,
         Func<IReadOnlyList<string>, Task> deleteThreadsAsync,
         Func<string, Task> openThreadAsync,
@@ -309,7 +309,7 @@ internal sealed class ProjectThreadsDialog
     }
 
     private static ProjectThreadsDialogRowViewModel CreateRow(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         DateTimeOffset nowUtc,
         Func<string?, string> resolveProviderDisplayName)
     {

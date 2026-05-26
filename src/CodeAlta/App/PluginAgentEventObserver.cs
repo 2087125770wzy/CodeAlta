@@ -9,10 +9,10 @@ namespace CodeAlta.App;
 
 internal interface IPluginAgentEventObserver
 {
-    Task ObserveAgentEventAsync(WorkThreadDescriptor thread, AgentEvent agentEvent, CancellationToken cancellationToken = default);
+    Task ObserveAgentEventAsync(SessionViewDescriptor thread, AgentEvent agentEvent, CancellationToken cancellationToken = default);
 
     Task<WorkThreadPluginDerivedEventProjectionResult> ProjectThreadEventsAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         IReadOnlyList<AgentEvent> events,
         bool isReplay,
@@ -26,7 +26,7 @@ internal sealed class PluginAgentEventObserver : IPluginAgentEventObserver
     public PluginAgentEventObserver(PluginHostBridge? pluginHostBridge)
         => _pluginHostBridge = pluginHostBridge;
 
-    public async Task ObserveAgentEventAsync(WorkThreadDescriptor thread, AgentEvent agentEvent, CancellationToken cancellationToken = default)
+    public async Task ObserveAgentEventAsync(SessionViewDescriptor thread, AgentEvent agentEvent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(agentEvent);
@@ -47,7 +47,7 @@ internal sealed class PluginAgentEventObserver : IPluginAgentEventObserver
     }
 
     public async Task<WorkThreadPluginDerivedEventProjectionResult> ProjectThreadEventsAsync(
-        WorkThreadDescriptor thread,
+        SessionViewDescriptor thread,
         OpenThreadState tab,
         IReadOnlyList<AgentEvent> events,
         bool isReplay,

@@ -8,7 +8,7 @@ using CodeAlta.Threading;
 namespace CodeAlta.Tests;
 
 [TestClass]
-public sealed class ThreadProviderSwitchCoordinatorTests
+public sealed class SessionProviderSwitchCoordinatorTests
 {
     [TestMethod]
     public async Task SwitchThreadProviderAsync_UpdatesProviderWithoutRekeyingThreadOrTouchingSessionStore()
@@ -17,10 +17,10 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         WriteProviderConfig(temp.Path);
         var options = new CatalogOptions { GlobalRoot = temp.Path };
         var backendStates = CreateBackendStates();
-        var updatedThreads = new List<WorkThreadDescriptor>();
+        var updatedThreads = new List<SessionViewDescriptor>();
         var detachedThreadIds = new List<string>();
         var persisted = false;
-        var coordinator = new ThreadProviderSwitchCoordinator(
+        var coordinator = new SessionProviderSwitchCoordinator(
             new CodeAltaConfigStore(options),
             backendStates,
             tab =>
@@ -68,7 +68,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         using var temp = TempDirectory.Create();
         WriteProviderConfig(temp.Path);
         var options = new CatalogOptions { GlobalRoot = temp.Path };
-        var coordinator = new ThreadProviderSwitchCoordinator(
+        var coordinator = new SessionProviderSwitchCoordinator(
             new CodeAltaConfigStore(options),
             CreateBackendStates(includeNative: true),
             static tab =>
@@ -104,7 +104,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         var thread = CreateThread("session-1", "openai", createdAt);
         var tabState = CreateTabState(thread, "openai", "gpt-4.1");
         var observedTargetDuringDetach = false;
-        var coordinator = new ThreadProviderSwitchCoordinator(
+        var coordinator = new SessionProviderSwitchCoordinator(
             new CodeAltaConfigStore(options),
             CreateBackendStates(),
             static _ => Task.CompletedTask,
@@ -137,7 +137,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         var thread = CreateThread("session-1", "openai", createdAt);
         thread.ModelId = "gpt-4.1";
         var tabState = CreateTabState(thread, "openai", "gpt-4.1");
-        var coordinator = new ThreadProviderSwitchCoordinator(
+        var coordinator = new SessionProviderSwitchCoordinator(
             new CodeAltaConfigStore(options),
             CreateBackendStates(),
             tab =>
@@ -167,7 +167,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
     {
         using var temp = TempDirectory.Create();
         WriteProviderConfig(temp.Path);
-        var coordinator = new ThreadProviderSwitchCoordinator(
+        var coordinator = new SessionProviderSwitchCoordinator(
             new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path }),
             CreateBackendStates(includeNative: true),
             static _ => Task.CompletedTask,
@@ -239,7 +239,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
         return state;
     }
 
-    private static WorkThreadDescriptor CreateThread(string threadId, string backendId, DateTimeOffset timestamp)
+    private static SessionViewDescriptor CreateThread(string threadId, string backendId, DateTimeOffset timestamp)
         => new()
         {
             ThreadId = threadId,
@@ -256,7 +256,7 @@ public sealed class ThreadProviderSwitchCoordinatorTests
             StartedAt = timestamp,
         };
 
-    private static OpenThreadState CreateTabState(WorkThreadDescriptor thread, string backendId, string modelId)
+    private static OpenThreadState CreateTabState(SessionViewDescriptor thread, string backendId, string modelId)
         => new(thread, new Presentation.Timeline.ThreadTimelinePresenter(
             new InlineUiDispatcher(),
             static () => null,

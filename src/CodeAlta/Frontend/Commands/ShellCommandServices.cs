@@ -35,19 +35,19 @@ internal sealed class DelegatingShellPromptInputService : IShellPromptInputServi
 
 internal interface IShellThreadCommandService
 {
-    WorkThreadDescriptor? GetSelectedThread();
+    SessionViewDescriptor? GetSelectedThread();
 
-    OpenThreadState EnsureThreadTab(WorkThreadDescriptor thread);
+    OpenThreadState EnsureThreadTab(SessionViewDescriptor thread);
 }
 
 internal sealed class DelegatingShellThreadCommandService : IShellThreadCommandService
 {
-    private readonly Func<WorkThreadDescriptor?> _getSelectedThread;
-    private readonly Func<WorkThreadDescriptor, OpenThreadState> _ensureThreadTab;
+    private readonly Func<SessionViewDescriptor?> _getSelectedThread;
+    private readonly Func<SessionViewDescriptor, OpenThreadState> _ensureThreadTab;
 
     public DelegatingShellThreadCommandService(
-        Func<WorkThreadDescriptor?> getSelectedThread,
-        Func<WorkThreadDescriptor, OpenThreadState> ensureThreadTab)
+        Func<SessionViewDescriptor?> getSelectedThread,
+        Func<SessionViewDescriptor, OpenThreadState> ensureThreadTab)
     {
         ArgumentNullException.ThrowIfNull(getSelectedThread);
         ArgumentNullException.ThrowIfNull(ensureThreadTab);
@@ -55,9 +55,9 @@ internal sealed class DelegatingShellThreadCommandService : IShellThreadCommandS
         _ensureThreadTab = ensureThreadTab;
     }
 
-    public WorkThreadDescriptor? GetSelectedThread() => _getSelectedThread();
+    public SessionViewDescriptor? GetSelectedThread() => _getSelectedThread();
 
-    public OpenThreadState EnsureThreadTab(WorkThreadDescriptor thread) => _ensureThreadTab(thread);
+    public OpenThreadState EnsureThreadTab(SessionViewDescriptor thread) => _ensureThreadTab(thread);
 }
 
 internal interface IShellNavigationCommandService

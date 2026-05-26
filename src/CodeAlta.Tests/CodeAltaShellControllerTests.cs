@@ -19,9 +19,9 @@ public sealed class CodeAltaShellControllerTests
         var importer = new FakeImporter(log);
         var project = new ProjectDescriptor { Id = "project-1", DisplayName = "CodeAlta", ProjectPath = @"C:\repo", Slug = "codealta" };
         var projectCatalog = new FakeProjectCatalogStore(log, [project]);
-        var threads = new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]);
+        var threads = new FakeRecoverableSessionSource(log, [CreateThread("thread-1")]);
         var dispatcher = new FakeUiDispatcher();
-        var controller = new CodeAltaShellController(shell, importer, projectCatalog, threads, new FakeWorkThreadDeleter(log));
+        var controller = new CodeAltaShellController(shell, importer, projectCatalog, threads, new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(dispatcher);
 
         await controller.ReloadCatalogAsync(CancellationToken.None);
@@ -47,8 +47,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             importer,
             new FakeProjectCatalogStore(log, []),
-            new FakeRecoverableThreadSource(log, []),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, []),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(dispatcher);
 
         await controller.ReloadCatalogAsync(CancellationToken.None);
@@ -72,8 +72,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, [new ProjectDescriptor { Id = "project-1", DisplayName = "CodeAlta", ProjectPath = @"C:\repo", Slug = "codealta" }]),
-            new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, [CreateThread("thread-1")]),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
         await controller.InitializeAsync(CancellationToken.None);
@@ -101,8 +101,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, [new ProjectDescriptor { Id = "project-1", DisplayName = "CodeAlta", ProjectPath = @"C:\repo", Slug = "codealta" }]),
-            new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, [CreateThread("thread-1")]),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
         var initializationTask = controller.InitializeAsync(CancellationToken.None);
@@ -119,7 +119,7 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
-    public async Task InitializeAsync_AppliesRecoverableThreadsAsProviderProgressCompletes()
+    public async Task InitializeAsync_AppliesRecoverableSessionsOnceAfterProviderImportsComplete()
     {
         var log = new List<string>();
         var shell = new FakeShell(log);
@@ -127,7 +127,7 @@ public sealed class CodeAltaShellControllerTests
         var slowBackendId = new AgentBackendId("slow");
         var importer = new FakeProgressImporter(log, codexBackendId, slowBackendId);
         var project = new ProjectDescriptor { Id = "project-1", DisplayName = "CodeAlta", ProjectPath = @"C:\repo", Slug = "codealta" };
-        var threadSource = new FakeRecoverableThreadSource(
+        var threadSource = new FakeRecoverableSessionSource(
             log,
             [
                 CreateThread("thread-codex", backendId: codexBackendId.Value),
@@ -138,7 +138,7 @@ public sealed class CodeAltaShellControllerTests
             importer,
             new FakeProjectCatalogStore(log, [project]),
             threadSource,
-            new FakeWorkThreadDeleter(log),
+            new FakeSessionDeleter(log),
             [
                 new ModelProviderDescriptor(codexBackendId, "Codex"),
                 new ModelProviderDescriptor(slowBackendId, "Slow"),
@@ -148,15 +148,14 @@ public sealed class CodeAltaShellControllerTests
         var initializationTask = controller.InitializeAsync(CancellationToken.None);
 
         await WaitUntilAsync(() => importer.FirstProgressReported.Task.IsCompleted).ConfigureAwait(false);
-        await WaitUntilAsync(() => log.Contains("Shell.ApplyRecoveredCatalogState:1:1:KeepMissing")).ConfigureAwait(false);
 
-        Assert.IsFalse(initializationTask.IsCompleted, "Initialization should not wait for every provider before applying the first recovered batch.");
-        CollectionAssert.Contains(log, "ThreadSource.Stream:codex");
-        Assert.IsFalse(log.Contains("ThreadSource.Stream:slow"), "The slow provider should not be queried before it reports completion.");
+        Assert.IsFalse(initializationTask.IsCompleted, "Initialization should wait for provider imports before applying recovered sessions.");
+        Assert.IsFalse(log.Contains("ThreadSource.Stream"), "Recoverable session listing should not run once per provider progress update.");
 
         importer.AllowCompletion();
         await initializationTask.ConfigureAwait(false);
 
+        CollectionAssert.Contains(log, "ThreadSource.Stream");
         CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:2:KeepMissing");
         CollectionAssert.Contains(log, "Shell.ApplyRecoveredCatalogState:1:2");
         Assert.IsTrue(shell.ProviderSessionLoadStatuses.Count > 0);
@@ -164,7 +163,7 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
-    public async Task InitializeAsync_LoadsProviderSessionsWhileProviderModelsAreInitializing()
+    public async Task InitializeAsync_WaitsForStartupProvidersBeforeClearingProviderLoadStatus()
     {
         var log = new List<string>();
         var codexBackendId = new AgentBackendId("codex");
@@ -173,7 +172,7 @@ public sealed class CodeAltaShellControllerTests
         shell.BlockBackendInitialization(slowBackendId);
         var importer = new FakeProgressImporter(log, codexBackendId, slowBackendId, blockSecondImport: false);
         var project = new ProjectDescriptor { Id = "project-1", DisplayName = "CodeAlta", ProjectPath = @"C:\repo", Slug = "codealta" };
-        var threadSource = new FakeRecoverableThreadSource(
+        var threadSource = new FakeRecoverableSessionSource(
             log,
             [
                 CreateThread("thread-codex", backendId: codexBackendId.Value),
@@ -184,7 +183,7 @@ public sealed class CodeAltaShellControllerTests
             importer,
             new FakeProjectCatalogStore(log, [project]),
             threadSource,
-            new FakeWorkThreadDeleter(log),
+            new FakeSessionDeleter(log),
             [
                 new ModelProviderDescriptor(codexBackendId, "Codex"),
                 new ModelProviderDescriptor(slowBackendId, "Slow"),
@@ -193,22 +192,23 @@ public sealed class CodeAltaShellControllerTests
 
         var initializationTask = controller.InitializeAsync(CancellationToken.None);
 
-        await WaitUntilAsync(() => log.Contains("ThreadSource.Stream:slow")).ConfigureAwait(false);
+        await WaitUntilAsync(() => log.Contains("ProgressImporter.ImportBackend:slow")).ConfigureAwait(false);
 
         Assert.IsFalse(initializationTask.IsCompleted, "The slow provider should still be initializing.");
         CollectionAssert.Contains(log, "ProgressImporter.ImportBackend:codex");
         CollectionAssert.Contains(log, "ProgressImporter.ImportBackend:slow");
-        CollectionAssert.Contains(log, "ThreadSource.Stream:codex");
+        Assert.IsFalse(log.Contains("ThreadSource.Stream"), "Recoverable session listing should not be coupled to individual provider startup progress.");
 
         shell.CompleteBackendInitialization(slowBackendId);
         await initializationTask.ConfigureAwait(false);
 
+        CollectionAssert.Contains(log, "ThreadSource.Stream");
         Assert.IsTrue(shell.ProviderSessionLoadStatuses.Count > 0);
         Assert.AreEqual(null, shell.ProviderSessionLoadStatuses.LastOrDefault());
     }
 
     [TestMethod]
-    public async Task InitializeAsync_ReconcilesCompleteSessionCatalogAfterProgressiveStartupRecovery()
+    public async Task InitializeAsync_LoadsCompleteSessionCatalogThroughSingleRecoverableSource()
     {
         var log = new List<string>();
         var codexBackendId = new AgentBackendId("codex");
@@ -228,13 +228,13 @@ public sealed class CodeAltaShellControllerTests
             .ToArray();
         var completeThreads = new[] { parent }.Concat(children).ToArray();
         var progressiveThreads = new[] { parent }.Concat(children.Take(2)).ToArray();
-        var threadSource = new FakeRecoverableThreadSource(log, completeThreads, progressiveThreads);
+        var threadSource = new FakeRecoverableSessionSource(log, completeThreads, progressiveThreads);
         var controller = new CodeAltaShellController(
             shell,
             importer,
             new FakeProjectCatalogStore(log, [project]),
             threadSource,
-            new FakeWorkThreadDeleter(log),
+            new FakeSessionDeleter(log),
             [
                 new ModelProviderDescriptor(codexBackendId, "Codex"),
                 new ModelProviderDescriptor(slowBackendId, "Slow"),
@@ -243,8 +243,8 @@ public sealed class CodeAltaShellControllerTests
 
         await controller.InitializeAsync(CancellationToken.None);
 
-        CollectionAssert.Contains(log, "ThreadSource.Stream:codex");
-        CollectionAssert.Contains(log, "ThreadSource.List");
+        CollectionAssert.Contains(log, "ThreadSource.Stream");
+        CollectionAssert.DoesNotContain(log, "ThreadSource.List");
         var finalCatalogApplication = log.Last(entry => entry.StartsWith("Shell.ApplyRecoveredCatalogState:", StringComparison.Ordinal));
         Assert.AreEqual("Shell.ApplyRecoveredCatalogState:1:9", finalCatalogApplication);
     }
@@ -259,8 +259,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, []),
-            new FakeRecoverableThreadSource(log, []),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, []),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(dispatcher);
         var runtimeEvent = CreateHostEvent("thread-1");
 
@@ -328,8 +328,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, []),
-            new FakeRecoverableThreadSource(log, []),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, []),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(dispatcher);
 
         controller.QueueRuntimeEvent(CreateHostEvent("thread-1"), CancellationToken.None);
@@ -353,8 +353,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, []),
-            new FakeRecoverableThreadSource(log, []),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, []),
+            new FakeSessionDeleter(log));
 
         controller.QueueRuntimeEvent(CreateToolDeltaEvent("thread-1", "tool-1", "alpha"), CancellationToken.None);
         controller.QueueRuntimeEvent(CreateToolDeltaEvent("thread-1", "tool-1", "beta"), CancellationToken.None);
@@ -378,8 +378,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, []),
-            new FakeRecoverableThreadSource(log, []),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, []),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(dispatcher);
 
         await controller.SelectGlobalScopeAsync(CancellationToken.None);
@@ -398,8 +398,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, []),
-            new FakeRecoverableThreadSource(log, []),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, []),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(dispatcher);
 
         await controller.SelectProjectScopeAsync("project-1", CancellationToken.None);
@@ -418,8 +418,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, []),
-            new FakeRecoverableThreadSource(log, []),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, []),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(dispatcher);
 
         await controller.OpenThreadAsync("thread-1", CancellationToken.None);
@@ -439,8 +439,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             catalog,
-            new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, [CreateThread("thread-1")]),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(dispatcher);
 
         var projectPath = Path.Combine(Path.GetTempPath(), "codealta-open-folder-tests", Guid.NewGuid().ToString("N"));
@@ -490,8 +490,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             catalog,
-            new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, [CreateThread("thread-1")]),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(dispatcher);
 
         var project = await controller.OpenFolderAsync("CodeAlta", CancellationToken.None);
@@ -530,8 +530,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             catalog,
-            new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, [CreateThread("thread-1")]),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
@@ -559,8 +559,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, []),
-            new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, [CreateThread("thread-1")]),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
         var tempProject = Path.Combine(homeDirectory, "codealta-open-tests", Guid.NewGuid().ToString("N"));
@@ -597,8 +597,8 @@ public sealed class CodeAltaShellControllerTests
             new FakeShell(log),
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, []),
-            new FakeRecoverableThreadSource(log, threads),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, threads),
+            new FakeSessionDeleter(log));
 
         var projectThreads = await controller.LoadProjectThreadsAsync("project-1", CancellationToken.None);
 
@@ -616,8 +616,8 @@ public sealed class CodeAltaShellControllerTests
             shell,
             new FakeImporter(log),
             catalog,
-            new FakeRecoverableThreadSource(log, [CreateThread("thread-1")]),
-            new FakeWorkThreadDeleter(log));
+            new FakeRecoverableSessionSource(log, [CreateThread("thread-1")]),
+            new FakeSessionDeleter(log));
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
         project.DisplayName = "CodeAlta UI";
@@ -629,21 +629,21 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
-    public async Task DeleteThreadAsync_DeletesThreadWithoutReloadingCatalog()
+    public async Task DeleteSessionAsync_DeletesThreadWithoutReloadingCatalog()
     {
         var log = new List<string>();
         var shell = new FakeShell(log);
         var thread = CreateThread("thread-1");
-        var deleter = new FakeWorkThreadDeleter(log) { DeleteResult = true };
+        var deleter = new FakeSessionDeleter(log) { DeleteResult = true };
         var controller = new CodeAltaShellController(
             shell,
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, []),
-            new FakeRecoverableThreadSource(log, [thread]),
+            new FakeRecoverableSessionSource(log, [thread]),
             deleter);
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
-        var result = await controller.DeleteThreadAsync(thread, [thread], CancellationToken.None);
+        var result = await controller.DeleteSessionAsync(thread, [thread], CancellationToken.None);
 
         Assert.IsTrue(result.DeletedByBackend);
         CollectionAssert.AreEqual(new[] { thread.ThreadId }, result.DeletedThreadIds.ToArray());
@@ -655,7 +655,7 @@ public sealed class CodeAltaShellControllerTests
     }
 
     [TestMethod]
-    public async Task DeleteThreadAsync_DeletesChildThreadsBeforeParent()
+    public async Task DeleteSessionAsync_DeletesChildThreadsBeforeParent()
     {
         var log = new List<string>();
         var shell = new FakeShell(log);
@@ -665,16 +665,16 @@ public sealed class CodeAltaShellControllerTests
         var sibling = CreateThread("thread-sibling");
         child.ParentThreadId = parent.ThreadId;
         grandchild.ParentThreadId = child.ThreadId;
-        var deleter = new FakeWorkThreadDeleter(log) { DeleteResult = true };
+        var deleter = new FakeSessionDeleter(log) { DeleteResult = true };
         var controller = new CodeAltaShellController(
             shell,
             new FakeImporter(log),
             new FakeProjectCatalogStore(log, []),
-            new FakeRecoverableThreadSource(log, [parent, child, grandchild, sibling]),
+            new FakeRecoverableSessionSource(log, [parent, child, grandchild, sibling]),
             deleter);
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
-        var result = await controller.DeleteThreadAsync(parent, [parent, child, grandchild, sibling], CancellationToken.None);
+        var result = await controller.DeleteSessionAsync(parent, [parent, child, grandchild, sibling], CancellationToken.None);
 
         CollectionAssert.AreEqual(
             new[] { grandchild.ThreadId, child.ThreadId, parent.ThreadId },
@@ -690,12 +690,12 @@ public sealed class CodeAltaShellControllerTests
         var shell = new FakeShell(log);
         var project = new ProjectDescriptor { Id = "project-1", DisplayName = "CodeAlta", ProjectPath = @"C:\repo", Slug = "codealta" };
         var catalog = new FakeProjectCatalogStore(log, [project]);
-        var deleter = new FakeWorkThreadDeleter(log);
+        var deleter = new FakeSessionDeleter(log);
         var controller = new CodeAltaShellController(
             shell,
             new FakeImporter(log),
             catalog,
-            new FakeRecoverableThreadSource(log, [CreateThread("thread-1"), CreateThread("thread-2")]),
+            new FakeRecoverableSessionSource(log, [CreateThread("thread-1"), CreateThread("thread-2")]),
             deleter);
         controller.AttachUiDispatcher(new FakeUiDispatcher());
 
@@ -731,12 +731,12 @@ public sealed class CodeAltaShellControllerTests
                 delta));
     }
 
-    private static WorkThreadDescriptor CreateThread(
+    private static SessionViewDescriptor CreateThread(
         string threadId,
         string projectId = "project-1",
         string? backendId = null)
     {
-        return new WorkThreadDescriptor
+        return new SessionViewDescriptor
         {
             ThreadId = threadId,
             Kind = WorkThreadKind.ProjectThread,
@@ -805,7 +805,7 @@ public sealed class CodeAltaShellControllerTests
 
         public void ApplyRecoveredCatalogState(
             IReadOnlyList<ProjectDescriptor> projects,
-            IReadOnlyList<WorkThreadDescriptor> threads,
+            IReadOnlyList<SessionViewDescriptor> threads,
             bool pruneMissingThreads = true)
             => log.Add($"Shell.ApplyRecoveredCatalogState:{projects.Count}:{threads.Count}" + (pruneMissingThreads ? string.Empty : ":KeepMissing"));
 
@@ -952,12 +952,12 @@ public sealed class CodeAltaShellControllerTests
         }
     }
 
-    private sealed class FakeRecoverableThreadSource(
+    private sealed class FakeRecoverableSessionSource(
         List<string> log,
-        IReadOnlyList<WorkThreadDescriptor> threads,
-        IReadOnlyList<WorkThreadDescriptor>? providerScopedThreads = null) : IRecoverableThreadSource
+        IReadOnlyList<SessionViewDescriptor> threads,
+        IReadOnlyList<SessionViewDescriptor>? providerScopedThreads = null) : IRecoverableSessionSource
     {
-        public async IAsyncEnumerable<WorkThreadDescriptor> StreamRecoverableThreadsAsync(
+        public async IAsyncEnumerable<SessionViewDescriptor> StreamRecoverableSessionsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
             log.Add("ThreadSource.Stream");
@@ -969,12 +969,12 @@ public sealed class CodeAltaShellControllerTests
             }
         }
 
-        public async IAsyncEnumerable<WorkThreadDescriptor> StreamRecoverableThreadsAsync(
-            Func<AgentBackendId, bool>? shouldListBackendSessions,
+        public async IAsyncEnumerable<SessionViewDescriptor> StreamRecoverableSessionsAsync(
+            Func<ModelProviderId, bool>? shouldListProviderSessions,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var filteredThreads = (providerScopedThreads ?? threads)
-                .Where(thread => shouldListBackendSessions?.Invoke(new AgentBackendId(thread.BackendId)) != false)
+                .Where(thread => shouldListProviderSessions?.Invoke(new ModelProviderId(thread.BackendId)) != false)
                 .ToArray();
             LogBackendList(filteredThreads, "ThreadSource.Stream");
             foreach (var thread in filteredThreads)
@@ -985,24 +985,24 @@ public sealed class CodeAltaShellControllerTests
             }
         }
 
-        public Task<IReadOnlyList<WorkThreadDescriptor>> ListRecoverableThreadsAsync(CancellationToken cancellationToken)
+        public Task<IReadOnlyList<SessionViewDescriptor>> ListRecoverableSessionsAsync(CancellationToken cancellationToken)
         {
             log.Add("ThreadSource.List");
             return Task.FromResult(threads);
         }
 
-        public Task<IReadOnlyList<WorkThreadDescriptor>> ListRecoverableThreadsAsync(
-            Func<AgentBackendId, bool>? shouldListBackendSessions,
+        public Task<IReadOnlyList<SessionViewDescriptor>> ListRecoverableSessionsAsync(
+            Func<ModelProviderId, bool>? shouldListProviderSessions,
             CancellationToken cancellationToken)
         {
             var filteredThreads = threads
-                .Where(thread => shouldListBackendSessions?.Invoke(new AgentBackendId(thread.BackendId)) != false)
+                .Where(thread => shouldListProviderSessions?.Invoke(new ModelProviderId(thread.BackendId)) != false)
                 .ToArray();
             LogBackendList(filteredThreads, "ThreadSource.List");
-            return Task.FromResult<IReadOnlyList<WorkThreadDescriptor>>(filteredThreads);
+            return Task.FromResult<IReadOnlyList<SessionViewDescriptor>>(filteredThreads);
         }
 
-        private void LogBackendList(IReadOnlyList<WorkThreadDescriptor> filteredThreads, string prefix)
+        private void LogBackendList(IReadOnlyList<SessionViewDescriptor> filteredThreads, string prefix)
         {
             var backendIds = filteredThreads
                 .Select(static thread => thread.BackendId)
@@ -1015,13 +1015,13 @@ public sealed class CodeAltaShellControllerTests
         }
     }
 
-    private sealed class FakeWorkThreadDeleter(List<string> log) : IWorkThreadDeleter
+    private sealed class FakeSessionDeleter(List<string> log) : ISessionDeleter
     {
         public List<string> DeletedThreadIds { get; } = [];
 
         public bool DeleteResult { get; set; }
 
-        public Task<bool> DeleteThreadAsync(WorkThreadDescriptor thread, CancellationToken cancellationToken)
+        public Task<bool> DeleteSessionAsync(SessionViewDescriptor thread, CancellationToken cancellationToken)
         {
             log.Add($"ThreadDeleter.Delete:{thread.ThreadId}");
             DeletedThreadIds.Add(thread.ThreadId);
