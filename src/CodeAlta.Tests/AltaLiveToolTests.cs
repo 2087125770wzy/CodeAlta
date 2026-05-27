@@ -2212,7 +2212,7 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
-    public async Task SessionSteer_UnsupportedBackendReturnsUnsupportedDiagnostic()
+    public async Task SessionSteer_UnsupportedProviderReturnsUnsupportedDiagnostic()
     {
         using var root = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = root.Path };
@@ -2236,7 +2236,7 @@ public sealed class AltaLiveToolTests
     }
 
     [TestMethod]
-    public async Task SkillActivate_ProviderManagedBackendReturnsUnsupportedDiagnostic()
+    public async Task SkillActivate_ProviderManagedSessionReturnsUnsupportedDiagnostic()
     {
         using var root = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = root.Path };

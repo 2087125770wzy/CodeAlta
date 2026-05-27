@@ -60,7 +60,7 @@ public sealed class CodeAltaConfigValidationTests
     }
 
     [TestMethod]
-    public void ValidateGlobalConfigContent_InvalidProvider_ReturnsInvalidWithoutStartingBackends()
+    public void ValidateGlobalConfigContent_InvalidProvider_ReturnsInvalidWithoutStartingProviders()
     {
         var result = CodeAltaConfigStore.ValidateGlobalConfigContent(
             """

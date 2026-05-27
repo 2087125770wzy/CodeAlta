@@ -181,12 +181,12 @@ public sealed class SessionWorkspaceViewTests
 
         view.SyncModelProviderSelectorItems(workspaceViewModel);
 
-        var backendSelect = GetPrivateField<Select<ModelProviderOption>>(view, "ModelProviderSelect");
+        var providerSelect = GetPrivateField<Select<ModelProviderOption>>(view, "ModelProviderSelect");
         var modelSelect = GetPrivateField<Select<ChatModelOption>>(view, "ChatModelSelect");
         var reasoningSelect = GetPrivateField<Select<ChatReasoningOption>>(view, "ChatReasoningSelect");
 
-        Assert.AreEqual(1, backendSelect.Items.Count);
-        Assert.AreEqual("Codex", backendSelect.Items[0].Label);
+        Assert.AreEqual(1, providerSelect.Items.Count);
+        Assert.AreEqual("Codex", providerSelect.Items[0].Label);
         Assert.AreEqual(1, modelSelect.Items.Count);
         Assert.AreEqual("GPT-5", modelSelect.Items[0].Label);
         Assert.AreEqual(1, reasoningSelect.Items.Count);
@@ -202,8 +202,8 @@ public sealed class SessionWorkspaceViewTests
 
         view.SyncModelProviderSelectorItems(workspaceViewModel);
 
-        Assert.AreEqual(2, backendSelect.Items.Count);
-        Assert.AreEqual("Copilot", backendSelect.Items[1].Label);
+        Assert.AreEqual(2, providerSelect.Items.Count);
+        Assert.AreEqual("Copilot", providerSelect.Items[1].Label);
         Assert.AreEqual("GPT-5.1", modelSelect.Items[0].Label);
         Assert.AreEqual("Low", reasoningSelect.Items[0].Label);
     }
@@ -245,10 +245,10 @@ public sealed class SessionWorkspaceViewTests
 
         view.SyncModelProviderSelectorItems(workspaceViewModel);
 
-        var backendSelect = GetPrivateField<Select<ModelProviderOption>>(view, "ModelProviderSelect");
+        var providerSelect = GetPrivateField<Select<ModelProviderOption>>(view, "ModelProviderSelect");
         var modelSelect = GetPrivateField<Select<ChatModelOption>>(view, "ChatModelSelect");
         var reasoningSelect = GetPrivateField<Select<ChatReasoningOption>>(view, "ChatReasoningSelect");
-        Assert.AreEqual(1, GetSelectSelectedIndexField(backendSelect));
+        Assert.AreEqual(1, GetSelectSelectedIndexField(providerSelect));
         Assert.AreEqual(1, GetSelectSelectedIndexField(modelSelect));
         Assert.AreEqual(1, GetSelectSelectedIndexField(reasoningSelect));
         Assert.AreEqual(0, providerChangeCount);
@@ -309,7 +309,7 @@ public sealed class SessionWorkspaceViewTests
     public void FocusModelProviderSelector_FocusesProviderSelect()
     {
         var view = CreateSessionWorkspaceView();
-        var backendSelect = GetPrivateField<Select<ModelProviderOption>>(view, "ModelProviderSelect");
+        var providerSelect = GetPrivateField<Select<ModelProviderOption>>(view, "ModelProviderSelect");
 
         using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(120, 40)), new TerminalOptions { ImplicitStartInput = true }, force: true);
         var app = new TerminalApp(
@@ -325,7 +325,7 @@ public sealed class SessionWorkspaceViewTests
         {
             view.FocusModelProviderSelector();
 
-            Assert.AreSame(backendSelect, app.FocusedElement);
+            Assert.AreSame(providerSelect, app.FocusedElement);
         }
         finally
         {

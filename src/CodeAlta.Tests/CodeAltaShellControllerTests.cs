@@ -712,7 +712,7 @@ public sealed class CodeAltaShellControllerTests
 
     private sealed class FakeShell(List<string> log) : ICodeAltaShell
     {
-        private readonly Dictionary<string, TaskCompletionSource<bool>> _backendInitializationCompletions = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, TaskCompletionSource<bool>> _providerInitializationCompletions = new(StringComparer.OrdinalIgnoreCase);
 
         public SessionRuntimeEvent? LastRuntimeEvent { get; private set; }
 
@@ -729,16 +729,16 @@ public sealed class CodeAltaShellControllerTests
         public Task InitializeModelProviderAsync(ModelProviderId providerId, CancellationToken cancellationToken)
         {
             log.Add($"Shell.InitializeModelProvider:{providerId.Value}");
-            return _backendInitializationCompletions.TryGetValue(providerId.Value, out var completion)
+            return _providerInitializationCompletions.TryGetValue(providerId.Value, out var completion)
                 ? completion.Task.WaitAsync(cancellationToken)
                 : Task.CompletedTask;
         }
 
-        public void BlockBackendInitialization(ModelProviderId ProviderId)
-            => _backendInitializationCompletions[ProviderId.Value] = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void BlockProviderInitialization(ModelProviderId ProviderId)
+            => _providerInitializationCompletions[ProviderId.Value] = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public void CompleteBackendInitialization(ModelProviderId ProviderId)
-            => _backendInitializationCompletions[ProviderId.Value].TrySetResult(true);
+        public void CompleteProviderInitialization(ModelProviderId ProviderId)
+            => _providerInitializationCompletions[ProviderId.Value].TrySetResult(true);
 
         public void SetStatus(string message, bool showSpinner = false, StatusTone tone = StatusTone.Info)
             => log.Add($"Shell.Status:{message}:{showSpinner}:{tone}");

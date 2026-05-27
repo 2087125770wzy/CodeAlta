@@ -17,7 +17,7 @@ namespace CodeAlta.Tests;
 public sealed class ModelProviderSelectorCoordinatorTests
 {
     [TestMethod]
-    public void RefreshForDraftScope_SwitchingBackend_UpdatesModelOptionsAndSyncsSelectors()
+    public void RefreshForDraftScope_SwitchingProvider_UpdatesModelOptionsAndSyncsSelectors()
     {
         var workspaceViewModel = new SessionWorkspaceViewModel();
         var promptComposerViewModel = new PromptComposerViewModel();

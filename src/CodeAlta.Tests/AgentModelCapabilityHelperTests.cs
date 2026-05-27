@@ -34,7 +34,7 @@ public sealed class AgentModelCapabilityHelperTests
     }
 
     [TestMethod]
-    public void SupportsImageInput_RejectsTextOnlyModalitiesForNonCodexBackend()
+    public void SupportsImageInput_RejectsTextOnlyModalitiesForNonCodexProvider()
     {
         var model = new AgentModelInfo(
             "text-only",

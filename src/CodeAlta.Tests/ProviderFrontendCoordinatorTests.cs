@@ -9,7 +9,7 @@ namespace CodeAlta.Tests;
 public sealed class ProviderFrontendCoordinatorTests
 {
     [TestMethod]
-    public void TryBuildActiveProviderTestResult_UsesReadyBackendState()
+    public void TryBuildActiveProviderTestResult_UsesReadyProviderState()
     {
         var definition = new CodeAltaProviderDocument
         {
@@ -39,7 +39,7 @@ public sealed class ProviderFrontendCoordinatorTests
     }
 
     [TestMethod]
-    public void TryBuildActiveProviderTestResult_UsesFailureStatusForBackend()
+    public void TryBuildActiveProviderTestResult_UsesFailureStatusForProvider()
     {
         var definition = new CodeAltaProviderDocument
         {

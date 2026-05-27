@@ -106,7 +106,7 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
-    public void CodeAltaApp_DoesNotReferenceExternalAcpBackendProject()
+    public void CodeAltaApp_DoesNotReferenceExternalAcpProviderProject()
     {
         var sourceRoot = GetSourceRoot();
         var codeAltaRoot = GetCodeAltaSourceRoot();
@@ -529,7 +529,7 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
-    public void FrontendShellContracts_DoNotAddBackendTerminologyOutsideLegacyAdapters()
+    public void FrontendShellContracts_DoNotAddProviderCompatibilityTerminologyOutsideLegacyAdapters()
     {
         var codeAltaRoot = GetCodeAltaSourceRoot();
         var allowedLegacyFiles = new HashSet<string>(StringComparer.Ordinal)
@@ -627,6 +627,37 @@ public sealed class ArchitectureGuardrailTests
                         !allowedLegacyProviderIdentityFields.Contains(entry.RelativePath)
                     ? [$"{entry.RelativePath}:BackendId/backendId/backend_id"]
                     : []))
+            .OrderBy(static violation => violation, StringComparer.Ordinal)
+            .ToArray();
+
+        CollectionAssert.AreEqual(Array.Empty<string>(), violations);
+    }
+
+    [TestMethod]
+    public void TestMethodIdentifiers_UseProviderTerminologyOutsideCompatibilityCases()
+    {
+        var sourceRoot = GetSourceRoot();
+        var allowedCompatibilityMethodNames = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "ProductionProviderIdentity_DoesNotUseRemovedBackendCompatibilitySymbols",
+            "FormatChatRawEventMarkdown_RendersBackendEventTypeAndPayload",
+        };
+        var methodNamePattern = new Regex(@"\b(?:public|private|internal)\s+(?:async\s+)?(?:Task|void)\s+(?<name>[A-Za-z0-9_]*Backend[A-Za-z0-9_]*)\s*\(", RegexOptions.Compiled);
+        var violations = Directory
+            .EnumerateDirectories(sourceRoot, "*.Tests", SearchOption.TopDirectoryOnly)
+            .SelectMany(static directory => Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories))
+            .Where(static file => !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) &&
+                                  !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(file =>
+            {
+                var content = File.ReadAllText(file);
+                var relativePath = Path.GetRelativePath(sourceRoot, file).Replace('\\', '/');
+                return methodNamePattern
+                    .Matches(content)
+                    .Select(match => match.Groups["name"].Value)
+                    .Where(name => !allowedCompatibilityMethodNames.Contains(name))
+                    .Select(name => $"{relativePath}:{name}");
+            })
             .OrderBy(static violation => violation, StringComparer.Ordinal)
             .ToArray();
 
@@ -1548,7 +1579,7 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
-    public void CodeAltaApp_DelegatesBackendInitializationWorkflow()
+    public void CodeAltaApp_DelegatesProviderInitializationWorkflow()
     {
         var appSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "CodeAltaApp.cs"));
 
@@ -1766,7 +1797,7 @@ public sealed class ArchitectureGuardrailTests
     }
 
     [TestMethod]
-    public void ProviderFrontendCoordinator_TestProvider_DisposesBackendWithoutDoubleStop()
+    public void ProviderFrontendCoordinator_TestProvider_DisposesRuntimeWithoutDoubleStop()
     {
         var coordinatorSource = File.ReadAllText(Path.Combine(GetCodeAltaSourceRoot(), "App", "ProviderFrontendCoordinator.cs"));
 

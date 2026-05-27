@@ -568,7 +568,7 @@ public sealed class CatalogInfrastructureTests
     }
 
     [TestMethod]
-    public async Task SessionViewJournalStore_ConcurrentBackendAndCatalogWrites_DoNotThrow()
+    public async Task SessionViewJournalStore_ConcurrentProviderAndCatalogWrites_DoNotThrow()
     {
         using var root = TempDirectory.Create();
         var options = new CatalogOptions { GlobalRoot = root.Path };

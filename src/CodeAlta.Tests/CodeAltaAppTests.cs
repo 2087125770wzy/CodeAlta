@@ -1056,7 +1056,7 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
-    public void ClassifyBackendInitializationFailure_TreatsMissingExecutableAsUnsupported()
+    public void ClassifyProviderInitializationFailure_TreatsMissingExecutableAsUnsupported()
     {
         var providerState = new ModelProviderState(ModelProviderIds.Codex, "Codex");
 
@@ -2521,7 +2521,7 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
-    public void MergeSessionUsage_MergesTypedBackendDetails()
+    public void MergeSessionUsage_MergesTypedProviderDetails()
     {
         var current = new AgentSessionUsage(
             Window: new AgentWindowUsageSnapshot(4096, 128000, 8, "Active session window"),
