@@ -556,6 +556,17 @@ public sealed class FileSystemAgentSessionStore : IAgentSessionJournalStore
         string sessionFile,
         CancellationToken cancellationToken)
     {
+        var length = new FileInfo(sessionFile).Length;
+        if (length <= 0)
+        {
+            return [];
+        }
+
+        if (length <= MetadataProbeTailByteCount)
+        {
+            return await ReadHeadLinesAsync(sessionFile, (int)length, cancellationToken).ConfigureAwait(false);
+        }
+
         var lines = new List<string>(await ReadHeadLinesAsync(sessionFile, MetadataProbeHeadByteCount, cancellationToken).ConfigureAwait(false));
         lines.AddRange(await ReadTailLinesAsync(sessionFile, MetadataProbeTailByteCount, cancellationToken).ConfigureAwait(false));
         return lines;

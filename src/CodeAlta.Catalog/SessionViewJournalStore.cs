@@ -230,20 +230,34 @@ public sealed class SessionViewJournalStore
 
     private static async Task<SessionViewLocalState?> ReadLatestStateUncachedAsync(string path, CancellationToken cancellationToken)
     {
-        await foreach (var line in ReadLinesFromEndAsync(path, 64 * 1024, cancellationToken).ConfigureAwait(false))
-        {
-            if (!TryDeserializeRawEvent(line, out var rawEvent) || rawEvent.BackendEventType != SessionStateEventType)
-            {
-                continue;
-            }
+        var latestState = await TryReadLatestStateFromEndAsync(path, 64 * 1024, cancellationToken).ConfigureAwait(false);
+        return HasLineage(latestState)
+            ? latestState
+            : await MergeMissingLineageFromJournalAsync(path, latestState, cancellationToken).ConfigureAwait(false);
+    }
 
-            var state = rawEvent.Raw.Deserialize(SessionViewJournalJsonSerializerContext.Default.SessionViewLocalState);
-            return HasLineage(state)
-                ? state
-                : await MergeMissingLineageFromJournalAsync(path, state, cancellationToken).ConfigureAwait(false);
-        }
+    private static async Task<SessionViewLocalState?> TryReadLatestStateFromEndAsync(
+        string path,
+        int chunkSize,
+        CancellationToken cancellationToken)
+    {
+        SessionViewLocalState? latestState = null;
+        await ReadLinesFromEndAsync(
+                path,
+                chunkSize,
+                line =>
+                {
+                    if (!TryDeserializeRawEvent(line, out var rawEvent) || rawEvent.BackendEventType != SessionStateEventType)
+                    {
+                        return true;
+                    }
 
-        return await MergeMissingLineageFromJournalAsync(path, latestState: null, cancellationToken).ConfigureAwait(false);
+                    latestState = rawEvent.Raw.Deserialize(SessionViewJournalJsonSerializerContext.Default.SessionViewLocalState);
+                    return false;
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
+        return latestState;
     }
 
     private static async Task<SessionViewLocalState?> MergeMissingLineageFromJournalAsync(
@@ -253,34 +267,44 @@ public sealed class SessionViewJournalStore
     {
         SessionViewLocalState? headLatestState = null;
         SessionViewLocalState? lineageState = null;
-        await foreach (var line in ReadLinesFromStartAsync(path, cancellationToken).ConfigureAwait(false))
-        {
-            if (!TryDeserializeRawEvent(line, out var rawEvent))
-            {
-                continue;
-            }
-
-            if (rawEvent.BackendEventType == SessionHeaderEventType)
-            {
-                var header = rawEvent.Raw.Deserialize(SessionViewJournalJsonSerializerContext.Default.SessionViewJournalHeader);
-                if (header is not null)
+        await ReadLinesFromStartAsync(
+                path,
+                line =>
                 {
-                    lineageState = MergeLineage(lineageState, header.ParentSessionId, header.CreatedBy);
-                }
+                    if (!TryDeserializeRawEvent(line, out var rawEvent))
+                    {
+                        return true;
+                    }
 
-                continue;
-            }
+                    if (rawEvent.BackendEventType == SessionHeaderEventType)
+                    {
+                        var header = rawEvent.Raw.Deserialize(SessionViewJournalJsonSerializerContext.Default.SessionViewJournalHeader);
+                        if (header is not null)
+                        {
+                            lineageState = MergeLineage(lineageState, header.ParentSessionId, header.CreatedBy);
+                            if (HasLineage(lineageState))
+                            {
+                                return false;
+                            }
+                        }
 
-            if (rawEvent.BackendEventType == SessionStateEventType)
-            {
-                var state = rawEvent.Raw.Deserialize(SessionViewJournalJsonSerializerContext.Default.SessionViewLocalState);
-                if (state is not null)
-                {
-                    headLatestState = state;
-                    lineageState = MergeLineage(lineageState, state.ParentSessionId, state.CreatedBy);
-                }
-            }
-        }
+                        return NeedsMoreLineage(latestState, lineageState);
+                    }
+
+                    if (rawEvent.BackendEventType == SessionStateEventType)
+                    {
+                        var state = rawEvent.Raw.Deserialize(SessionViewJournalJsonSerializerContext.Default.SessionViewLocalState);
+                        if (state is not null)
+                        {
+                            headLatestState = state;
+                            lineageState = MergeLineage(lineageState, state.ParentSessionId, state.CreatedBy);
+                        }
+                    }
+
+                    return NeedsMoreLineage(latestState, lineageState);
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
 
         latestState ??= headLatestState;
 
@@ -303,6 +327,16 @@ public sealed class SessionViewJournalStore
 
     private static bool HasLineage(SessionViewLocalState? state)
         => !string.IsNullOrWhiteSpace(state?.ParentSessionId) || state?.CreatedBy is not null;
+
+    private static bool NeedsMoreLineage(SessionViewLocalState? latestState, SessionViewLocalState? lineageState)
+    {
+        if (latestState is null)
+        {
+            return true;
+        }
+
+        return !HasLineage(lineageState);
+    }
 
     private static SessionViewLocalState? MergeLineage(
         SessionViewLocalState? current,
@@ -328,18 +362,68 @@ public sealed class SessionViewJournalStore
         return current;
     }
 
-    private static async IAsyncEnumerable<string> ReadLinesFromStartAsync(
+    private static async Task ReadLinesFromStartAsync(
         string path,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        Func<string, bool> handleLine,
+        CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
-        using var reader = new StreamReader(stream, Utf8WithoutBom, detectEncodingFromByteOrderMarks: true);
-        var bytesRead = 0;
-        while (bytesRead < LineageProbeHeadByteCount &&
-               await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 16 * 1024, useAsync: true);
+        var buffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+        var lineBuffer = ArrayPool<byte>.Shared.Rent(4096);
+        var remainingBytes = Math.Min(LineageProbeHeadByteCount, stream.Length);
+        var lineLength = 0;
+        var isFirstLine = true;
+        try
         {
-            bytesRead += Utf8WithoutBom.GetByteCount(line) + Environment.NewLine.Length;
-            yield return line;
+            while (remainingBytes > 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var count = (int)Math.Min(buffer.Length, remainingBytes);
+                var read = await stream.ReadAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                remainingBytes -= read;
+                for (var index = 0; index < read; index++)
+                {
+                    var value = buffer[index];
+                    if (value == (byte)'\n')
+                    {
+                        var line = DecodeForwardLine(lineBuffer, lineLength, isFirstLine).TrimEnd('\r');
+                        isFirstLine = false;
+                        lineLength = 0;
+                        if (!handleLine(line))
+                        {
+                            return;
+                        }
+
+                        continue;
+                    }
+
+                    if (lineLength == lineBuffer.Length)
+                    {
+                        var replacement = ArrayPool<byte>.Shared.Rent(lineBuffer.Length * 2);
+                        Array.Copy(lineBuffer, replacement, lineLength);
+                        ArrayPool<byte>.Shared.Return(lineBuffer);
+                        lineBuffer = replacement;
+                    }
+
+                    lineBuffer[lineLength++] = value;
+                }
+            }
+
+            if (lineLength > 0 && stream.Position == stream.Length)
+            {
+                var line = DecodeForwardLine(lineBuffer, lineLength, isFirstLine).TrimEnd('\r');
+                _ = handleLine(line);
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+            ArrayPool<byte>.Shared.Return(lineBuffer);
         }
     }
 
@@ -380,10 +464,11 @@ public sealed class SessionViewJournalStore
         return rawEvent.Raw.Deserialize(SessionViewJournalJsonSerializerContext.Default.SessionViewJournalHeader);
     }
 
-    private static async IAsyncEnumerable<string> ReadLinesFromEndAsync(
+    private static async Task ReadLinesFromEndAsync(
         string path,
         int chunkSize,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        Func<string, bool> handleLine,
+        CancellationToken cancellationToken)
     {
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, useAsync: true);
         var length = stream.Length;
@@ -419,8 +504,12 @@ public sealed class SessionViewJournalStore
                     {
                         if (lineLength > 0)
                         {
-                            yield return DecodeReversedLine(lineBuffer, lineLength).TrimEnd('\r');
+                            var line = DecodeReversedLine(lineBuffer, lineLength).TrimEnd('\r');
                             lineLength = 0;
+                            if (!handleLine(line))
+                            {
+                                return;
+                            }
                         }
 
                         previousByteWasLineFeed = true;
@@ -448,7 +537,7 @@ public sealed class SessionViewJournalStore
 
             if (lineLength > 0)
             {
-                yield return DecodeReversedLine(lineBuffer, lineLength).TrimEnd('\r');
+                _ = handleLine(DecodeReversedLine(lineBuffer, lineLength).TrimEnd('\r'));
             }
         }
         finally
@@ -456,6 +545,21 @@ public sealed class SessionViewJournalStore
             ArrayPool<byte>.Shared.Return(buffer);
             ArrayPool<byte>.Shared.Return(lineBuffer);
         }
+    }
+
+    private static string DecodeForwardLine(byte[] line, int length, bool stripBom)
+    {
+        const int Utf8BomLength = 3;
+        if (stripBom &&
+            length >= Utf8BomLength &&
+            line[0] == 0xEF &&
+            line[1] == 0xBB &&
+            line[2] == 0xBF)
+        {
+            return Utf8WithoutBom.GetString(line, Utf8BomLength, length - Utf8BomLength);
+        }
+
+        return Utf8WithoutBom.GetString(line, 0, length);
     }
 
     private static string DecodeReversedLine(byte[] reversedLine, int length)
