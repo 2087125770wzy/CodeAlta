@@ -463,35 +463,3 @@ public static class Tool
         };
     }
 }
-
-/// <summary>
-/// Low-ceremony factories for backend/provider contributions.
-/// </summary>
-public static class PluginBackend
-{
-    /// <summary>Creates an agent backend contribution from a factory.</summary>
-    /// <param name="name">The backend name.</param>
-    /// <param name="factory">The backend factory.</param>
-    /// <param name="displayName">Optional display name.</param>
-    /// <param name="description">Optional description.</param>
-    /// <param name="capabilities">Declared capabilities.</param>
-    /// <returns>The backend contribution.</returns>
-    public static PluginAgentBackendContribution FromFactory(
-        string name,
-        PluginAgentBackendFactory factory,
-        string? displayName = null,
-        string? description = null,
-        PluginAgentBackendCapabilities capabilities = PluginAgentBackendCapabilities.Default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        ArgumentNullException.ThrowIfNull(factory);
-        return new PluginAgentBackendContribution
-        {
-            Name = name,
-            DisplayName = displayName ?? name,
-            Description = description,
-            Capabilities = capabilities,
-            Factory = factory,
-        };
-    }
-}

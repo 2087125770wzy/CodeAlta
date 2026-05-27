@@ -136,11 +136,6 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         var backendFactory = sharedHost.BackendFactory;
         var pluginRuntime = sharedHost.PluginRuntime;
         var pluginHostBridge = new PluginHostBridge(pluginRuntime, () => sharedHost.CurrentProject, pluginAltaServiceBridge);
-        backendDescriptors.AddRange(
-            pluginRuntime.Adapter.GetAgentBackends(new PluginAdapterOperationOptions { HasInteractiveUi = true })
-                .Select(static pluginBackend => new ModelProviderDescriptor(
-                    new ModelProviderId(pluginBackend.Name),
-                    pluginBackend.DisplayName ?? pluginBackend.Name)));
 
         return new CodeAltaOwnedServices(
             ownsLogging,

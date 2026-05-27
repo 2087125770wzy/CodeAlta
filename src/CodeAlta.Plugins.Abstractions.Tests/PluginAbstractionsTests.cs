@@ -20,7 +20,6 @@ public sealed class PluginAbstractionsTests
         CollectionAssert.AreEqual(Array.Empty<CliCommandNode>(), plugin.GetCommandLineContributions().ToArray());
         CollectionAssert.AreEqual(Array.Empty<PluginCommandContribution>(), plugin.GetCommands().ToArray());
         CollectionAssert.AreEqual(Array.Empty<PluginAgentToolContribution>(), plugin.GetAgentTools().ToArray());
-        CollectionAssert.AreEqual(Array.Empty<PluginAgentBackendContribution>(), plugin.GetAgentBackends().ToArray());
         CollectionAssert.AreEqual(Array.Empty<PluginSystemPromptContribution>(), plugin.GetSystemPromptContributions().ToArray());
         CollectionAssert.AreEqual(Array.Empty<PluginPromptProcessorContribution>(), plugin.GetPromptProcessors().ToArray());
         CollectionAssert.AreEqual(Array.Empty<PluginCompactionContribution>(), plugin.GetCompactionContributions().ToArray());
@@ -137,7 +136,6 @@ public sealed class PluginAbstractionsTests
         var startup = Startup.Resources("early-resources", [resource]);
         var attachment = Attachments.File("src/Program.cs", "Program.cs");
         var tool = Tool.FromDefinition(CreateToolDefinition(), promptSnippet: "Use hello_tool.");
-        var backend = PluginBackend.FromFactory("fake", static (_, _) => new ValueTask<IAgentBackend>(new FakeBackend()));
 
         Assert.AreEqual(PluginCommandKind.Prompt, command.Kind);
         Assert.AreEqual("Hello Plugin", command.Label);
@@ -159,8 +157,6 @@ public sealed class PluginAbstractionsTests
         Assert.AreEqual(PluginPromptAttachmentKind.File, attachment.Kind);
         Assert.AreEqual("hello_tool", tool.Definition.Spec.Name);
         Assert.AreEqual("Use hello_tool.", tool.PromptSnippet);
-        Assert.AreEqual("fake", backend.Name);
-        Assert.IsInstanceOfType(await backend.Factory(CreateBackendContext(), CancellationToken.None), typeof(FakeBackend));
     }
 
     [TestMethod]
@@ -363,18 +359,6 @@ public sealed class PluginAbstractionsTests
         };
     }
 
-    private static PluginAgentBackendFactoryContext CreateBackendContext()
-    {
-        var services = NoopPluginServices.Create();
-        return new PluginAgentBackendFactoryContext
-        {
-            Plugin = CreateDescriptor(typeof(EmptyPlugin)),
-            Services = services,
-            Logger = services.Logger,
-            PackageDirectory = Path.GetTempPath(),
-        };
-    }
-
     private sealed class EmptyPlugin : PluginBase
     {
         public void ReadLoggerBeforeAttach()
@@ -399,33 +383,6 @@ public sealed class PluginAbstractionsTests
     {
     }
 
-    private sealed class FakeBackend : IAgentBackend
-    {
-        public AgentBackendId BackendId => new("fake");
-
-        public string DisplayName => "Fake";
-
-        public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<AgentModelInfo>>([]);
-
-        public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
-            AgentSessionListFilter? filter = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.CompletedTask;
-            yield break;
-        }
-
-        public Task<IAgentSession> CreateSessionAsync(AgentSessionCreateOptions options, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<IAgentSession> ResumeSessionAsync(string sessionId, AgentSessionResumeOptions options, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
 }
 
 public sealed class PublicDiscoverablePlugin : PluginBase;

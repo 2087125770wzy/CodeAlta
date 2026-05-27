@@ -79,10 +79,9 @@ public sealed class HeadlessHostFixtureTests
     }
 
     [TestMethod]
-    public async Task HeadlessHost_ComposesPluginBackendsAndSkillRoots()
+    public async Task HeadlessHost_ComposesPluginSkillRoots()
     {
         using var temp = TempDirectory.Create();
-        var pluginBackendId = new AgentBackendId("shared-plugin");
         var skillRoot = Path.Combine(temp.Root, "plugin-skills");
         var skillDirectory = Path.Combine(skillRoot, "shared-host-skill");
         Directory.CreateDirectory(skillDirectory);
@@ -99,7 +98,6 @@ public sealed class HeadlessHostFixtureTests
             Use this fixture skill from plugin resource roots.
             """);
         SharedHostFixturePlugin.SkillRootPath = skillRoot;
-        SharedHostFixturePlugin.BackendId = pluginBackendId.Value;
 
         await using var host = await CodeAltaHost.CreateAsync(
             new CodeAltaHostOptions
@@ -120,7 +118,6 @@ public sealed class HeadlessHostFixtureTests
             },
             CancellationToken.None);
 
-        var models = await host.ModelProviderInitializationService.GetModelsAsync(new ModelProviderId(pluginBackendId.Value), CancellationToken.None);
         var skills = await host.SkillCatalog.ListAsync(
             new SkillCatalogQuery
             {
@@ -133,7 +130,6 @@ public sealed class HeadlessHostFixtureTests
             },
             CancellationToken.None);
 
-        Assert.AreEqual("Fake Model", models.Single().DisplayName);
         Assert.IsTrue(skills.Any(static skill =>
             string.Equals(skill.Name, "shared-host-skill", StringComparison.Ordinal) &&
             skill.SourceKind == SkillSourceKind.Plugin));
@@ -227,16 +223,6 @@ public sealed class HeadlessHostFixtureTests
     public sealed class SharedHostFixturePlugin : PluginBase
     {
         public static string SkillRootPath { get; set; } = string.Empty;
-
-        public static string BackendId { get; set; } = "shared-plugin";
-
-        public override IEnumerable<PluginAgentBackendContribution> GetAgentBackends()
-        {
-            yield return PluginBackend.FromFactory(
-                BackendId,
-                static (context, _) => ValueTask.FromResult<IAgentBackend>(new FakeAgentBackend(new AgentBackendId(BackendId))),
-                displayName: "Shared Plugin");
-        }
 
         public override IEnumerable<PluginResourceContribution> GetResources()
         {

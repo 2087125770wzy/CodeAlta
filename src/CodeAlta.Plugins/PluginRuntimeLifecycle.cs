@@ -318,7 +318,6 @@ public sealed class PluginRuntimeActivator
         Add(PluginPoint.CommandLine, instance.GetCommandLineContributions().Cast<object>());
         Add(PluginPoint.Command, instance.GetCommands());
         Add(PluginPoint.AgentTool, instance.GetAgentTools());
-        Add(PluginPoint.AgentBackend, instance.GetAgentBackends());
         Add(PluginPoint.AltaCommand, instance.GetAltaCommands());
         Add(PluginPoint.SystemPrompt, instance.GetSystemPromptContributions());
         Add(PluginPoint.PromptProcessor, instance.GetPromptProcessors());

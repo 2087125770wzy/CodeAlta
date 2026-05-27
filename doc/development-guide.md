@@ -47,7 +47,7 @@ Tests identified as assuming backend-owned sessions or the current backend/sessi
 - `src/CodeAlta.Tests/RawApiBackendRegistrarTests.cs`: configured-provider registration through `AgentBackendFactory` and `CreateSessionAsync` persistence coverage.
 - `src/CodeAlta.Tests/OpenAIRawApiAgentBackendTests.cs`, `src/CodeAlta.Tests/RawApiAgentBackendTests.cs`, `src/CodeAlta.Tests/CopilotDirectProviderTests.cs`, and `src/CodeAlta.Tests/ModelsDevCatalogTests.cs`: provider backend tests that directly create or resume sessions through provider-specific `IAgentBackend` wrappers.
 - `src/CodeAlta.Tests/ChatAgentConnectionTests.cs` and `src/CodeAlta.Tests/ChatBackendInitializationCoordinatorTests.cs`: tests covering backend-bound session recreation and provider initialization enabling session loading.
-- `src/CodeAlta.Plugins.Abstractions.Tests/PluginAbstractionsTests.cs` and `src/CodeAlta.Plugins.Tests/PluginContributionAdapterServiceTests.cs`: plugin backend contribution coverage.
+- `src/CodeAlta.Plugins.Abstractions.Tests/PluginAbstractionsTests.cs` and `src/CodeAlta.Plugins.Tests/PluginContributionAdapterServiceTests.cs`: plugin contribution coverage for tools, prompts, resources, UI, callbacks, and compaction.
 
 ## Frontend Shell Shape
 

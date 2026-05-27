@@ -44,7 +44,7 @@ public sealed class ModelProviderRegistry : IModelProviderRegistry, IAsyncDispos
         ArgumentNullException.ThrowIfNull(descriptor);
         ArgumentNullException.ThrowIfNull(backendFactory);
 
-        // Keep this bridge for transitional plugin/external backend registrations while
+        // Keep this bridge for transitional external backend registrations while
         // configured raw-API providers register native IModelProviderRuntime instances.
         // The descriptor is supplied by provider configuration rather than derived from
         // the backend instance created below.

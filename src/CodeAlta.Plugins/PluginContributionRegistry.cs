@@ -309,9 +309,6 @@ public sealed class PluginContributionRegistry
             case PluginAgentToolContribution tool:
                 yield return new ContributionConflictKey("tool", $"tool:{tool.Definition.Spec.Name}", tool.Definition.Spec.Name);
                 yield break;
-            case PluginAgentBackendContribution backend:
-                yield return new ContributionConflictKey("provider", $"provider:{backend.Name}", backend.Name);
-                yield break;
             case PluginAltaCommandContribution alta:
                 yield return new ContributionConflictKey("alta-command", $"alta:{alta.Path}", alta.Path);
                 yield break;
@@ -376,9 +373,7 @@ public sealed class PluginContributionRegistry
             PluginStartupContribution startup => startup.Name,
             PluginCommandContribution command => command.Name,
             PluginAgentToolContribution tool => tool.Definition.Spec.Name,
-            PluginAgentBackendContribution backend => backend.Name,
             PluginAltaCommandContribution alta => alta.Path,
-            PluginProviderConfigurationContribution provider => provider.DisplayName,
             PluginSystemPromptContribution prompt => prompt.Title,
             PluginPromptProcessorContribution _ => null,
             PluginPromptEditorContribution promptEditor => promptEditor.Name,

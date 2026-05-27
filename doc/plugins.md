@@ -118,7 +118,6 @@ Open plugin management with `Ctrl+G Ctrl+N`, `/plugins`, `/plugin`, or the comma
 - startup hooks and command-line contributions;
 - shell, prompt, and selected-thread commands;
 - agent tools;
-- agent backend/provider factories returning `IAgentBackend`;
 - `alta` live command roots;
 - static and dynamic system/developer prompt parts;
 - prompt processors, prompt-editor attachments, and system/developer prompt parts;
@@ -131,7 +130,7 @@ Open plugin management with `Ctrl+G Ctrl+N`, `/plugins`, `/plugin`, or the comma
 - resource roots for skills, system prompts, templates, themes, and MCP manifests;
 - plugin-lifetime background tasks through `IPluginTaskService`.
 
-Low-ceremony factories are available through `Command`, `Startup`, `Prompt`, `Attachments`, `PluginUi`, `Resources`, `Tool`, and `PluginBackend`.
+Low-ceremony factories are available through `Command`, `Startup`, `Prompt`, `Attachments`, `PluginUi`, `Resources`, and `Tool`.
 
 UI-only contributions remain frontend responsibilities. Headless hosts can ignore them or expose no-op services through `IPluginUiService.HasInteractiveUi == false`.
 
@@ -160,32 +159,6 @@ var result = await Services.Alta.InvokeAsync(
 The service returns the same flattened JSONL transcript shape used by agent live-tool calls, plus exit code, truncation status, and error summary. Project-scoped plugin invocations inherit project scope and working directory by default.
 
 See [`alta` live tool](live-tool.md) for command behavior.
-
-## Provider/backend contributions
-
-Plugins may contribute low-level agent backends:
-
-```csharp
-public override IEnumerable<PluginAgentBackendContribution> GetAgentBackends()
-{
-    yield return PluginBackend.FromFactory(
-        name: "example-backend",
-        displayName: "Example Backend",
-        description: "Adds a custom provider protocol.",
-        capabilities: PluginAgentBackendCapabilities.Default | PluginAgentBackendCapabilities.Tools,
-        factory: static async (context, cancellationToken) =>
-        {
-            await context.Services.State.WriteJsonAsync(
-                PluginStateScope.User,
-                "last-start.json",
-                DateTimeOffset.UtcNow,
-                cancellationToken);
-            return new ExampleAgentBackend(context.Logger);
-        });
-}
-```
-
-The runtime registers contributed backends with `AgentBackendFactory`. Provider selection UI and diagnostics decide how contributed backends appear and how collisions are reported.
 
 ## Resource contributions
 

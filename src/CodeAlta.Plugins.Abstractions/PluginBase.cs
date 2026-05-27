@@ -129,12 +129,6 @@ public abstract class PluginBase : IAsyncDisposable
     public virtual IEnumerable<PluginAgentToolContribution> GetAgentTools() => [];
 
     /// <summary>
-    /// Gets agent backend/provider contributions.
-    /// </summary>
-    /// <returns>Agent backend contributions.</returns>
-    public virtual IEnumerable<PluginAgentBackendContribution> GetAgentBackends() => [];
-
-    /// <summary>
     /// Gets <c>alta</c> live command contributions.
     /// </summary>
     /// <returns>Alta command contributions.</returns>

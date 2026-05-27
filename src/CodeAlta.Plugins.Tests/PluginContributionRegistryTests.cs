@@ -119,7 +119,7 @@ public sealed class PluginContributionRegistryTests
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         CollectionAssert.IsSubsetOf(
-            new[] { "command", "command-alias", "keybinding", "tool", "prompt-part", "resource", "ui-region", "provider" },
+            new[] { "command", "command-alias", "keybinding", "tool", "prompt-part", "resource", "ui-region" },
             conflictKinds.ToArray());
     }
 
@@ -172,14 +172,6 @@ public sealed class PluginContributionRegistryTests
                 Region = PluginUiRegion.ThreadStatus,
                 Name = "same-status",
                 GetStatus = static _ => new PluginStatusItem { Label = "same", Text = "same" },
-            },
-        ], 1);
-        registry.Register(descriptor, PluginScope.Global, null, null, PluginPoint.AgentBackend,
-        [
-            new PluginAgentBackendContribution
-            {
-                Name = "same-provider",
-                Factory = static (_, _) => throw new NotSupportedException(),
             },
         ], 1);
     }

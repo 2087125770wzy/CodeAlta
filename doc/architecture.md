@@ -13,7 +13,7 @@ sequenceDiagram
     participant Runtime as SessionRuntimeService
 
     Program->>Owned: create process-owned services
-    Owned->>Host: CreateAsync(global root, current project, plugins, backend registration)
+    Owned->>Host: CreateAsync(global root, current project, plugins, provider registration)
     Host->>Host: create catalogs, plugin runtime, skill catalog, backend factory
     Host->>Runtime: create AgentHub + work-thread runtime service
     Owned->>UI: compose TUI around shared services
@@ -23,7 +23,7 @@ sequenceDiagram
 `CodeAltaOwnedServices.CreateAsync` owns process concerns: the default `~/.alta` root, logging, model-catalog refresh, global config, and provider backend registration. It calls `CodeAltaHost.CreateAsync`, which composes reusable runtime services:
 
 - `ProjectCatalog`, `WorkThreadCatalog`, and `SkillCatalog` from `CodeAlta.Catalog`;
-- `PluginRuntimeManager` and plugin resource/backend adapters;
+- `PluginRuntimeManager` and plugin resource adapters;
 - `AgentBackendFactory`, `AgentHub`, and `SessionRuntimeService`;
 - `ProjectFileSearchService` for prompt attachments and file pickers.
 

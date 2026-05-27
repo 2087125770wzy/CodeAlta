@@ -75,7 +75,7 @@ public sealed class PluginContributionAdapterServiceTests
     }
 
     [TestMethod]
-    public async Task ContributionAdapters_ExposeToolsResourcesUiRenderersCompactionStartupAndBackends()
+    public async Task ContributionAdapters_ExposeToolsResourcesUiRenderersCompactionAndStartup()
     {
         var (registry, active) = await ActivateAsync<ComprehensivePlugin>();
         var adapter = new PluginContributionAdapterService(registry);
@@ -91,7 +91,6 @@ public sealed class PluginContributionAdapterServiceTests
             instructions: CreateInstructionTemplate(active),
             reducer: CreateReducerTemplate(active),
             after: CreateAfterCompactionTemplate(active));
-        var (backend, backendDiagnostics) = await adapter.CreateAgentBackendAsync([active], "sample-backend", managedOptions);
 
         Assert.AreEqual(0, startup.Diagnostics.Count, string.Join(Environment.NewLine, startup.Diagnostics.Select(static diagnostic => diagnostic.Message)));
         Assert.IsTrue(ComprehensivePlugin.StartupInvoked);
@@ -111,10 +110,6 @@ public sealed class PluginContributionAdapterServiceTests
         Assert.AreEqual("compact instructions", compaction.InstructionResults.Single().Instructions);
         Assert.AreEqual("reduced", compaction.ReducerResults.Single().CompactedText);
         Assert.IsTrue(ComprehensivePlugin.AfterCompactionInvoked);
-        Assert.AreEqual(0, backendDiagnostics.Count, string.Join(Environment.NewLine, backendDiagnostics.Select(static diagnostic => diagnostic.Message)));
-        Assert.IsInstanceOfType<FakeBackend>(backend);
-        Assert.AreEqual("sample-backend", backend!.BackendId.Value);
-        await backend.DisposeAsync();
         await active.DeactivateAsync(TimeSpan.FromSeconds(5));
     }
 
@@ -371,16 +366,6 @@ public sealed class PluginContributionAdapterServiceTests
             yield return new PluginAgentToolContribution { Definition = CreateTool("managed"), ActivationPolicy = PluginToolActivationPolicy.CodeAltaManagedOnly };
         }
 
-        public override IEnumerable<PluginAgentBackendContribution> GetAgentBackends()
-        {
-            yield return new PluginAgentBackendContribution
-            {
-                Name = "sample-backend",
-                DisplayName = "Sample Backend",
-                Factory = static (context, _) => ValueTask.FromResult<IAgentBackend>(new FakeBackend(new AgentBackendId(context.BackendId ?? "sample-backend"))),
-            };
-        }
-
         public override IEnumerable<PluginSystemPromptContribution> GetSystemPromptContributions()
         {
             yield return new PluginSystemPromptContribution
@@ -552,31 +537,4 @@ public sealed class PluginContributionAdapterServiceTests
             => throw new OperationCanceledException(cancellationToken);
     }
 
-    private sealed class FakeBackend(AgentBackendId backendId) : IAgentBackend
-    {
-        public AgentBackendId BackendId { get; } = backendId;
-
-        public string DisplayName => "Fake";
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-
-        public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task<IReadOnlyList<AgentModelInfo>> ListModelsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<AgentModelInfo>>([]);
-
-        public async IAsyncEnumerable<AgentSessionMetadata> ListSessionsAsync(
-            AgentSessionListFilter? filter = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.CompletedTask;
-            yield break;
-        }
-
-        public Task<IAgentSession> CreateSessionAsync(AgentSessionCreateOptions options, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<IAgentSession> ResumeSessionAsync(string sessionId, AgentSessionResumeOptions options, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-    }
 }

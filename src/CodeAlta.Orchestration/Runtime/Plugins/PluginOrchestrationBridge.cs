@@ -1,4 +1,3 @@
-using CodeAlta.Agent;
 using CodeAlta.Plugins;
 using CodeAlta.Plugins.Abstractions;
 
@@ -76,19 +75,6 @@ public sealed class PluginOrchestrationBridge
     /// <returns>Applicable transient thread event projection contributions.</returns>
     public IReadOnlyList<PluginContributionRegistration> GetThreadEventProjectors(PluginAdapterOperationOptions? options = null)
         => _adapter.GetContributions<PluginThreadEventProjectionContribution>(PluginPoint.ThreadEventProjection, MarkHeadless(options));
-
-    /// <summary>
-    /// Creates a plugin-contributed agent backend by contribution name.
-    /// </summary>
-    /// <param name="name">The backend contribution name.</param>
-    /// <param name="options">Operation scope options.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The created backend and diagnostics.</returns>
-    public ValueTask<(IAgentBackend? Backend, IReadOnlyList<PluginRuntimeDiagnostic> Diagnostics)> CreateAgentBackendAsync(
-        string name,
-        PluginAdapterOperationOptions? options = null,
-        CancellationToken cancellationToken = default)
-        => _adapter.CreateAgentBackendAsync(_getActivePlugins(), name, MarkHeadless(options), cancellationToken);
 
     /// <summary>
     /// Broadcasts an agent event to headless orchestration plugin hooks.

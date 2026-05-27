@@ -367,22 +367,6 @@ public sealed class PluginRendererContext : PluginOperationContext
     public object? Payload { get; init; }
 }
 
-/// <summary>Context for agent backend factory callbacks.</summary>
-public sealed class PluginAgentBackendFactoryContext : PluginOperationContext
-{
-    /// <summary>Gets the plugin logger.</summary>
-    public required Logger Logger { get; init; }
-
-    /// <summary>Gets the plugin package directory.</summary>
-    public required string PackageDirectory { get; init; }
-
-    /// <summary>Gets configuration paths available to the backend.</summary>
-    public IReadOnlyList<string> ConfigurationPaths { get; init; } = [];
-
-    /// <summary>Gets environment values visible to the backend.</summary>
-    public IReadOnlyDictionary<string, string?> Environment { get; init; } = new Dictionary<string, string?>();
-}
-
 /// <summary>Context for resolving plugin resources.</summary>
 public sealed class PluginResourceContext : PluginOperationContext
 {

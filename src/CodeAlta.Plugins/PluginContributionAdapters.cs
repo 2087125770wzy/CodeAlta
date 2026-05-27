@@ -396,13 +396,6 @@ public sealed class PluginContributionAdapterService
             .Where(tool => ToolApplies(tool.ActivationPolicy, options))
             .ToArray();
 
-    /// <summary>Gets applicable plugin backend/provider contributions.</summary>
-    public IReadOnlyList<PluginAgentBackendContribution> GetAgentBackends(PluginAdapterOperationOptions? options = null)
-        => GetRegistrations(PluginPoint.AgentBackend, options)
-            .Select(static registration => registration.Contribution)
-            .OfType<PluginAgentBackendContribution>()
-            .ToArray();
-
     /// <summary>Runs early startup contribution handlers and returns early resource contributions.</summary>
     public async ValueTask<PluginStartupAdapterResult> RunStartupAsync(
         IReadOnlyList<ActivePluginInstance> activePlugins,
@@ -442,43 +435,6 @@ public sealed class PluginContributionAdapterService
         }
 
         return new PluginStartupAdapterResult { Resources = resources, Diagnostics = diagnostics };
-    }
-
-    /// <summary>Creates a plugin-contributed backend by contribution name.</summary>
-    public async ValueTask<(IAgentBackend? Backend, IReadOnlyList<PluginRuntimeDiagnostic> Diagnostics)> CreateAgentBackendAsync(
-        IReadOnlyList<ActivePluginInstance> activePlugins,
-        string name,
-        PluginAdapterOperationOptions? options = null,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(activePlugins);
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        var diagnostics = new List<PluginRuntimeDiagnostic>();
-        foreach (var registration in GetRegistrations(PluginPoint.AgentBackend, options))
-        {
-            if (registration.Contribution is not PluginAgentBackendContribution contribution ||
-                !string.Equals(contribution.Name, name, StringComparison.OrdinalIgnoreCase) ||
-                !TryGetActivePlugin(activePlugins, registration, out var active))
-            {
-                continue;
-            }
-
-            var context = CreateAgentBackendFactoryContext(active, options, cancellationToken);
-            try
-            {
-                var backend = await contribution.Factory(context, cancellationToken).ConfigureAwait(false);
-                context.Invalidate();
-                return (backend, diagnostics);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                LogCallbackFailure(active, "Agent backend contribution failed.", ex);
-                diagnostics.Add(AddDiagnostic(CreateCallbackDiagnostic(registration, "Agent backend contribution failed.", ex)));
-                return (null, diagnostics);
-            }
-        }
-
-        return (null, diagnostics);
     }
 
     /// <summary>Runs tool-call interception callbacks until one blocks or replaces arguments.</summary>
@@ -1088,24 +1044,4 @@ public sealed class PluginContributionAdapterService
             CancellationToken = cancellationToken,
         };
 
-    private static PluginAgentBackendFactoryContext CreateAgentBackendFactoryContext(ActivePluginInstance active, PluginAdapterOperationOptions? options, CancellationToken cancellationToken)
-        => new()
-        {
-            Plugin = active.Descriptor,
-            Services = active.RuntimeContext.Services,
-            Scope = active.RuntimeContext.Scope,
-            ScopeProjectId = active.RuntimeContext.ScopeProjectId,
-            ScopeProjectPath = active.RuntimeContext.ScopeProjectPath,
-            ProjectId = options?.ProjectId,
-            ProjectPath = options?.ProjectPath,
-            ThreadId = options?.ThreadId,
-            RunId = options?.RunId,
-            BackendId = options?.BackendId,
-            Model = options?.Model,
-            Logger = active.RuntimeContext.Logger,
-            PackageDirectory = active.RuntimeContext.PackageDirectory,
-            ConfigurationPaths = options?.ConfigurationPaths ?? [],
-            Environment = options?.Environment ?? new Dictionary<string, string?>(),
-            CancellationToken = cancellationToken,
-        };
 }

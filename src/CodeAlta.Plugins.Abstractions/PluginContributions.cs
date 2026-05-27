@@ -18,8 +18,6 @@ public enum PluginPoint
     Command,
     /// <summary>Agent tool.</summary>
     AgentTool,
-    /// <summary>Agent backend/provider.</summary>
-    AgentBackend,
     /// <summary>Alta live command.</summary>
     AltaCommand,
     /// <summary>System/developer prompt part.</summary>
@@ -159,12 +157,6 @@ public delegate ValueTask<string?> PluginSystemPromptContentProvider(PluginSyste
 /// <param name="cancellationToken">A token to cancel rendering.</param>
 /// <returns>A rendered visual or markdown fallback.</returns>
 public delegate ValueTask<PluginRenderResult?> PluginRenderer(PluginRendererContext context, CancellationToken cancellationToken);
-
-/// <summary>Delegate for backend factory callbacks.</summary>
-/// <param name="context">The backend factory context.</param>
-/// <param name="cancellationToken">A token to cancel backend creation.</param>
-/// <returns>The backend instance.</returns>
-public delegate ValueTask<IAgentBackend> PluginAgentBackendFactory(PluginAgentBackendFactoryContext context, CancellationToken cancellationToken);
 
 /// <summary>Delegate for before-compaction hooks.</summary>
 /// <param name="context">The compaction context.</param>
@@ -489,66 +481,4 @@ public enum PluginToolResultDisposition
     Replace,
     /// <summary>Attach structured details.</summary>
     AttachDetails,
-}
-
-/// <summary>Describes a backend/provider contribution.</summary>
-public sealed record PluginAgentBackendContribution
-{
-    /// <summary>Gets the backend natural name.</summary>
-    public required string Name { get; init; }
-
-    /// <summary>Gets the backend display name.</summary>
-    public string? DisplayName { get; init; }
-
-    /// <summary>Gets the backend description.</summary>
-    public string? Description { get; init; }
-
-    /// <summary>Gets backend capabilities.</summary>
-    public PluginAgentBackendCapabilities Capabilities { get; init; }
-
-    /// <summary>Gets the backend factory.</summary>
-    public required PluginAgentBackendFactory Factory { get; init; }
-
-    /// <summary>Gets optional provider configuration metadata.</summary>
-    public PluginProviderConfigurationContribution? Configuration { get; init; }
-}
-
-/// <summary>Describes backend capabilities.</summary>
-[Flags]
-public enum PluginAgentBackendCapabilities
-{
-    /// <summary>No declared capabilities.</summary>
-    None = 0,
-    /// <summary>Can create sessions.</summary>
-    Sessions = 1 << 0,
-    /// <summary>Can resume sessions.</summary>
-    Resume = 1 << 1,
-    /// <summary>Can list models.</summary>
-    ModelListing = 1 << 2,
-    /// <summary>Supports tools.</summary>
-    Tools = 1 << 3,
-    /// <summary>Supports image input or output.</summary>
-    Images = 1 << 4,
-    /// <summary>Supports steering active runs.</summary>
-    Steering = 1 << 5,
-    /// <summary>Supports compaction metadata or operations.</summary>
-    Compaction = 1 << 6,
-    /// <summary>Typical interactive backend capabilities.</summary>
-    Default = Sessions | Resume | ModelListing,
-}
-
-/// <summary>Describes optional provider configuration integration metadata.</summary>
-public sealed record PluginProviderConfigurationContribution
-{
-    /// <summary>Gets the settings display name.</summary>
-    public string? DisplayName { get; init; }
-
-    /// <summary>Gets credential prompt descriptors.</summary>
-    public IReadOnlyList<string> CredentialPrompts { get; init; } = [];
-
-    /// <summary>Gets default configuration overlays.</summary>
-    public IReadOnlyDictionary<string, string> DefaultConfiguration { get; init; } = new Dictionary<string, string>();
-
-    /// <summary>Gets an optional settings UI contribution.</summary>
-    public PluginUiContribution? SettingsUi { get; init; }
 }

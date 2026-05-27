@@ -36,8 +36,6 @@ public enum PluginDiagnosticSource
     Tool,
     /// <summary>Compaction handling.</summary>
     Compaction,
-    /// <summary>Backend/provider handling.</summary>
-    Backend,
 }
 
 /// <summary>Describes an exception captured for plugin diagnostics.</summary>
@@ -173,15 +171,6 @@ public static class PluginDiagnostics
     /// <returns>The diagnostic.</returns>
     public static PluginDiagnostic Compaction(string pluginRuntimeKey, string message, Exception? exception = null)
         => Create(pluginRuntimeKey, PluginDiagnosticSource.Compaction, PluginDiagnosticSeverity.Warning, message, PluginPoint.Compaction, null, exception);
-
-    /// <summary>Creates a backend diagnostic.</summary>
-    /// <param name="pluginRuntimeKey">The plugin runtime key.</param>
-    /// <param name="backendName">The backend name.</param>
-    /// <param name="message">The diagnostic message.</param>
-    /// <param name="exception">The optional exception.</param>
-    /// <returns>The diagnostic.</returns>
-    public static PluginDiagnostic Backend(string pluginRuntimeKey, string? backendName, string message, Exception? exception = null)
-        => Create(pluginRuntimeKey, PluginDiagnosticSource.Backend, PluginDiagnosticSeverity.Error, message, PluginPoint.AgentBackend, backendName, exception);
 
     private static PluginDiagnostic Create(
         string pluginRuntimeKey,
