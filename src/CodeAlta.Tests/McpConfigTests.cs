@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using CodeAlta.Plugin.Mcp;
 using CodeAlta.Plugins.Abstractions;
@@ -722,9 +723,11 @@ public sealed class McpConfigTests
         Assert.IsNotNull(visual);
         Assert.IsInstanceOfType<Button>(visual);
         var button = (Button)visual;
-        Assert.IsInstanceOfType<TextBlock>(button.Content);
-        var textBlock = (TextBlock)button.Content!;
-        Assert.AreEqual("MCP 1/1 · tools not loaded", textBlock.Text);
+        Assert.IsInstanceOfType<Markup>(button.Content);
+        var markup = (Markup)button.Content!;
+        StringAssert.Contains(markup.Text!, "[success]");
+        StringAssert.Contains(markup.Text!, "MCP[/]");
+        Assert.AreEqual("MCP 1/1 · tools not loaded", ReadStatusPlainText(visual));
 
         var changedCount = 0;
         void OnValueChanged(Binding binding)
@@ -754,7 +757,7 @@ public sealed class McpConfigTests
         }
 
         Assert.IsTrue(changedCount > 0, "MCP activation should invalidate bindable UI state.");
-        Assert.AreEqual("MCP 1/1 · active tools 0", ReadStatusText(statusContribution.CreateVisual!(CreateVisualContext(project.Path, "session-a"))!));
+        Assert.AreEqual("MCP 1/1 · active tools 0", ReadStatusPlainText(statusContribution.CreateVisual!(CreateVisualContext(project.Path, "session-a"))!));
     }
 
     [TestMethod]
@@ -776,28 +779,74 @@ public sealed class McpConfigTests
             activationState,
             statusRevision);
         Assert.IsNotNull(visual);
-        Assert.AreEqual("MCP 1/1 · tools not loaded", ReadStatusText(visual));
+        Assert.AreEqual("MCP 1/1 · tools not loaded", ReadStatusPlainText(visual));
+        StringAssert.Contains(ReadStatusMarkup(visual)!, "tools [muted]not loaded[/]");
 
         var scopeKey = McpActivationState.ResolveScopeKey("session-a", project.Path);
         activationState.ActivateServers(scopeKey, ["docs"]);
         Assert.AreEqual(1, statusRevision.Value);
+        var pendingVisual = McpPlugin.CreateStatusIndicator(CreateVisualContext(project.Path, "session-a"), new McpManagementService(), activationState, statusRevision)!;
         Assert.AreEqual(
             "MCP 1/1 · tools pending",
-            ReadStatusText(McpPlugin.CreateStatusIndicator(CreateVisualContext(project.Path, "session-a"), new McpManagementService(), activationState, statusRevision)!));
+            ReadStatusPlainText(pendingVisual));
+        StringAssert.Contains(ReadStatusMarkup(pendingVisual)!, "tools [warning]pending[/]");
 
         activationState.UpdateToolCounts(scopeKey, new Dictionary<string, int>(StringComparer.Ordinal) { ["docs"] = 7 });
         Assert.AreEqual(2, statusRevision.Value);
+        var activeVisual = McpPlugin.CreateStatusIndicator(CreateVisualContext(project.Path, "session-a"), new McpManagementService(), activationState, statusRevision)!;
         Assert.AreEqual(
             "MCP 1/1 · active tools 7",
-            ReadStatusText(McpPlugin.CreateStatusIndicator(CreateVisualContext(project.Path, "session-a"), new McpManagementService(), activationState, statusRevision)!));
+            ReadStatusPlainText(activeVisual));
+        StringAssert.Contains(ReadStatusMarkup(activeVisual)!, "active tools [accent]7[/]");
     }
 
-    private static string? ReadStatusText(Visual visual)
+    private static string? ReadStatusPlainText(Visual visual)
+    {
+        var markup = ReadStatusMarkup(visual);
+        if (markup is null)
+        {
+            return null;
+        }
+
+        var plainText = StripMarkupTags(markup);
+        var mcpOffset = plainText.IndexOf("MCP ", StringComparison.Ordinal);
+        return mcpOffset >= 0 ? plainText[mcpOffset..] : plainText;
+    }
+
+    private static string? ReadStatusMarkup(Visual visual)
     {
         Assert.IsInstanceOfType<Button>(visual);
         var button = (Button)visual;
-        Assert.IsInstanceOfType<TextBlock>(button.Content);
-        return ((TextBlock)button.Content!).Text;
+        Assert.IsInstanceOfType<Markup>(button.Content);
+        return ((Markup)button.Content!).Text;
+    }
+
+    private static string StripMarkupTags(string markup)
+    {
+        var builder = new StringBuilder(markup.Length);
+        var inTag = false;
+        foreach (var c in markup)
+        {
+            if (c == '[')
+            {
+                inTag = true;
+                continue;
+            }
+
+            if (inTag)
+            {
+                if (c == ']')
+                {
+                    inTag = false;
+                }
+
+                continue;
+            }
+
+            builder.Append(c);
+        }
+
+        return builder.ToString();
     }
 
     private static PluginAltaCommandContext CreateAltaContext(TextWriter stdout, TextWriter stderr, string? projectPath, string? sourceSessionId = null)

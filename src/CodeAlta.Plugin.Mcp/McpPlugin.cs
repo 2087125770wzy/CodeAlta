@@ -113,10 +113,10 @@ public sealed class McpPlugin : PluginBase
         }
 
         var activationScope = ResolveActivationScopeKey(context, projectPath);
-        var button = new Button(new TextBlock(() =>
+        var button = new Button(new Markup(() =>
             {
                 _ = statusRevision.Value;
-                return CreateStatusVisualState(managementService, activationState, activationScope, projectPath).Label;
+                return CreateStatusVisualState(managementService, activationState, activationScope, projectPath).Markup;
             })
             {
                 Wrap = false,
@@ -160,11 +160,11 @@ public sealed class McpPlugin : PluginBase
         var currentSnapshot = ResolveStatusSnapshot(managementService, projectPath);
         var activeServers = activationState.GetActiveServers(activationScope);
         return new McpStatusVisualState(
-            CreateStatusLabel(currentSnapshot, activationState.GetToolCounts(activationScope), activeServers),
+            CreateStatusMarkup(currentSnapshot, activationState.GetToolCounts(activationScope), activeServers),
             currentSnapshot.Summary.UnavailableServerCount > 0 ? ControlTone.Warning : ControlTone.Default);
     }
 
-    private readonly record struct McpStatusVisualState(string Label, ControlTone Tone);
+    private readonly record struct McpStatusVisualState(string Markup, ControlTone Tone);
 
     internal static string CreateStatusLabel(
         McpManagementSnapshot snapshot,
@@ -193,6 +193,42 @@ public sealed class McpPlugin : PluginBase
         return builder.ToString();
     }
 
+    internal static string CreateStatusMarkup(
+        McpManagementSnapshot snapshot,
+        IReadOnlyDictionary<string, int> activatedToolCounts,
+        IReadOnlyCollection<string> activeServers)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(activatedToolCounts);
+        ArgumentNullException.ThrowIfNull(activeServers);
+
+        var summary = snapshot.Summary;
+        var serverTone = summary.ConfiguredServerCount > 0 ? "success" : "muted";
+        var activeServerTone = summary.ActiveServerCount > 0 ? serverTone : "muted";
+        var builder = new StringBuilder();
+        builder.Append('[')
+            .Append(serverTone)
+            .Append(']')
+            .Append(NerdFont.MdServerNetwork)
+            .Append(" MCP[/] [")
+            .Append(activeServerTone)
+            .Append(']')
+            .Append(summary.ActiveServerCount)
+            .Append("[/][muted]/")
+            .Append(summary.ConfiguredServerCount)
+            .Append("[/]");
+        if (summary.UnavailableServerCount > 0)
+        {
+            builder.Append(" · [warning]")
+                .Append(summary.UnavailableServerCount)
+                .Append(" unavailable[/]");
+        }
+
+        builder.Append(" · ")
+            .Append(CreateStatusToolMarkup(snapshot, activatedToolCounts, activeServers));
+        return builder.ToString();
+    }
+
     private static string CreateStatusToolLabel(
         McpManagementSnapshot snapshot,
         IReadOnlyDictionary<string, int> activatedToolCounts,
@@ -211,6 +247,26 @@ public sealed class McpPlugin : PluginBase
         }
 
         return activeServers.Count > 0 ? "tools pending" : "tools not loaded";
+    }
+
+    private static string CreateStatusToolMarkup(
+        McpManagementSnapshot snapshot,
+        IReadOnlyDictionary<string, int> activatedToolCounts,
+        IReadOnlyCollection<string> activeServers)
+    {
+        var summary = snapshot.Summary;
+        if (summary.TotalToolCount > 0 || HasCompletedManagementToolDiscovery(snapshot))
+        {
+            return $"tools [accent]{summary.ExposedToolCount}[/][muted]/{summary.TotalToolCount}[/]";
+        }
+
+        var loadedActiveServerCount = activeServers.Count(server => activatedToolCounts.ContainsKey(server));
+        if (loadedActiveServerCount > 0)
+        {
+            return $"active tools [accent]{activeServers.Sum(server => activatedToolCounts.TryGetValue(server, out var count) ? count : 0)}[/]";
+        }
+
+        return activeServers.Count > 0 ? "tools [warning]pending[/]" : "tools [muted]not loaded[/]";
     }
 
     private static bool HasCompletedManagementToolDiscovery(McpManagementSnapshot snapshot)
