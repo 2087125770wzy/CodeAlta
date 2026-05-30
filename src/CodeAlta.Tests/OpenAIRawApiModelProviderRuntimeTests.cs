@@ -411,6 +411,27 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
     }
 
     [TestMethod]
+    public async Task OpenAIChatTurnExecutor_RejectsEmptyStreamWithTypedProtocolError()
+    {
+        var chatClient = new RecordingOpenAIChatClient([]);
+        var executor = new OpenAIChatTurnExecutor(new OpenAIProviderOptions
+        {
+            ProviderKey = "openai",
+            ChatClientFactory = _ => chatClient,
+        });
+
+        var exception = await Assert.ThrowsExactlyAsync<AgentTurnExecutionException>(
+                () => executor.ExecuteTurnAsync(
+                    CreateChatTurnRequest(),
+                    static (_, _) => ValueTask.CompletedTask))
+            .ConfigureAwait(false);
+
+        var protocolException = Assert.IsInstanceOfType<OpenAIChatProtocolException>(exception.InnerException);
+        Assert.AreEqual(OpenAIChatProtocolErrorCode.StreamCompletedWithoutAssistantContent, protocolException.ErrorCode);
+        Assert.AreEqual(1, chatClient.Requests.Count);
+    }
+
+    [TestMethod]
     public async Task OpenAIChatModelProviderRuntime_ProtocolTracing_WritesSessionTrace()
     {
         using var temp = TestTempDirectory.Create();
@@ -899,7 +920,9 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             .ConfigureAwait(false);
 
         Assert.AreEqual(6, responsesClient.Requests.Count);
-        StringAssert.Contains(exception.Failure.Message, "ended prematurely before a terminal response");
+        var translatedException = Assert.IsInstanceOfType<InvalidOperationException>(exception.InnerException);
+        var protocolException = Assert.IsInstanceOfType<OpenAIResponsesProtocolException>(translatedException.InnerException);
+        Assert.AreEqual(OpenAIResponsesProtocolErrorCode.StreamClosedBeforeTerminalResponse, protocolException.ErrorCode);
     }
 
     [TestMethod]
@@ -941,7 +964,9 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
             .ConfigureAwait(false);
 
         Assert.AreEqual(6, responsesClient.Requests.Count);
-        StringAssert.Contains(exception.Failure.Message, "terminal response did not contain assistant output or a tool call");
+        var translatedException = Assert.IsInstanceOfType<InvalidOperationException>(exception.InnerException);
+        var protocolException = Assert.IsInstanceOfType<OpenAIResponsesProtocolException>(translatedException.InnerException);
+        Assert.AreEqual(OpenAIResponsesProtocolErrorCode.TerminalResponseWithoutAssistantOutput, protocolException.ErrorCode);
     }
 
     [TestMethod]
@@ -1616,6 +1641,23 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
     public async Task OpenAIResponsesModelProviderRuntime_CodexUsesLocalToolBridgeSequentially()
     {
         using var temp = TestTempDirectory.Create();
+        var callOneItem = ResponseItem.CreateFunctionCallItem(
+            "call-one",
+            "inspect_one",
+            BinaryData.FromString("""{"path":"README.md"}"""));
+        var callTwoItem = ResponseItem.CreateFunctionCallItem(
+            "call-two",
+            "inspect_two",
+            BinaryData.FromString("""{"path":"src/CodeAlta.csproj"}"""));
+        var toolResponse = new ResponseResult
+        {
+            Id = "response-tools",
+            CreatedAt = DateTimeOffset.UtcNow,
+            Model = "gpt-5.3-codex",
+            Status = ResponseStatus.Completed,
+        };
+        toolResponse.OutputItems.Add(callOneItem);
+        toolResponse.OutputItems.Add(callTwoItem);
         var responsesClient = new RecordingOpenAIResponseClient(
         [
             [
@@ -1624,16 +1666,11 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                     modelId: "gpt-5.3-codex"),
                 CreateOutputItemDoneUpdate(
                     outputIndex: 0,
-                    item: ResponseItem.CreateFunctionCallItem(
-                        "call-one",
-                        "inspect_one",
-                        BinaryData.FromString("""{"path":"README.md"}"""))),
+                    item: callOneItem),
                 CreateOutputItemDoneUpdate(
                     outputIndex: 1,
-                    item: ResponseItem.CreateFunctionCallItem(
-                        "call-two",
-                        "inspect_two",
-                        BinaryData.FromString("""{"path":"src/CodeAlta.csproj"}"""))),
+                    item: callTwoItem),
+                CreateCompletedUpdate(toolResponse),
             ],
             [
                 CreateAssistantResponseUpdate(
@@ -3689,6 +3726,27 @@ public sealed class OpenAIRawApiModelProviderRuntimeTests
                 UpdatedAt = DateTimeOffset.UtcNow,
             },
         };
+
+    private static AgentTurnRequest CreateChatTurnRequest()
+    {
+        var request = CreateTurnRequest();
+        return request with
+        {
+            Provider = request.Provider with
+            {
+                ProtocolFamily = "openai",
+                ProviderKey = "openai",
+                DisplayName = "OpenAI Chat",
+                TransportKind = AgentTransportKind.OpenAIChatCompletions,
+            },
+            ProviderId = new ModelProviderId("openai"),
+            State = request.State with
+            {
+                ProtocolFamily = "openai",
+                ProviderKey = "openai",
+            },
+        };
+    }
 
     private static AgentTurnRequest CreateCodexTurnRequest()
         => CreateTurnRequest() with

@@ -377,7 +377,7 @@ public sealed class OpenAICodexSubscriptionPipelineTests
     {
         using var webSocket = new SilentWebSocket();
 
-        var exception = await Assert.ThrowsExactlyAsync<TimeoutException>(
+        var exception = await Assert.ThrowsExactlyAsync<OpenAIResponsesTransportException>(
                 () => OpenAICodexSubscriptionWebSocketSession.ReceiveFrameWithIdleTimeoutAsync(
                     webSocket,
                     new ArraySegment<byte>(new byte[16]),
@@ -385,7 +385,7 @@ public sealed class OpenAICodexSubscriptionPipelineTests
                     CancellationToken.None))
             .ConfigureAwait(false);
 
-        StringAssert.Contains(exception.Message, "did not receive");
+        Assert.AreEqual(OpenAIResponsesTransportErrorCode.WebSocketReceiveIdleTimeout, exception.ErrorCode);
     }
 
     [TestMethod]

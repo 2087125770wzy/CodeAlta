@@ -150,6 +150,13 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
                 assistantPartContentIds.Add(null);
             }
 
+            if (parts.Count == 0)
+            {
+                throw new OpenAIChatProtocolException(
+                    OpenAIChatProtocolErrorCode.StreamCompletedWithoutAssistantContent,
+                    "OpenAI chat stream completed without assistant content, refusal, reasoning, or tool calls.");
+            }
+
             var assistantMessage = new AgentConversationMessage(AgentConversationRole.Assistant, parts);
             protocolTrace?.WriteLine(
                 $"### turn end provider={request.Provider.ProviderKey} session={request.SessionId} run={request.RunId.Value} completion={completionId ?? "<none>"} model={modelId ?? "<none>"}");
@@ -634,11 +641,30 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
             : model.ToString() ?? string.Empty;
 
     private static AgentTurnExecutionException CreateTurnExecutionException(Exception ex)
-        => new(
+    {
+        if (ex is OpenAIChatProtocolException protocolException)
+        {
+            return new AgentTurnExecutionException(
+                new AgentTurnFailure(
+                    CreateOpenAIChatProtocolFailureMessage(protocolException.ErrorCode),
+                    IsContextOverflow: false),
+                ex);
+        }
+
+        return new AgentTurnExecutionException(
             new AgentTurnFailure(
                 ex.Message,
                 IsContextOverflowMessage(ex.Message)),
             ex);
+    }
+
+    private static string CreateOpenAIChatProtocolFailureMessage(OpenAIChatProtocolErrorCode errorCode)
+        => errorCode switch
+        {
+            OpenAIChatProtocolErrorCode.StreamCompletedWithoutAssistantContent =>
+                "OpenAI chat stream completed without assistant content, refusal, reasoning, or tool calls.",
+            _ => "OpenAI chat stream did not match the expected protocol.",
+        };
 
     private static bool IsContextOverflowMessage(string? message)
         => !string.IsNullOrWhiteSpace(message) &&
@@ -654,4 +680,23 @@ internal sealed class OpenAIChatTurnExecutor(OpenAIProviderOptions provider) : I
 
         public string? Name { get; set; }
     }
+}
+
+internal enum OpenAIChatProtocolErrorCode
+{
+    StreamCompletedWithoutAssistantContent,
+}
+
+internal sealed class OpenAIChatProtocolException : InvalidOperationException
+{
+    public OpenAIChatProtocolException(
+        OpenAIChatProtocolErrorCode errorCode,
+        string message,
+        Exception? innerException = null)
+        : base(message, innerException)
+    {
+        ErrorCode = errorCode;
+    }
+
+    public OpenAIChatProtocolErrorCode ErrorCode { get; }
 }

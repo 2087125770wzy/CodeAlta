@@ -178,7 +178,9 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
                 {
                     if (IsTerminalEvent(eventType))
                     {
-                        throw new InvalidOperationException("Codex subscription WebSocket returned an unsupported terminal response update.");
+                        throw new OpenAIResponsesProtocolException(
+                            OpenAIResponsesProtocolErrorCode.UnsupportedTerminalResponseUpdate,
+                            "Codex subscription WebSocket returned an unsupported terminal response update.");
                     }
 
                     continue;
@@ -195,7 +197,9 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
 
             if (!sawTerminalEvent)
             {
-                throw new InvalidOperationException("Codex subscription WebSocket stream closed before a terminal response event was received.");
+                throw new OpenAIResponsesProtocolException(
+                    OpenAIResponsesProtocolErrorCode.StreamClosedBeforeTerminalResponse,
+                    "Codex subscription WebSocket stream closed before a terminal response event was received.");
             }
         }
         finally
@@ -375,7 +379,9 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
 
         if (connectTimeout <= TimeSpan.Zero)
         {
-            throw new TimeoutException("Codex subscription WebSocket did not connect before the configured connect timeout elapsed.");
+            throw new OpenAIResponsesTransportException(
+                OpenAIResponsesTransportErrorCode.WebSocketConnectTimeout,
+                "Codex subscription WebSocket did not connect before the configured connect timeout elapsed.");
         }
 
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -386,7 +392,8 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && timeoutSource.IsCancellationRequested)
         {
-            throw new TimeoutException(
+            throw new OpenAIResponsesTransportException(
+                OpenAIResponsesTransportErrorCode.WebSocketConnectTimeout,
                 $"Codex subscription WebSocket did not connect within {connectTimeout}.",
                 ex);
         }
@@ -407,7 +414,9 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
 
         if (idleTimeout <= TimeSpan.Zero)
         {
-            throw new TimeoutException("Codex subscription WebSocket did not receive a message before the configured idle timeout elapsed.");
+            throw new OpenAIResponsesTransportException(
+                OpenAIResponsesTransportErrorCode.WebSocketReceiveIdleTimeout,
+                "Codex subscription WebSocket did not receive a message before the configured idle timeout elapsed.");
         }
 
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -418,7 +427,8 @@ internal sealed class OpenAICodexSubscriptionWebSocketSession : IOpenAIResponses
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && timeoutSource.IsCancellationRequested)
         {
-            throw new TimeoutException(
+            throw new OpenAIResponsesTransportException(
+                OpenAIResponsesTransportErrorCode.WebSocketReceiveIdleTimeout,
                 $"Codex subscription WebSocket did not receive a message within {idleTimeout}.",
                 ex);
         }

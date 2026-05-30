@@ -287,7 +287,9 @@ internal sealed class OpenAIResponsesTurnExecutor(
                     var receivedTerminalResponse = completedResponse is not null;
                     if (provider.CodexSubscription is not null && !receivedTerminalResponse)
                     {
-                        throw new InvalidOperationException("ChatGPT/Codex response stream closed before response.completed.");
+                        throw new OpenAIResponsesProtocolException(
+                            OpenAIResponsesProtocolErrorCode.StreamClosedBeforeTerminalResponse,
+                            "ChatGPT/Codex response stream closed before response.completed.");
                     }
 
                     completedResponse = CreateResponseFromTerminalOrStreamedItems(
@@ -298,7 +300,9 @@ internal sealed class OpenAIResponsesTurnExecutor(
 
                     if (completedResponse is null)
                     {
-                        throw new InvalidOperationException("The OpenAI Responses stream completed without a terminal response payload or reconstructable output.");
+                        throw new OpenAIResponsesProtocolException(
+                            OpenAIResponsesProtocolErrorCode.StreamCompletedWithoutTerminalPayload,
+                            "The OpenAI Responses stream completed without a terminal response payload or reconstructable output.");
                     }
 
                     if (completedResponse.Status is ResponseStatus.Failed)
@@ -1486,7 +1490,8 @@ internal sealed class OpenAIResponsesTurnExecutor(
             return;
         }
 
-        throw new InvalidOperationException(
+        throw new OpenAIResponsesProtocolException(
+            OpenAIResponsesProtocolErrorCode.TerminalResponseWithoutAssistantOutput,
             "ChatGPT/Codex terminal response completed without assistant output or a tool call.");
     }
 
@@ -2058,22 +2063,30 @@ internal sealed class OpenAIResponsesTurnExecutor(
             return new InvalidOperationException(message, exception);
         }
 
-        if (exception is JsonException ||
-            exception is InvalidOperationException invalidOperationException &&
-            invalidOperationException.Message.Contains(
-                "stream completed without a terminal response payload",
-                StringComparison.OrdinalIgnoreCase))
+        if (exception is JsonException)
         {
             return new InvalidOperationException(
                 "ChatGPT/Codex response stream did not match the expected protocol; no terminal response payload was received.",
                 exception);
         }
 
-        if (IsCodexTerminalResponseWithoutAssistantOutput(exception))
+        if (TryGetOpenAIResponsesProtocolError(exception, out var protocolErrorCode))
         {
-            return new InvalidOperationException(
-                "ChatGPT/Codex response stream did not match the expected protocol; terminal response did not contain assistant output or a tool call.",
-                exception);
+            return protocolErrorCode switch
+            {
+                OpenAIResponsesProtocolErrorCode.TerminalResponseWithoutAssistantOutput => new InvalidOperationException(
+                    "ChatGPT/Codex response stream did not match the expected protocol; terminal response did not contain assistant output or a tool call.",
+                    exception),
+                OpenAIResponsesProtocolErrorCode.StreamCompletedWithoutTerminalPayload => new InvalidOperationException(
+                    "ChatGPT/Codex response stream did not match the expected protocol; no terminal response payload was received.",
+                    exception),
+                OpenAIResponsesProtocolErrorCode.UnsupportedTerminalResponseUpdate => new InvalidOperationException(
+                    "ChatGPT/Codex response stream did not match the expected protocol; unsupported terminal response update was received.",
+                    exception),
+                _ => new InvalidOperationException(
+                    "ChatGPT/Codex response stream ended prematurely before a terminal response was received. This is usually a transient network or service hiccup; retry the prompt if no answer was recorded.",
+                    exception),
+            };
         }
 
         if (IsPrematureResponseEnded(exception))
@@ -2231,19 +2244,30 @@ internal sealed class OpenAIResponsesTurnExecutor(
             return "websocket_connection_limit_reached";
         }
 
+        if (TryGetOpenAIResponsesProtocolError(exception, out var protocolErrorCode))
+        {
+            return protocolErrorCode switch
+            {
+                OpenAIResponsesProtocolErrorCode.StreamClosedBeforeTerminalResponse or
+                OpenAIResponsesProtocolErrorCode.StreamCompletedWithoutTerminalPayload => "stream_closed_before_terminal",
+                OpenAIResponsesProtocolErrorCode.TerminalResponseWithoutAssistantOutput => "terminal_response_without_assistant_output",
+                OpenAIResponsesProtocolErrorCode.UnsupportedTerminalResponseUpdate => "unsupported_terminal_response_update",
+                _ => "responses_protocol_error",
+            };
+        }
+
+        if (TryGetOpenAIResponsesTransportError(exception, out var transportErrorCode))
+        {
+            return transportErrorCode switch
+            {
+                OpenAIResponsesTransportErrorCode.WebSocketConnectTimeout => "websocket_connect_timeout",
+                _ => "stream_idle_timeout",
+            };
+        }
+
         if (IsPrematureResponseEnded(exception))
         {
             return "stream_closed_before_terminal";
-        }
-
-        if (IsWebSocketTransportTimeout(exception))
-        {
-            return "stream_idle_timeout";
-        }
-
-        if (IsCodexTerminalResponseWithoutAssistantOutput(exception))
-        {
-            return "terminal_response_without_assistant_output";
         }
 
         if (TryGetResponsesErrorCode(exception, out var errorCode))
@@ -2257,6 +2281,13 @@ internal sealed class OpenAIResponsesTurnExecutor(
     private static bool IsPrematureResponseEnded(Exception exception)
     {
         if (IsTransportAbortedOperationCanceled(exception))
+        {
+            return true;
+        }
+
+        if (TryGetOpenAIResponsesProtocolError(exception, out var protocolErrorCode) &&
+            protocolErrorCode is OpenAIResponsesProtocolErrorCode.StreamClosedBeforeTerminalResponse or
+                OpenAIResponsesProtocolErrorCode.StreamCompletedWithoutTerminalPayload)
         {
             return true;
         }
@@ -2275,17 +2306,6 @@ internal sealed class OpenAIResponsesTurnExecutor(
 
         if (exception.Message.Contains("response ended prematurely", StringComparison.OrdinalIgnoreCase) &&
             exception.Message.Contains("ResponseEnded", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (exception.Message.Contains("stream closed before a terminal response event", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (exception.Message.Contains("stream closed before response.completed", StringComparison.OrdinalIgnoreCase) ||
-            exception.Message.Contains("terminal response payload", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
@@ -2342,7 +2362,8 @@ internal sealed class OpenAIResponsesTurnExecutor(
             return true;
         }
 
-        if (IsCodexTerminalResponseWithoutAssistantOutput(exception))
+        if (TryGetOpenAIResponsesProtocolError(exception, out var protocolErrorCode) &&
+            protocolErrorCode is OpenAIResponsesProtocolErrorCode.TerminalResponseWithoutAssistantOutput)
         {
             return true;
         }
@@ -2415,26 +2436,40 @@ internal sealed class OpenAIResponsesTurnExecutor(
     }
 
     private static bool IsWebSocketTransportTimeout(Exception exception)
+        => TryGetOpenAIResponsesTransportError(exception, out _);
+
+    private static bool TryGetOpenAIResponsesProtocolError(
+        Exception exception,
+        out OpenAIResponsesProtocolErrorCode errorCode)
     {
-        if (exception is TimeoutException &&
-            (exception.Message.Contains("Codex subscription WebSocket did not receive", StringComparison.OrdinalIgnoreCase) ||
-             exception.Message.Contains("Codex subscription WebSocket did not connect", StringComparison.OrdinalIgnoreCase)))
+        for (var current = exception; current is not null; current = current.InnerException)
         {
-            return true;
+            if (current is OpenAIResponsesProtocolException protocolException)
+            {
+                errorCode = protocolException.ErrorCode;
+                return true;
+            }
         }
 
-        return exception.InnerException is not null && IsWebSocketTransportTimeout(exception.InnerException);
+        errorCode = default;
+        return false;
     }
 
-    private static bool IsCodexTerminalResponseWithoutAssistantOutput(Exception exception)
+    private static bool TryGetOpenAIResponsesTransportError(
+        Exception exception,
+        out OpenAIResponsesTransportErrorCode errorCode)
     {
-        if (exception is InvalidOperationException &&
-            exception.Message.Contains("terminal response completed without assistant output or a tool call", StringComparison.OrdinalIgnoreCase))
+        for (var current = exception; current is not null; current = current.InnerException)
         {
-            return true;
+            if (current is OpenAIResponsesTransportException transportException)
+            {
+                errorCode = transportException.ErrorCode;
+                return true;
+            }
         }
 
-        return exception.InnerException is not null && IsCodexTerminalResponseWithoutAssistantOutput(exception.InnerException);
+        errorCode = default;
+        return false;
     }
 
     private static bool IsNonRetryableCodexSubscriptionLimit(Exception exception)
