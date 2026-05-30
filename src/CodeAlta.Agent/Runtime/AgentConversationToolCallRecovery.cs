@@ -5,9 +5,11 @@ internal static class AgentConversationToolCallRecovery
     private const string RecoveredToolOutputPrefix = "aborted";
 
     public static IReadOnlyList<AgentConversationMessage> NormalizeForReplay(
-        IReadOnlyList<AgentConversationMessage> conversation)
+        IReadOnlyList<AgentConversationMessage> conversation,
+        int recoverMissingToolResultsBeforeIndex = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(conversation);
+        recoverMissingToolResultsBeforeIndex = Math.Clamp(recoverMissingToolResultsBeforeIndex, 0, conversation.Count);
 
         var toolCallIds = new HashSet<string>(StringComparer.Ordinal);
         var toolResultIds = new HashSet<string>(StringComparer.Ordinal);
@@ -46,7 +48,8 @@ internal static class AgentConversationToolCallRecovery
                 continue;
             }
 
-            var missingToolResults = message.Role == AgentConversationRole.Assistant
+            var missingToolResults = message.Role == AgentConversationRole.Assistant &&
+                                     messageIndex < recoverMissingToolResultsBeforeIndex
                 ? CreateMissingToolResults(message.Parts, toolResultIds)
                 : [];
             if (missingToolResults.Count > 0)

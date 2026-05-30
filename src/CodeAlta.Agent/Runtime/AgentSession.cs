@@ -654,7 +654,10 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
     private AgentInlineMediaPruneResult CreateProviderConversation()
     {
         var pruned = AgentMediaCompaction.PruneInlineImages(_conversation, ShouldPreserveInlineMediaForActiveRun);
-        var normalized = AgentConversationToolCallRecovery.NormalizeForReplay(pruned.Messages);
+        var recoverMissingToolResultsBeforeIndex = _activeRunConversationStartIndex ?? pruned.Messages.Count;
+        var normalized = AgentConversationToolCallRecovery.NormalizeForReplay(
+            pruned.Messages,
+            recoverMissingToolResultsBeforeIndex);
         return ReferenceEquals(normalized, pruned.Messages)
             ? pruned
             : pruned with { Messages = normalized };
