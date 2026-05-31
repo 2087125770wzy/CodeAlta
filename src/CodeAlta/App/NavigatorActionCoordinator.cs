@@ -223,7 +223,10 @@ internal sealed class NavigatorActionCoordinator : IProjectDetailsDialogService
         try
         {
             _setStatus($"Deleting project '{project.DisplayName}'...", true, StatusTone.Info);
-            var result = await _shellController.DeleteProjectAsync(project.Id, CancellationToken.None);
+            var sessions = _sessionStateCoordinator.Sessions
+                .Where(session => string.Equals(session.ProjectRef, project.Id, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            var result = await _shellController.DeleteProjectAsync(project, sessions, CancellationToken.None);
             _sessionStateCoordinator.RemoveDeletedProject(project, result.DeletedSessionIds);
             await _sessionStateCoordinator.RemoveDeletedSessionArtifactsAsync(result.DeletedSessionIds);
             _setReadyStatusForCurrentSelection();

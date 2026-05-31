@@ -32,6 +32,8 @@ sequenceDiagram
 - `AgentHub` and `SessionRuntimeService`;
 - `ProjectFileSearchService` for prompt attachments and file pickers.
 
+`CodeAltaHost` resolves the current directory as the visible default project. When that path is not already in the catalog, the host creates only an in-memory descriptor; `SessionRuntimeService` persists it through `ProjectCatalog` when a project session is created.
+
 The TUI receives these services instead of constructing runtime primitives directly. Headless and tool-driven paths can reuse `CodeAltaHost` without terminal controls. Provider initialization and session catalog loading are independent startup tracks: providers can still be probing while local sessions are visible, and session listing does not instantiate or query providers.
 
 ## Dependency direction

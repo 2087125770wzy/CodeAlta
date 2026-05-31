@@ -139,6 +139,45 @@ public sealed partial class ProjectCatalog
     }
 
     /// <summary>
+    /// Ensures that a project descriptor has a persisted catalog file.
+    /// </summary>
+    /// <param name="project">The project descriptor to persist when no existing descriptor has the same path.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The persisted descriptor for the project path.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="project"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="project"/> is invalid.</exception>
+    public async Task<ProjectDescriptor> EnsurePersistedAsync(ProjectDescriptor project, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        project.Validate();
+
+        project.ProjectPath = NormalizePath(project.ProjectPath);
+        var projects = await LoadAsync(cancellationToken).ConfigureAwait(false);
+        var existing = projects.FirstOrDefault(candidate =>
+            string.Equals(NormalizePath(candidate.ProjectPath), project.ProjectPath, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            if (existing.Archived)
+            {
+                existing.Archived = false;
+                await SaveAsync(existing, cancellationToken).ConfigureAwait(false);
+            }
+
+            return existing;
+        }
+
+        if (projects.Any(candidate =>
+                !string.Equals(candidate.Id, project.Id, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(candidate.Slug, project.Slug, StringComparison.OrdinalIgnoreCase)))
+        {
+            project.Slug = EnsureUniqueSlug(project.Slug, projects);
+        }
+
+        await SaveAsync(project, cancellationToken).ConfigureAwait(false);
+        return project;
+    }
+
+    /// <summary>
     /// Deletes a project descriptor from the portable catalog.
     /// </summary>
     /// <param name="project">The project descriptor to delete.</param>

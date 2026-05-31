@@ -169,7 +169,10 @@ internal sealed class CodeAltaApp : IAsyncDisposable, IShellFrontendHostLifecycl
             new CodeAltaShellBridge(this),
             _knownProjectImporter,
             this,
-            ownedServices?.PluginHostBridge,ownedServices?.ModelProviderRegistry,ownedServices?.ProviderInit);
+            ownedServices?.CurrentProject,
+            ownedServices?.PluginHostBridge,
+            ownedServices?.ModelProviderRegistry,
+            ownedServices?.ProviderInit);
         _modelProviderPreferences = composition.ModelProviderPreferences;
         _shellController = composition.ShellController;
         _runtimeEventPump = composition.RuntimeEventPump;

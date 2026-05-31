@@ -14,6 +14,8 @@ internal sealed class SessionCreationCoordinator
     private readonly Func<ProjectDescriptor?> _getSelectedProject;
     private readonly Func<ShellSelection> _getSelection;
     private readonly Func<string?> _readDraftTitle;
+    private readonly Func<ProjectDescriptor, Task<ProjectDescriptor>> _ensureProjectPersistedAsync;
+    private readonly Action<ProjectDescriptor> _upsertProject;
     private readonly Func<ModelProviderId, string, IReadOnlyList<string>, Func<string?>?, SessionExecutionOptions> _buildPreferredExecutionOptions;
     private readonly Action<string, string?, AgentReasoningEffort?, bool> _rememberSessionPreference;
     private readonly Func<SessionViewDescriptor, Task> _registerCreatedSessionAsync;
@@ -27,6 +29,8 @@ internal sealed class SessionCreationCoordinator
         Func<ProjectDescriptor?> getSelectedProject,
         Func<ShellSelection> getSelection,
         Func<string?> readDraftTitle,
+        Func<ProjectDescriptor, Task<ProjectDescriptor>> ensureProjectPersistedAsync,
+        Action<ProjectDescriptor> upsertProject,
         Func<ModelProviderId, string, IReadOnlyList<string>, Func<string?>?, SessionExecutionOptions> buildPreferredExecutionOptions,
         Action<string, string?, AgentReasoningEffort?, bool> rememberSessionPreference,
         Func<SessionViewDescriptor, Task> registerCreatedSessionAsync,
@@ -39,6 +43,8 @@ internal sealed class SessionCreationCoordinator
         ArgumentNullException.ThrowIfNull(getSelectedProject);
         ArgumentNullException.ThrowIfNull(getSelection);
         ArgumentNullException.ThrowIfNull(readDraftTitle);
+        ArgumentNullException.ThrowIfNull(ensureProjectPersistedAsync);
+        ArgumentNullException.ThrowIfNull(upsertProject);
         ArgumentNullException.ThrowIfNull(buildPreferredExecutionOptions);
         ArgumentNullException.ThrowIfNull(rememberSessionPreference);
         ArgumentNullException.ThrowIfNull(registerCreatedSessionAsync);
@@ -51,6 +57,8 @@ internal sealed class SessionCreationCoordinator
         _getSelectedProject = getSelectedProject;
         _getSelection = getSelection;
         _readDraftTitle = readDraftTitle;
+        _ensureProjectPersistedAsync = ensureProjectPersistedAsync;
+        _upsertProject = upsertProject;
         _buildPreferredExecutionOptions = buildPreferredExecutionOptions;
         _rememberSessionPreference = rememberSessionPreference;
         _registerCreatedSessionAsync = registerCreatedSessionAsync;
@@ -109,6 +117,8 @@ internal sealed class SessionCreationCoordinator
                 () => createdSessionId);
             var session = await _runtimeService.CreateProjectSessionAsync(project, executionOptions, title);
             createdSessionId = session.SessionId;
+            project = await _ensureProjectPersistedAsync(project);
+            _upsertProject(project);
             _rememberSessionPreference(session.SessionId, executionOptions.Model, executionOptions.ReasoningEffort, false);
             await _registerCreatedSessionAsync(session);
             _clearSessionTitleDraft();

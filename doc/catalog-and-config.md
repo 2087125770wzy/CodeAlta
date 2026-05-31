@@ -81,7 +81,7 @@ Project-local config can override effective chat/provider behavior for that proj
 
 `ProjectCatalog` stores project descriptors under `~/.alta/projects`. Current saves use flat `<slug>.md` files; the loader still reads older `<slug>/readme.md` descriptor paths so existing user state can be opened.
 
-A project descriptor includes stable id, slug, display name, project path, archive/visibility state, and timestamps. Opening a folder upserts a descriptor for that path, then the shell selects it in the sidebar. Filesystem roots are valid project paths: because they have no leaf folder name, the catalog stores a safe synthetic project `name` and uses the normalized root path (for example `D:\` or `/`) as the sidebar display name.
+A project descriptor includes stable id, slug, display name, project path, archive/visibility state, and timestamps. At launch, the current directory is exposed as a selectable in-memory project when no persisted descriptor already exists for that path; it is not written to `~/.alta/projects` until a session is created for it. Opening a folder upserts a descriptor for that path, then the shell selects it in the sidebar. Filesystem roots are valid project paths: because they have no leaf folder name, the catalog stores a safe synthetic project `name` and uses the normalized root path (for example `D:\` or `/`) as the sidebar display name.
 
 ## Session and session-view storage
 

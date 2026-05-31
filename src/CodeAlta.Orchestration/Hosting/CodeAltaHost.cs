@@ -142,7 +142,7 @@ public sealed class CodeAltaHost : IAsyncDisposable
             GlobalRoot = globalRoot,
         };
         var projectCatalog = new ProjectCatalog(catalogOptions);
-        var currentProject = await projectCatalog.UpsertFromPathAsync(currentProjectPath, cancellationToken).ConfigureAwait(false);
+        var currentProject = await ResolveCurrentProjectAsync(projectCatalog, currentProjectPath, cancellationToken).ConfigureAwait(false);
 
         var pluginRuntime = options.PrestartedPluginRuntime ?? new PluginRuntimeManager();
         var ownsPluginRuntime = options.PrestartedPluginRuntime is null;
@@ -212,6 +212,91 @@ public sealed class CodeAltaHost : IAsyncDisposable
             ownsPluginRuntime,
             ownsLogging,
             currentProject);
+    }
+
+    private static async Task<ProjectDescriptor> ResolveCurrentProjectAsync(
+        ProjectCatalog projectCatalog,
+        string currentProjectPath,
+        CancellationToken cancellationToken)
+    {
+        var projects = await projectCatalog.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var existing = projects.FirstOrDefault(project =>
+            string.Equals(NormalizePath(project.ProjectPath), NormalizePath(currentProjectPath), StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            existing.Archived = false;
+            return existing;
+        }
+
+        return CreateTransientProject(currentProjectPath, projects);
+    }
+
+    private static ProjectDescriptor CreateTransientProject(string projectPath, IReadOnlyList<ProjectDescriptor> knownProjects)
+    {
+        var normalizedPath = NormalizePath(projectPath);
+        var projectName = ProjectPathNameFormatter.InferName(normalizedPath);
+        var displayName = ProjectPathNameFormatter.InferDisplayName(normalizedPath);
+        var baseSlug = Slugify(projectName);
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = EnsureUniqueSlug(baseSlug, knownProjects),
+            Name = projectName,
+            DisplayName = displayName,
+            ProjectPath = normalizedPath,
+            DefaultBranch = "main",
+            MarkdownBody = $"# {displayName}\n\nTransient project context for the current host process.",
+        };
+        project.Validate();
+        return project;
+    }
+
+    private static string EnsureUniqueSlug(string baseSlug, IReadOnlyList<ProjectDescriptor> projects)
+    {
+        var candidate = baseSlug;
+        var suffix = 2;
+        var usedSlugs = projects
+            .Select(static project => project.Slug)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        while (usedSlugs.Contains(candidate))
+        {
+            candidate = $"{baseSlug}-{suffix++}";
+        }
+
+        return candidate;
+    }
+
+    private static string NormalizePath(string path)
+    {
+        var fullPath = Path.GetFullPath(path.Trim());
+        var root = Path.GetPathRoot(fullPath);
+        if (!string.IsNullOrWhiteSpace(root) &&
+            string.Equals(fullPath, root, StringComparison.OrdinalIgnoreCase))
+        {
+            return fullPath;
+        }
+
+        return fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
+    private static string Slugify(string value)
+    {
+        var normalized = value.Trim().ToLowerInvariant();
+        var builder = new System.Text.StringBuilder(normalized.Length);
+        foreach (var ch in normalized)
+        {
+            if (char.IsLetterOrDigit(ch))
+            {
+                builder.Append(ch);
+            }
+            else if (builder.Length > 0 && builder[^1] != '-')
+            {
+                builder.Append('-');
+            }
+        }
+
+        var slug = builder.ToString().Trim('-');
+        return string.IsNullOrWhiteSpace(slug) ? "project" : slug;
     }
 
     private static PluginAdapterOperationOptions CreatePluginOperationOptions(

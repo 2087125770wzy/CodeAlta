@@ -12,6 +12,52 @@ namespace CodeAlta.Tests;
 public sealed class ShellSessionStateCoordinatorTests
 {
     [TestMethod]
+    public async Task LoadCatalogStateAsync_IncludesTransientCurrentProjectWithoutSavingCatalogFile()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = "code",
+            Name = "Code",
+            DisplayName = "Code",
+            ProjectPath = Path.Combine(temp.Path, "Code"),
+            DefaultBranch = "main",
+        };
+        var coordinator = CreateCoordinator(options, currentProject: project);
+
+        await coordinator.LoadCatalogStateAsync(CancellationToken.None);
+
+        Assert.AreEqual(1, coordinator.Projects.Count);
+        Assert.AreEqual(project.Id, coordinator.Projects[0].Id);
+        Assert.IsFalse((await new ProjectCatalog(options).LoadAsync(CancellationToken.None).ConfigureAwait(false)).Any());
+    }
+
+    [TestMethod]
+    public void RemoveDeletedProject_DoesNotReAddTransientCurrentProjectOnCatalogRefresh()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var project = new ProjectDescriptor
+        {
+            Id = ProjectId.NewVersion7().ToString(),
+            Slug = "code",
+            Name = "Code",
+            DisplayName = "Code",
+            ProjectPath = Path.Combine(temp.Path, "Code"),
+            DefaultBranch = "main",
+        };
+        var coordinator = CreateCoordinator(options, currentProject: project);
+        coordinator.ApplyRecoveredCatalogState([], []);
+
+        coordinator.RemoveDeletedProject(project, []);
+        coordinator.ApplyRecoveredCatalogState([], []);
+
+        Assert.IsFalse(coordinator.Projects.Any(candidate => string.Equals(candidate.Id, project.Id, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [TestMethod]
     public void ApplyRecoveredCatalogState_AppliesPersistedSessionLocalState()
     {
         using var temp = TempDirectory.Create();
@@ -830,7 +876,8 @@ public sealed class ShellSessionStateCoordinatorTests
         Func<IReadOnlyList<string>>? getOpenSessionTabIds = null,
         ShellStateStore? stateStore = null,
         FrontendEventPublisher? frontendEvents = null,
-        Func<SessionViewDescriptor, CancellationToken, Task>? ensureSessionHistoryLoadedAsync = null)
+        Func<SessionViewDescriptor, CancellationToken, Task>? ensureSessionHistoryLoadedAsync = null,
+        ProjectDescriptor? currentProject = null)
     {
         sessionCatalog ??= new SessionViewCatalog(options);
         return TestSessionStateServices.CreateCoordinator(
@@ -844,7 +891,8 @@ public sealed class ShellSessionStateCoordinatorTests
             getOpenSessionTabIds: getOpenSessionTabIds,
             replaceDraftTabWithSession: replaceDraftTabWithSession,
             removeSessionTabPage: removeSessionTabPage,
-            frontendEvents: frontendEvents);
+            frontendEvents: frontendEvents,
+            currentProject: currentProject);
     }
 
     private static SessionViewDescriptor CreateSession(string sessionId)

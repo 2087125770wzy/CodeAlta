@@ -37,7 +37,8 @@ internal sealed partial class ShellSessionStateCoordinator
         ISessionModelProviderReadinessService modelProviderReadiness,
         ISessionHistoryLoaderService historyLoader,
         ISessionStateTabLifecycleService tabLifecycle,
-        FrontendEventPublisher? frontendEvents = null)
+        FrontendEventPublisher? frontendEvents = null,
+        ProjectDescriptor? currentProject = null)
     {
         ArgumentNullException.ThrowIfNull(projectCatalog);
         ArgumentNullException.ThrowIfNull(sessionCatalog);
@@ -65,7 +66,7 @@ internal sealed partial class ShellSessionStateCoordinator
             modelProviderPreferences,
             new SessionProjectRootResolver(GetSelectedProject, GetProjectById));
         _openSessionStateStore = new OpenSessionStateStore(sessionStateFactory);
-        _catalogStateCoordinator = new ShellCatalogStateCoordinator(projectCatalog, sessionCatalog, _viewStateCoordinator, _openSessionStateStore);
+        _catalogStateCoordinator = new ShellCatalogStateCoordinator(projectCatalog, sessionCatalog, _viewStateCoordinator, _openSessionStateStore, currentProject);
     }
 
     public IReadOnlyList<ProjectDescriptor> Projects => _catalogStateCoordinator.Projects;

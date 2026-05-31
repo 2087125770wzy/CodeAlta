@@ -10,6 +10,8 @@ internal sealed class ShellCatalogStateCoordinator
     private readonly SessionViewCatalog _sessionCatalog;
     private readonly SessionViewStateCoordinator _viewStateCoordinator;
     private readonly OpenSessionStateStore _openSessionStateStore;
+    private readonly ProjectDescriptor? _currentProject;
+    private bool _suppressCurrentProject;
     private IReadOnlyList<ProjectDescriptor> _projects = [];
     private IReadOnlyList<SessionViewDescriptor> _sessions = [];
 
@@ -17,7 +19,8 @@ internal sealed class ShellCatalogStateCoordinator
         ProjectCatalog projectCatalog,
         SessionViewCatalog sessionCatalog,
         SessionViewStateCoordinator viewStateCoordinator,
-        OpenSessionStateStore OpenSessionStateStore)
+        OpenSessionStateStore OpenSessionStateStore,
+        ProjectDescriptor? currentProject = null)
     {
         ArgumentNullException.ThrowIfNull(projectCatalog);
         ArgumentNullException.ThrowIfNull(sessionCatalog);
@@ -28,6 +31,7 @@ internal sealed class ShellCatalogStateCoordinator
         _sessionCatalog = sessionCatalog;
         _viewStateCoordinator = viewStateCoordinator;
         _openSessionStateStore = OpenSessionStateStore;
+        _currentProject = currentProject;
     }
 
     public IReadOnlyList<ProjectDescriptor> Projects => _projects;
@@ -40,14 +44,14 @@ internal sealed class ShellCatalogStateCoordinator
         var sessions = await _sessionCatalog.LoadInternalAsync(cancellationToken).ConfigureAwait(false);
         var viewState = await _viewStateCoordinator.LoadViewStateAsync(cancellationToken).ConfigureAwait(false);
         await _viewStateCoordinator.ApplySessionLocalStateAsync(sessions, viewState, cancellationToken: cancellationToken).ConfigureAwait(false);
-        return new ShellSessionStateCoordinator.InitialCatalogState(projects, sessions, viewState);
+        return new ShellSessionStateCoordinator.InitialCatalogState(IncludeCurrentProject(projects), sessions, viewState);
     }
 
     public void ApplyInitialCatalogState(ShellSessionStateCoordinator.InitialCatalogState state)
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        _projects = state.Projects;
+        _projects = IncludeCurrentProject(state.Projects);
         _sessions = state.Sessions;
     }
 
@@ -62,7 +66,7 @@ internal sealed class ShellCatalogStateCoordinator
         ArgumentNullException.ThrowIfNull(sessions);
         ArgumentNullException.ThrowIfNull(viewState);
 
-        _projects = projects;
+        _projects = IncludeCurrentProject(projects);
         _sessions = _viewStateCoordinator.ApplySessionLocalState(sessions, viewState, readJournal: false);
         if (pruneMissingSessions)
         {
@@ -123,8 +127,17 @@ internal sealed class ShellCatalogStateCoordinator
     {
         ArgumentNullException.ThrowIfNull(project);
 
+        if (_currentProject is not null &&
+            (string.Equals(_currentProject.Id, project.Id, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(NormalizePath(_currentProject.ProjectPath), NormalizePath(project.ProjectPath), StringComparison.OrdinalIgnoreCase)))
+        {
+            _suppressCurrentProject = false;
+        }
+
         _projects = _projects
-            .Where(existing => !string.Equals(existing.Id, project.Id, StringComparison.OrdinalIgnoreCase))
+            .Where(existing =>
+                !string.Equals(existing.Id, project.Id, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(NormalizePath(existing.ProjectPath), NormalizePath(project.ProjectPath), StringComparison.OrdinalIgnoreCase))
             .Append(project)
             .OrderBy(static item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -133,6 +146,11 @@ internal sealed class ShellCatalogStateCoordinator
     public void RemoveProject(string projectId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+
+        if (_currentProject is not null && string.Equals(_currentProject.Id, projectId, StringComparison.OrdinalIgnoreCase))
+        {
+            _suppressCurrentProject = true;
+        }
 
         _projects = _projects
             .Where(project => !string.Equals(project.Id, projectId, StringComparison.OrdinalIgnoreCase))
@@ -172,5 +190,45 @@ internal sealed class ShellCatalogStateCoordinator
         }
 
         return _sessions.FirstOrDefault(session => string.Equals(session.SessionId, sessionId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private IReadOnlyList<ProjectDescriptor> IncludeCurrentProject(IReadOnlyList<ProjectDescriptor> projects)
+    {
+        if (_currentProject is null || _currentProject.Archived || _suppressCurrentProject)
+        {
+            return projects;
+        }
+
+        if (projects.Any(project =>
+                string.Equals(project.Id, _currentProject.Id, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(NormalizePath(project.ProjectPath), NormalizePath(_currentProject.ProjectPath), StringComparison.OrdinalIgnoreCase)))
+        {
+            return projects
+                .Select(project =>
+                    string.Equals(project.Id, _currentProject.Id, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(NormalizePath(project.ProjectPath), NormalizePath(_currentProject.ProjectPath), StringComparison.OrdinalIgnoreCase)
+                        ? _currentProject
+                        : project)
+                .OrderBy(static project => project.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
+        return projects
+            .Append(_currentProject)
+            .OrderBy(static project => project.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string NormalizePath(string path)
+    {
+        var fullPath = Path.GetFullPath(path.Trim());
+        var root = Path.GetPathRoot(fullPath);
+        if (!string.IsNullOrWhiteSpace(root) &&
+            string.Equals(fullPath, root, StringComparison.OrdinalIgnoreCase))
+        {
+            return fullPath;
+        }
+
+        return fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 }

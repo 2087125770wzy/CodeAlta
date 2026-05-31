@@ -38,7 +38,8 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         SkillCatalog skillCatalog,
         AgentHub agentHub,
         SessionRuntimeService runtimeService,
-        IProjectFileSearchService projectFileSearchService)
+        IProjectFileSearchService projectFileSearchService,
+        ProjectDescriptor currentProject)
     {
         _ownsLogging = ownsLogging;
         _modelProviderRegistry = modelProviderRegistry;
@@ -56,6 +57,7 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
         AgentHub = agentHub;
         RuntimeService = runtimeService;
         ProjectFileSearchService = projectFileSearchService;
+        CurrentProject = currentProject;
     }
 
     public CatalogOptions CatalogOptions { get; }
@@ -83,6 +85,8 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
     public IAgentSessionCatalog AgentSessionCatalog { get; }
 
     public IProjectFileSearchService ProjectFileSearchService { get; }
+
+    public ProjectDescriptor CurrentProject { get; }
 
     public PluginRuntimeManager PluginRuntime { get; }
 
@@ -149,7 +153,8 @@ internal sealed class CodeAltaOwnedServices : IAsyncDisposable
             sharedHost.SkillCatalog,
             sharedHost.AgentHub,
             sharedHost.RuntimeService,
-            sharedHost.ProjectFileSearchService);
+            sharedHost.ProjectFileSearchService,
+            sharedHost.CurrentProject);
 
         void RegisterFrontendModelProviders(ModelProviderRegistry modelProviderRegistry)
         {

@@ -62,6 +62,7 @@ internal sealed class CodeAltaFrontendComposition
         ICodeAltaShell shell,
         KnownProjectImporter knownProjectImporter,
         CodeAltaApp frontend,
+        ProjectDescriptor? currentProject = null,
         PluginHostBridge? pluginHostBridge = null,
         IModelProviderRegistry? modelProviderRegistry = null,
         IModelProviderInitializationService? modelProviderInitializationService = null)
@@ -171,7 +172,8 @@ internal sealed class CodeAltaFrontendComposition
                 frontend.ResetPendingSessionTabSelection,
                 draftTabReplacement.ReplaceDraftTabWithSession,
                 frontend.RemoveSessionTabPage),
-            frontendEvents);
+            frontendEvents,
+            currentProject);
         var sessionSelectionContext = new SessionSelectionContext(
             sessionStateCoordinator,
             frontend.EnsureSessionHistoryLoadedAsync,
@@ -359,6 +361,8 @@ internal sealed class CodeAltaFrontendComposition
             sessionSelectionContext.GetSelectedProject,
             () => sessionSelectionContext.Selection,
             static () => null,
+            project => projectCatalog.EnsurePersistedAsync(project, CancellationToken.None),
+            frontend.UpsertProject,
             (providerId, workingDirectory, projectRoots, sourceSessionIdProvider) => sessionCommandCoordinator!.BuildPreferredExecutionOptions(providerId, workingDirectory, projectRoots, sourceSessionIdProvider),
             frontend.RememberSessionPreference,
             frontend.RegisterCreatedSessionAsync,

@@ -387,6 +387,13 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(options);
 
+        var requestedProjectId = project.Id;
+        var previousProject = await _projectCatalog.GetByPathAsync(project.ProjectPath, cancellationToken).ConfigureAwait(false);
+        var restoredArchivedProject = previousProject?.Archived == true;
+        project = await _projectCatalog.EnsurePersistedAsync(project, cancellationToken).ConfigureAwait(false);
+        var persistedNewProject = previousProject is null &&
+            string.Equals(project.Id, requestedProjectId, StringComparison.OrdinalIgnoreCase);
+
         var now = DateTimeOffset.UtcNow;
         var session = new SessionViewDescriptor
         {
@@ -413,13 +420,44 @@ public sealed class SessionRuntimeService : IAsyncDisposable
         {
             await EnsureCoordinatorSessionAsync(session, options, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
-            PublishRuntimeFailureEvent(session, ex);
+            try
+            {
+                await RollBackProjectPersistenceAsync(project, previousProject, persistedNewProject, restoredArchivedProject).ConfigureAwait(false);
+            }
+            catch (Exception rollbackException) when (rollbackException is not OperationCanceledException)
+            {
+                // Preserve the original session-start failure; rollback is best effort cleanup of transient project persistence.
+            }
+
+            if (ex is not OperationCanceledException)
+            {
+                PublishRuntimeFailureEvent(session, ex);
+            }
+
             throw;
         }
 
         return session;
+    }
+
+    private async Task RollBackProjectPersistenceAsync(
+        ProjectDescriptor project,
+        ProjectDescriptor? previousProject,
+        bool persistedNewProject,
+        bool restoredArchivedProject)
+    {
+        if (persistedNewProject)
+        {
+            await _projectCatalog.DeleteAsync(project, CancellationToken.None).ConfigureAwait(false);
+            return;
+        }
+
+        if (restoredArchivedProject && previousProject is not null)
+        {
+            await _projectCatalog.SaveAsync(previousProject, CancellationToken.None).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
