@@ -92,9 +92,19 @@ public sealed class CopilotDirectProviderOptions
     public string? SingleModelId { get; set; }
 
     /// <summary>
+    /// Gets or sets the models.dev provider identifier used to enrich model metadata.
+    /// </summary>
+    public string? ModelsDevProviderId { get; set; }
+
+    /// <summary>
     /// Gets or sets per-model metadata overrides.
     /// </summary>
     public IReadOnlyDictionary<string, AgentModelOverride>? ModelOverrides { get; set; }
+
+    /// <summary>
+    /// Gets or sets the shared models.dev catalog service.
+    /// </summary>
+    public ModelsDevCatalogService? ModelCatalog { get; set; }
 
     /// <summary>
     /// Gets or sets the optional root directory used to persist provider state.

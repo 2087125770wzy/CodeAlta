@@ -105,7 +105,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
             case "codex":
                 return TryCreateCodexSubscriptionProvider(definition, stateRootPath, modelCatalog, codexSubscriptionConcurrencyLimiter, out descriptor, out createRuntime);
             case "copilot":
-                return TryCreateCopilotDirectProvider(definition, stateRootPath, out descriptor, out createRuntime);
+                return TryCreateCopilotDirectProvider(definition, stateRootPath, modelCatalog, out descriptor, out createRuntime);
             case "xai":
                 return TryCreateXaiProvider(definition, stateRootPath, modelCatalog, out descriptor, out createRuntime);
             case "anthropic":
@@ -373,6 +373,7 @@ internal static class ConfiguredModelProviderRegistryBuilder
     private static bool TryCreateCopilotDirectProvider(
         CodeAltaProviderDocument definition,
         string stateRootPath,
+        ModelsDevCatalogService? modelCatalog,
         out ModelProviderDescriptor descriptor,
         out Func<IModelProviderRuntime> createRuntime)
     {
@@ -420,8 +421,14 @@ internal static class ConfiguredModelProviderRegistryBuilder
             ModelDiscovery = NormalizeText(definition.ModelDiscovery) ?? CopilotDirectModelDiscoveryModes.EndpointWithStaticFallback,
             EnableModelPolicies = definition.EnableModelPolicies == true,
             IncludePreviewModels = definition.IncludePreviewModels == true,
+            ModelsDevProviderId = ResolveModelsDevProviderId(
+                definition.ModelsDevProviderId,
+                definition.ProviderKey,
+                "github-copilot",
+                modelCatalog),
             SingleModelId = NormalizeText(definition.SingleModelId),
             ModelOverrides = CreateModelOverrides(definition.ModelOverrides),
+            ModelCatalog = modelCatalog,
             ProtocolTraceEnabled = definition.ProtocolTrace == true,
         };
 
@@ -948,13 +955,13 @@ internal static class ConfiguredModelProviderRegistryBuilder
         string defaultProviderId,
         ModelsDevCatalogService? modelCatalog)
     {
-        var configured = NormalizeText(configuredProviderId)?.ToLowerInvariant();
+        var configured = NormalizeModelsDevProviderId(configuredProviderId);
         if (!string.IsNullOrWhiteSpace(configured))
         {
             return configured;
         }
 
-        var normalizedProviderKey = NormalizeText(providerKey)?.ToLowerInvariant();
+        var normalizedProviderKey = NormalizeModelsDevProviderId(providerKey);
         if (!string.IsNullOrWhiteSpace(normalizedProviderKey) &&
             modelCatalog?.TryGetProvider(normalizedProviderKey, out _) == true)
         {
@@ -962,6 +969,17 @@ internal static class ConfiguredModelProviderRegistryBuilder
         }
 
         return defaultProviderId;
+    }
+
+    private static string? NormalizeModelsDevProviderId(string? value)
+    {
+        var normalized = NormalizeText(value)?.ToLowerInvariant();
+        return normalized switch
+        {
+            "copilot" => "github-copilot",
+            "gemini" => "google",
+            _ => normalized,
+        };
     }
 
     private static IReadOnlyDictionary<string, AgentModelOverride>? CreateModelOverrides(

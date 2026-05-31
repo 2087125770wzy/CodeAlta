@@ -1334,7 +1334,6 @@ public sealed class CodeAltaConfigStore
                 RejectUnsupportedField(definition, "project_id", definition.ProjectId);
                 RejectUnsupportedField(definition, "project", definition.Project);
                 RejectUnsupportedField(definition, "location", definition.Location);
-                RejectUnsupportedField(definition, "models_dev_provider_id", definition.ModelsDevProviderId);
                 RejectUnsupportedField(definition, "extra_body", definition.ExtraBody);
                 RejectUnsupportedField(definition, "request", definition.Request);
                 RejectUnsupportedField(definition, "model_request", definition.ModelRequest);

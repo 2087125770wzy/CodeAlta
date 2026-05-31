@@ -25,12 +25,12 @@ internal sealed class CopilotModelDiscoveryClient
     {
         if (!string.IsNullOrWhiteSpace(_provider.SingleModelId))
         {
-            return [CreateSingleModel(_provider.SingleModelId.Trim(), providerDescriptor)];
+            return EnrichModels([CreateSingleModel(_provider.SingleModelId.Trim(), providerDescriptor)]);
         }
 
         if (string.Equals(_provider.ModelDiscovery, CopilotDirectModelDiscoveryModes.Static, StringComparison.OrdinalIgnoreCase))
         {
-            return CopilotStaticModelFallbackCatalog.List(providerDescriptor);
+            return EnrichModels(CopilotStaticModelFallbackCatalog.List(providerDescriptor));
         }
 
         try
@@ -61,7 +61,7 @@ internal sealed class CopilotModelDiscoveryClient
                 .Select(model => MapModel(model, providerDescriptor))
                 .ToArray();
             Logger.Info($"Using GitHub Copilot direct model catalog provider={providerDescriptor.ProviderKey} models={models.Length}");
-            return ApplyOverrides(models);
+            return EnrichModels(models);
         }
         catch (OperationCanceledException)
         {
@@ -70,7 +70,7 @@ internal sealed class CopilotModelDiscoveryClient
         catch (Exception ex) when (string.Equals(_provider.ModelDiscovery, CopilotDirectModelDiscoveryModes.EndpointWithStaticFallback, StringComparison.OrdinalIgnoreCase))
         {
             Logger.Warn(ex, $"GitHub Copilot model discovery failed; using static fallback provider={providerDescriptor.ProviderKey}");
-            return ApplyOverrides(CopilotStaticModelFallbackCatalog.List(providerDescriptor));
+            return EnrichModels(CopilotStaticModelFallbackCatalog.List(providerDescriptor));
         }
     }
 
@@ -197,51 +197,12 @@ internal sealed class CopilotModelDiscoveryClient
             .ToArray() ?? [];
     }
 
-    private IReadOnlyList<AgentModelInfo> ApplyOverrides(IReadOnlyList<AgentModelInfo> models)
-    {
-        if (_provider.ModelOverrides is null || _provider.ModelOverrides.Count == 0)
-        {
-            return models;
-        }
-
-        return models.Select(ApplyOverride).ToArray();
-    }
-
-    private AgentModelInfo ApplyOverride(AgentModelInfo model)
-    {
-        if (_provider.ModelOverrides is null ||
-            !_provider.ModelOverrides.TryGetValue(model.Id, out var modelOverride))
-        {
-            return model;
-        }
-
-        var capabilities = model.Capabilities is null
-            ? new Dictionary<string, object?>(StringComparer.Ordinal)
-            : new Dictionary<string, object?>(model.Capabilities, StringComparer.Ordinal);
-        SetIfNotNull(capabilities, "contextWindow", modelOverride.ContextWindowTokens);
-        SetIfNotNull(capabilities, "inputTokenLimit", modelOverride.InputTokenLimit);
-        SetIfNotNull(capabilities, "outputTokenLimit", modelOverride.OutputTokenLimit);
-        SetIfNotNull(capabilities, "maxTokens", modelOverride.MaxTokens);
-        SetIfNotNull(capabilities, "supportsReasoning", modelOverride.SupportsReasoning);
-        SetIfNotNull(capabilities, "supportsToolCall", modelOverride.SupportsToolCall);
-        SetIfNotNull(capabilities, "supportsAttachments", modelOverride.SupportsAttachments);
-        SetIfNotNull(capabilities, "supportsStructuredOutput", modelOverride.SupportsStructuredOutput);
-        return model with
-        {
-            DisplayName = string.IsNullOrWhiteSpace(modelOverride.DisplayName) ? model.DisplayName : modelOverride.DisplayName,
-            Description = string.IsNullOrWhiteSpace(modelOverride.Description) ? model.Description : modelOverride.Description,
-            Capabilities = capabilities,
-        };
-    }
-
-    private static void SetIfNotNull<T>(IDictionary<string, object?> capabilities, string key, T? value)
-        where T : struct
-    {
-        if (value is not null)
-        {
-            capabilities[key] = value.Value;
-        }
-    }
+    private IReadOnlyList<AgentModelInfo> EnrichModels(IReadOnlyList<AgentModelInfo> models)
+        => AgentModelMetadataEnricher.EnrichModels(
+            models,
+            _provider.ModelCatalog,
+            _provider.ModelsDevProviderId,
+            _provider.ModelOverrides);
 
     private static AgentModelInfo CreateSingleModel(string modelId, ModelProviderRuntimeDescriptor providerDescriptor)
     {

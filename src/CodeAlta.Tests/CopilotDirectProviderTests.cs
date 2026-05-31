@@ -22,6 +22,7 @@ public sealed class CopilotDirectProviderTests
             auth_source = "github_token_env"
             github_token_env = "GITHUB_TOKEN"
             model_discovery = "copilot_endpoint_with_static_fallback"
+            models_dev_provider_id = "copilot"
             """);
 
         Assert.IsTrue(result.IsValid, result.Message);

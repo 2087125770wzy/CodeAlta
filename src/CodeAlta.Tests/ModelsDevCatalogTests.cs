@@ -4,6 +4,9 @@ using CodeAlta.Agent.Anthropic;
 using CodeAlta.Agent.GoogleGenAI;
 using CodeAlta.Agent.ModelCatalog;
 using CodeAlta.Agent.OpenAI;
+using CodeAlta.Agent.Runtime;
+using CodeAlta.App;
+using CodeAlta.Catalog;
 using Microsoft.Extensions.AI;
 
 namespace CodeAlta.Tests;
@@ -257,6 +260,58 @@ public sealed class ModelsDevCatalogTests
     }
 
     [TestMethod]
+    public async Task ConfiguredProviderRegistryBuilder_MapsGeminiProviderKeyToGoogleModelsDevId()
+    {
+        await using var catalog = CreateAliasCatalog();
+        using var temp = TestTempDirectory.Create();
+        Assert.IsTrue(ConfiguredModelProviderRegistryBuilder.TryCreateProviderRegistration(
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "gemini",
+                ProviderType = "google-genai",
+                ApiKey = "test-key",
+                SingleModelId = "gemini-test",
+            },
+            temp.Path,
+            catalog,
+            out _,
+            out var createRuntime));
+
+        await using var runtime = createRuntime();
+        var agentRuntime = Assert.IsInstanceOfType<IAgentModelProviderRuntime>(runtime);
+        var model = (await agentRuntime.ModelCatalog!.ListModelsAsync(agentRuntime.RuntimeDescriptor).ConfigureAwait(false)).Single();
+
+        Assert.AreEqual("google", model.Capabilities?["modelsDevProviderId"]);
+        Assert.AreEqual(123456L, model.Capabilities?["contextWindow"]);
+    }
+
+    [TestMethod]
+    public async Task ConfiguredProviderRegistryBuilder_MapsCopilotProviderKeyToGitHubCopilotModelsDevId()
+    {
+        await using var catalog = CreateAliasCatalog();
+        using var temp = TestTempDirectory.Create();
+        Assert.IsTrue(ConfiguredModelProviderRegistryBuilder.TryCreateProviderRegistration(
+            new CodeAltaProviderDocument
+            {
+                ProviderKey = "copilot",
+                ProviderType = "copilot",
+                ModelDiscovery = "static",
+            },
+            temp.Path,
+            catalog,
+            out _,
+            out var createRuntime));
+
+        await using var runtime = createRuntime();
+        var agentRuntime = Assert.IsInstanceOfType<IAgentModelProviderRuntime>(runtime);
+        var model = (await agentRuntime.ModelCatalog!.ListModelsAsync(agentRuntime.RuntimeDescriptor).ConfigureAwait(false))
+            .Single(static model => model.Id == "gpt-5.1");
+
+        Assert.AreEqual("github-copilot", model.Capabilities?["modelsDevProviderId"]);
+        Assert.AreEqual(234567L, model.Capabilities?["contextWindow"]);
+    }
+
+    [TestMethod]
     public async Task AnthropicModelProviderRuntime_UsesModelsDevContextWindowForUsageSnapshots()
     {
         await using var catalog = CreateCatalog();
@@ -418,6 +473,48 @@ public sealed class ModelsDevCatalogTests
 
     private static ModelsDevCatalogService CreateCatalog()
         => new(CreateDatabase(), new ModelsDevCatalogServiceOptions());
+
+    private static ModelsDevCatalogService CreateAliasCatalog()
+        => new(
+            ModelsDevDatabaseJson.Deserialize(
+                """
+                {
+                  "google": {
+                    "id": "google",
+                    "name": "Google",
+                    "models": {
+                      "gemini-test": {
+                        "id": "gemini-test",
+                        "name": "Gemini Test",
+                        "limit": { "context": 123456, "output": 6543 }
+                      }
+                    }
+                  },
+                  "gemini": {
+                    "id": "gemini",
+                    "name": "Gemini Alias",
+                    "models": {
+                      "gemini-test": {
+                        "id": "gemini-test",
+                        "name": "Wrong Gemini Alias",
+                        "limit": { "context": 999999, "output": 9999 }
+                      }
+                    }
+                  },
+                  "github-copilot": {
+                    "id": "github-copilot",
+                    "name": "GitHub Copilot",
+                    "models": {
+                      "gpt-5.1": {
+                        "id": "gpt-5.1",
+                        "name": "GPT-5.1 Copilot",
+                        "limit": { "context": 234567, "output": 7654 }
+                      }
+                    }
+                  }
+                }
+                """),
+            new ModelsDevCatalogServiceOptions());
 
     private sealed class RecordingChatClient(IReadOnlyList<ChatResponseUpdate> updates) : IChatClient
     {
