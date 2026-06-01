@@ -251,11 +251,12 @@ internal static class ModelProviderPresentation
             return $"Connected · {selectedModel.DisplayName ?? selectedModel.Id}";
         }
 
-        return providerState.Models.Count switch
+        var models = providerState.Models.ToArray();
+        return models.Length switch
         {
             0 => "Connected.",
-            1 => $"Connected · {providerState.Models[0].DisplayName ?? providerState.Models[0].Id}",
-            _ => $"Connected · {providerState.Models.Count} models",
+            1 => $"Connected · {models[0].DisplayName ?? models[0].Id}",
+            _ => $"Connected · {models.Length} models",
         };
     }
 

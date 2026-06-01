@@ -129,6 +129,28 @@ public sealed class ModelProviderInitializationCoordinatorTests
     }
 
     [TestMethod]
+    public async Task InitializeAsync_ReplaysCurrentStatesAfterStoppingStateReader()
+    {
+        var providerId = new ModelProviderId("gemini");
+        var descriptor = new ModelProviderDescriptor(providerId, "Gemini");
+        var initializationService = new BlockingStateReaderInitializationService(descriptor);
+        var state = new ModelProviderState(new ModelProviderId(providerId.Value), "Gemini");
+        var coordinator = CreateCoordinator(
+            initializationService,
+            [descriptor],
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase)
+            {
+                [providerId.Value] = state,
+            });
+
+        await coordinator.InitializeAsync(CancellationToken.None).ConfigureAwait(false);
+
+        Assert.IsTrue(initializationService.CurrentStatesAccessedAfterStreamEnded);
+        Assert.AreEqual(ModelProviderAvailability.Ready, state.Availability);
+        CollectionAssert.AreEqual(new[] { "ready-model" }, state.Models.Select(static model => model.Id).ToArray());
+    }
+
+    [TestMethod]
     public async Task InitializeAsync_DropsStaleQueuedProviderInitializationStatus()
     {
         var providerId = new ModelProviderId("openai");
@@ -284,6 +306,64 @@ public sealed class ModelProviderInitializationCoordinatorTests
             => throw new NotSupportedException();
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class BlockingStateReaderInitializationService : IModelProviderInitializationService
+    {
+        private readonly ModelProviderDescriptor _descriptor;
+        private readonly TaskCompletionSource _streamStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool _streamEnded;
+
+        public BlockingStateReaderInitializationService(ModelProviderDescriptor descriptor)
+        {
+            _descriptor = descriptor;
+        }
+
+        public bool CurrentStatesAccessedAfterStreamEnded { get; private set; }
+
+        public IReadOnlyList<ModelProviderStateSnapshot> CurrentStates
+        {
+            get
+            {
+                CurrentStatesAccessedAfterStreamEnded = Volatile.Read(ref _streamEnded);
+                return
+                [
+                    new ModelProviderStateSnapshot
+                    {
+                        Descriptor = _descriptor,
+                        Availability = ModelProviderAvailability.Ready,
+                        Models = [new AgentModelInfo("ready-model")],
+                    },
+                ];
+            }
+        }
+
+        public async IAsyncEnumerable<ModelProviderStateChanged> StreamStateChangesAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            _streamStarted.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                Volatile.Write(ref _streamEnded, true);
+            }
+
+            yield break;
+        }
+
+        public async Task InitializeAllAsync(CancellationToken cancellationToken = default)
+        {
+            await _streamStarted.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public Task RefreshProviderAsync(ModelProviderId providerId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<AgentModelInfo>> GetModelsAsync(ModelProviderId providerId, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
     }
 
     private sealed class TempDirectory(string path) : IDisposable

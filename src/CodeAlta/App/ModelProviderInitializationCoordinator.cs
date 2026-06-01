@@ -58,6 +58,8 @@ internal sealed class ModelProviderInitializationCoordinator
         {
             await _providerInitializationService.InitializeAllAsync(cancellationToken).ConfigureAwait(false);
 
+            await StopProviderStateReaderAsync(stateReaderCts, stateReaderTask).ConfigureAwait(false);
+
             foreach (var providerState in _providerInitializationService.CurrentStates)
             {
                 await ApplyProviderStateChangeAsync(
@@ -71,14 +73,7 @@ internal sealed class ModelProviderInitializationCoordinator
         }
         finally
         {
-            stateReaderCts.Cancel();
-            try
-            {
-                await stateReaderTask.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (stateReaderCts.IsCancellationRequested)
-            {
-            }
+            await StopProviderStateReaderAsync(stateReaderCts, stateReaderTask).ConfigureAwait(false);
 
             ReportProviderInitializationProgress(null);
         }
@@ -173,6 +168,18 @@ internal sealed class ModelProviderInitializationCoordinator
                     progress,
                     cancellationToken)
                 .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task StopProviderStateReaderAsync(CancellationTokenSource stateReaderCts, Task stateReaderTask)
+    {
+        stateReaderCts.Cancel();
+        try
+        {
+            await stateReaderTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stateReaderCts.IsCancellationRequested)
+        {
         }
     }
 
