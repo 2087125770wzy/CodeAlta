@@ -21,7 +21,8 @@ internal sealed class SidebarNodeHeaderView : Visual
     private readonly HStack _inlineEditor;
     private readonly ComputedVisual _content;
     private readonly Spinner _stateSpinner;
-    private readonly ComputedVisual _stateIndicator;
+    private readonly ComputedVisual _stateIcon;
+    private readonly HStack _stateIndicator;
     private readonly HStack _layout;
     private bool _focusEditorPending;
 
@@ -77,26 +78,22 @@ internal sealed class SidebarNodeHeaderView : Visual
         _stateSpinner = new Spinner().Style(SpinnerStyles.Dots);
         _stateSpinner.IsActive(() => _row.ShowStateSpinner);
         _stateSpinner.IsVisible(() => _row.ShowStateSpinner);
-        _stateIndicator = new ComputedVisual(
+        _stateIcon = new ComputedVisual(
             () =>
             {
-                Visual? stateIcon = string.IsNullOrWhiteSpace(_row.StateIconMarkup)
-                    ? null
-                    : new Markup(() => _row.StateIconMarkup!)
-                    {
-                        Wrap = false,
-                    };
-
-                if (stateIcon is not null && !string.IsNullOrWhiteSpace(_row.StateTooltip))
+                if (string.IsNullOrWhiteSpace(_row.StateIconMarkup))
                 {
-                    stateIcon = stateIcon.Tooltip(new TextBlock(() => _row.StateTooltip!));
+                    return new Placeholder { IsVisible = false };
                 }
 
-                if (_row.ShowStateSpinner)
+                Visual stateIcon = new Markup(() => _row.StateIconMarkup!)
                 {
-                    return stateIcon is null
-                        ? _stateSpinner
-                        : new HStack(_stateSpinner, stateIcon) { Spacing = 1 };
+                    Wrap = false,
+                };
+
+                if (!string.IsNullOrWhiteSpace(_row.StateTooltip))
+                {
+                    stateIcon = stateIcon.Tooltip(new TextBlock(() => _row.StateTooltip!));
                 }
 
                 return stateIcon;
@@ -104,6 +101,12 @@ internal sealed class SidebarNodeHeaderView : Visual
         {
             VerticalAlignment = Align.Center,
         };
+        _stateIndicator = new HStack(_stateSpinner, _stateIcon)
+        {
+            Spacing = 1,
+            VerticalAlignment = Align.Center,
+        };
+        _stateIndicator.IsVisible(() => _row.ShowStateSpinner || !string.IsNullOrWhiteSpace(_row.StateIconMarkup));
         _layout = new HStack(_stateIndicator, _content)
         {
             Spacing = 1,

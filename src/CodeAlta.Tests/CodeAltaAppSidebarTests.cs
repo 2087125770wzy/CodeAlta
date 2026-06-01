@@ -557,6 +557,37 @@ public sealed class CodeAltaAppSidebarTests
     }
 
     [TestMethod]
+    public void SidebarNodeHeaderView_StateIndicatorCanAddIconWhileSpinnerIsActive()
+    {
+        var row = new SidebarNodeViewModel("session:session-1", SidebarNodeKind.Session, SidebarSelectionTarget.Session("session-1"));
+        row.UpdateTitle("Recovered session");
+        row.UpdateStateIndicator(iconMarkup: null, showSpinner: true);
+        var view = new SidebarNodeHeaderView(row, static _ => { }, static _ => { });
+
+        using var terminalSession = Terminal.Open(new InMemoryTerminalBackend(new TerminalSize(80, 20)), new TerminalOptions { ImplicitStartInput = true }, force: true);
+        var app = new TerminalApp(
+            view,
+            terminalSession.Instance,
+            new TerminalAppOptions
+            {
+                HostKind = TerminalHostKind.Fullscreen,
+            });
+
+        InvokeTerminalApp(app, "BeginRun");
+        try
+        {
+            TickTerminalApp(app);
+            row.UpdateStateIndicator(NerdFont.MdTimerOutline.ToString(), showSpinner: true, "reminder active");
+
+            TickTerminalApp(app);
+        }
+        finally
+        {
+            InvokeTerminalApp(app, "EndRun");
+        }
+    }
+
+    [TestMethod]
     public void SidebarView_KeyNavigationNotifiesSelectedTargetChanged()
     {
         var project = CreateProject("project-1", "CodeAlta", @"C:\repo");
