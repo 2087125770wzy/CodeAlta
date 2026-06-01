@@ -30,6 +30,8 @@ internal sealed record PromptFocusRequestedEvent : ShellFrontendEvent;
 
 internal sealed record QueuedPromptListChangedEvent(string SessionId) : ShellFrontendEvent;
 
+internal sealed record AskQueueChangedEvent(string SessionId) : ShellFrontendEvent;
+
 internal sealed record SessionUsageChangedEvent(string SessionId) : ShellFrontendEvent;
 
 internal sealed record ModelProviderStateChangedEvent(string ModelProviderId) : ShellFrontendEvent;

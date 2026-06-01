@@ -116,6 +116,18 @@ public sealed class ShellProjectionCoordinatorTests
     }
 
     [TestMethod]
+    public void Publish_AskQueueChanged_IsHandledByAskModeCoordinatorOnly()
+    {
+        var projections = new CapturingProjectionControllers();
+        var publisher = new FrontendEventPublisher(new InlineUiDispatcher());
+        using var coordinator = new ShellProjectionCoordinator(publisher, projections, projections, projections);
+
+        publisher.Publish(new AskQueueChangedEvent("session-1"));
+
+        CollectionAssert.AreEqual(Array.Empty<string>(), projections.Calls);
+    }
+
+    [TestMethod]
     public void Publish_PromptFocusRequested_FocusesPrompt()
     {
         var projections = new CapturingProjectionControllers();

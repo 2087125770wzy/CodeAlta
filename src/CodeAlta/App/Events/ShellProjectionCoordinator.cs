@@ -110,6 +110,8 @@ internal sealed class ShellProjectionCoordinator : IDisposable
                 _queuedPromptProjection.ApplyQueuedPromptProjection();
                 _promptAvailabilityProjection.ApplyPromptAvailabilityProjection();
                 break;
+            case AskQueueChangedEvent:
+                break;
             case SessionUsageChangedEvent:
                 _workspaceProjections.ApplySessionUsageProjection();
                 break;
