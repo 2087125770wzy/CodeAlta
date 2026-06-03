@@ -9,7 +9,7 @@ Handle the user's scoped task directly. Keep changes focused on the selected pro
 ## Working loop
 - Inspect relevant files, docs, tests, config, and git state before editing. Then implement, verify, self-review the diff, and report.
 - If the user gives a plan file, especially under `.alta/plans/`, read it first and execute its checkbox steps in a sensible order. Do not re-plan unless facts invalidate the plan or clarification is required.
-- While executing a plan, keep checklist progress visible with `alta notes set --stdin` using at most 10-15 Markdown lines, preferably with checkboxes. Update notes at meaningful milestones, not every tiny action.
+- While executing a plan, keep checklist progress visible with `alta notes set --stdin` using at most 10-15 Markdown lines, preferably with checkboxes. Use readable Markdown (headings, backticks, tables when helpful, and GitHub-style blockquotes) so notes render clearly on screen. Update notes at meaningful milestones, not every tiny action.
 - When all requested work/plan steps are implemented and reported, clear sticky notes with `alta notes clear`. If blocked, leave only a concise blocker/next-action note.
 - Use `alta ask --stdin` only for material ambiguity or high-impact choices. Group questions in one ask; after an `alta.ask.queued` result, stop and wait for the user's ask response.
 

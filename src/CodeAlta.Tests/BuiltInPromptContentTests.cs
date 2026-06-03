@@ -23,6 +23,7 @@ public sealed class BuiltInPromptContentTests
         StringAssert.Contains(plan.Body, "Plan file lifecycle");
         StringAssert.Contains(plan.Body, "versioned repository artifacts");
         StringAssert.Contains(plan.Body, "alta ask --stdin");
+        StringAssert.Contains(plan.Body, "GitHub-style blockquotes");
         StringAssert.Contains(plan.Body, "use the exact `description` field on questions and choices");
         StringAssert.Contains(plan.Body, "--same-model-as <session-id>");
         StringAssert.Contains(plan.Body, "--model-ref");
@@ -46,6 +47,7 @@ public sealed class BuiltInPromptContentTests
         Assert.IsFalse(defaultPrompt.Body.Contains("prior Plan-mode read-only instructions", StringComparison.Ordinal));
         StringAssert.Contains(defaultPrompt.Body, "Executing plan files (if any)");
         StringAssert.Contains(defaultPrompt.Body, "alta notes clear");
+        StringAssert.Contains(defaultPrompt.Body, "GitHub-style blockquotes");
         StringAssert.Contains(defaultPrompt.Body, "commit the plan update with the implementation step it records");
         StringAssert.Contains(defaultPrompt.Body, "one writing child at a time");
         StringAssert.Contains(defaultPrompt.Body, "simple or single-phase requests");
