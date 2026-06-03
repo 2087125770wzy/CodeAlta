@@ -145,13 +145,18 @@ internal sealed class SkillsManagementDialog
                 new ColumnDefinition { Width = GridLength.Auto },
                 new ColumnDefinition { Width = GridLength.Auto },
                 new ColumnDefinition { Width = GridLength.Star(1) },
-                new ColumnDefinition { Width = GridLength.Star(1) });
+                new ColumnDefinition { Width = GridLength.Auto });
         toolbar.Cell(new TextBlock("Scope") { VerticalAlignment = Align.Center }, 0, 0);
         toolbar.Cell(_scopeSelect, 0, 1);
         toolbar.Cell(new TextBlock("Filter") { VerticalAlignment = Align.Center }, 0, 2);
         toolbar.Cell(_filterBox, 0, 3);
         toolbar.Cell(
-            new HStack(newSkillButton, activateButton, openSkillButton, openRelatedButton, refreshButton)
+            new HStack(
+                Tooltip(newSkillButton, "Create a new filesystem skill template."),
+                Tooltip(activateButton, "Activate the selected valid, unshadowed skill in the current session."),
+                Tooltip(openSkillButton, "Open the selected skill's SKILL.md file."),
+                Tooltip(openRelatedButton, "Open the selected related script, reference, or asset file."),
+                Tooltip(refreshButton, "Reload discovered skills for the selected scope."))
             {
                 HorizontalAlignment = Align.End,
                 Spacing = 1,
@@ -610,6 +615,9 @@ internal sealed class SkillsManagementDialog
             : $"   [muted]{shownCount} shown for '{AnsiMarkup.Escape(filterText)}'[/]";
         return $"[primary]{descriptors.Count} discovered[/]   [success]{valid} valid[/]   [warning]{invalid} invalid[/]   [muted]{shadowed} shadowed[/]   [accent]{visible} model-visible[/]{filterSuffix}";
     }
+
+    private static Visual Tooltip(Button button, string tooltipText)
+        => button.Tooltip(new TextBlock(tooltipText));
 
     private static void AppendTableRow(StringBuilder builder, string field, string value)
     {
