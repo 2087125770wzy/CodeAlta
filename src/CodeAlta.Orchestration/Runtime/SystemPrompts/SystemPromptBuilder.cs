@@ -104,6 +104,11 @@ public sealed class SystemPromptBuilder
         if (template.PartOptions.ToolGuidance)
         {
             AddGeneratedPart(developerParts, parts, "tool.guidance", "tool_guidance", "Tool Guidance", 500, BuildToolGuidance(request));
+            var agentPromptGuidance = BuildAgentPromptGuidance(request, projectRoot, template.InstructionName);
+            if (!string.IsNullOrWhiteSpace(agentPromptGuidance))
+            {
+                AddGeneratedPart(developerParts, parts, "prompt.discovery", "agent_prompts", "Agent Prompts", 525, agentPromptGuidance);
+            }
         }
 
         if (template.PartOptions.Skills && !string.IsNullOrWhiteSpace(request.AvailableSkillsMarkdown))
@@ -567,6 +572,50 @@ public sealed class SystemPromptBuilder
         return builder.ToString().Trim();
     }
 
+    private string? BuildAgentPromptGuidance(SystemPromptBuildRequest request, string? projectRoot, string currentPromptName)
+    {
+        var prompts = new AgentPromptCatalog(_contentLocator).ListEffectivePrompts(new AgentPromptCatalogQuery
+        {
+            UserProfileRoot = request.UserProfileRoot,
+            UserCodeAltaRoot = request.UserCodeAltaRoot,
+            ProjectRoot = projectRoot,
+            ProjectPromptResourcesTrusted = projectRoot is not null,
+        });
+        if (prompts.Count == 0)
+        {
+            return null;
+        }
+
+        var builder = new StringBuilder();
+        builder.AppendLine("Agent prompt profiles available for this session:");
+        foreach (var prompt in prompts)
+        {
+            var currentPrefix = string.Equals(prompt.PromptName, currentPromptName, StringComparison.OrdinalIgnoreCase)
+                ? "- current: "
+                : "- ";
+            builder.Append(currentPrefix)
+                .Append('`')
+                .Append(EscapeBackticks(prompt.PromptName))
+                .Append("` — ")
+                .Append(CompactSingleLine(prompt.DisplayName))
+                .AppendLine();
+            builder.Append("  - Source: ")
+                .Append(ToPromptSourceLabel(prompt.SourceKind))
+                .Append("; system: `")
+                .Append(EscapeBackticks(prompt.SystemPromptName))
+                .AppendLine("`");
+            var description = CompactSingleLine(prompt.Description);
+            if (!string.IsNullOrWhiteSpace(description))
+            {
+                builder.Append("  - Description: ").AppendLine(description);
+            }
+        }
+
+        builder.AppendLine("Switch current session: `alta session set_agent --prompt-id <id>`.");
+        builder.Append("One-shot/child send: `alta session send <session-id> --prompt-id <id> --stdin`.");
+        return builder.ToString();
+    }
+
     private static string? BuildProjectContext(SystemPromptBuildRequest request, string? projectRoot, List<SystemPromptDiagnostic> diagnostics, out IReadOnlyList<string> files)
     {
         var selectedFiles = EnumerateProjectInstructionFiles(request.Session.WorkingDirectory ?? request.WorkingDirectory, request.ProjectRoots.Count > 0 ? request.ProjectRoots : projectRoot is null ? [] : [projectRoot]);
@@ -728,6 +777,52 @@ public sealed class SystemPromptBuilder
 
     private static string? FirstNonBlank(IEnumerable<string> values)
         => values.FirstOrDefault(static value => !string.IsNullOrWhiteSpace(value));
+
+    private static string ToPromptSourceLabel(AgentPromptSourceKind sourceKind)
+        => sourceKind switch
+        {
+            AgentPromptSourceKind.BuiltIn => "built-in",
+            AgentPromptSourceKind.UserGlobal => "user-global",
+            AgentPromptSourceKind.Project => "project",
+            _ => sourceKind.ToString(),
+        };
+
+    private static string CompactSingleLine(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(value.Length);
+        var previousWasWhiteSpace = false;
+        foreach (var ch in value.Trim())
+        {
+            if (char.IsControl(ch))
+            {
+                continue;
+            }
+
+            if (char.IsWhiteSpace(ch))
+            {
+                if (!previousWasWhiteSpace)
+                {
+                    builder.Append(' ');
+                    previousWasWhiteSpace = true;
+                }
+
+                continue;
+            }
+
+            builder.Append(ch);
+            previousWasWhiteSpace = false;
+        }
+
+        return builder.ToString().Trim();
+    }
+
+    private static string EscapeBackticks(string value)
+        => value.Replace("`", "'", StringComparison.Ordinal);
 
     private static string GetPlatformLabel()
     {

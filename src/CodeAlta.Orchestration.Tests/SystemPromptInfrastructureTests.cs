@@ -104,6 +104,67 @@ public sealed class SystemPromptInfrastructureTests
         Assert.IsTrue(bundle.Manifest.Parts.Any(static part => part.Key == "agents/review" && part.Status == "selected"));
     }
 
+    [TestMethod]
+    public void SystemPromptBuilder_ListsEffectiveAgentPromptsWithoutSensitiveMetadata()
+    {
+        using var temp = TempDirectory.Create();
+        var appBase = Path.Combine(temp.Path, "app");
+        var globalRoot = Path.Combine(temp.Path, "global");
+        var projectRoot = Path.Combine(temp.Path, "project");
+        Directory.CreateDirectory(projectRoot);
+        WriteSystem(appBase, "default", "Built-in default system.");
+        WritePrompt(appBase, "default", "Default Built-in", "default", "Built-in default body.", "Built-in default description.");
+        WritePrompt(globalRoot, "default", "Default Global", "default", "Global default body.", "Global default description.");
+        WritePrompt(globalRoot, "global-extra", "Global Extra", "default", "Global extra body.", "Global extra description.");
+        WriteSystem(projectRoot, "project-system", "Project system.");
+        WritePrompt(projectRoot, "default", "Project Default", "project-system", "Project default body.", "Project default description.");
+
+        var builder = new SystemPromptBuilder(new FileSystemPromptContentLocator(appBase));
+        var bundle = builder.Build(new SystemPromptBuildRequest
+        {
+            ProviderKey = "codex",
+            ProviderType = "codex",
+            ProtocolFamily = "codex",
+            Session = new SessionViewDescriptor
+            {
+                SessionId = "session-1",
+                ProviderId = "codex",
+                ProviderKey = "codex",
+                WorkingDirectory = projectRoot,
+                Kind = SessionViewKind.ProjectSession,
+            },
+            Project = new ProjectDescriptor
+            {
+                Id = "project-1",
+                Slug = "project-1",
+                DisplayName = "Project 1",
+                ProjectPath = projectRoot,
+            },
+            UserCodeAltaRoot = globalRoot,
+            SelectedPromptName = "global-extra",
+            PartOptionsOverride = new PartialSystemPromptPartOptions(
+                Skills: false,
+                ProjectContext: false,
+                RuntimeContext: false,
+                ToolGuidance: true),
+        });
+
+        var developerInstructions = bundle.DeveloperInstructions!;
+        var newline = Environment.NewLine;
+        StringAssert.Contains(developerInstructions, "# Agent Prompts");
+        StringAssert.Contains(developerInstructions, "Agent prompt profiles available for this session:");
+        StringAssert.Contains(developerInstructions, $"- current: `global-extra` — Global Extra{newline}  - Source: user-global; system: `default`{newline}  - Description: Global extra description.");
+        StringAssert.Contains(developerInstructions, $"- `default` — Project Default{newline}  - Source: project; system: `project-system`{newline}  - Description: Project default description.");
+        StringAssert.Contains(developerInstructions, "alta session set_agent --prompt-id <id>");
+        StringAssert.Contains(developerInstructions, "alta session send <session-id> --prompt-id <id> --stdin");
+        Assert.IsFalse(developerInstructions.Contains("Default Built-in", StringComparison.Ordinal));
+        Assert.IsFalse(developerInstructions.Contains("Default Global", StringComparison.Ordinal));
+        Assert.IsFalse(developerInstructions.Contains("Project default body.", StringComparison.Ordinal));
+        Assert.IsFalse(developerInstructions.Contains(projectRoot, StringComparison.Ordinal));
+        Assert.IsFalse(developerInstructions.Contains("sha256:", StringComparison.Ordinal));
+        Assert.IsTrue(bundle.Manifest.Parts.Any(static part => part.Key == "prompt.discovery" && part.Kind == "agent_prompts" && part.Status == "selected"));
+    }
+
     private static void WriteSystem(string root, string id, string body)
     {
         var directory = root.EndsWith("project", StringComparison.OrdinalIgnoreCase)
@@ -118,7 +179,7 @@ public sealed class SystemPromptInfrastructureTests
             """);
     }
 
-    private static void WritePrompt(string root, string id, string name, string system, string body)
+    private static void WritePrompt(string root, string id, string name, string system, string body, string description = "Test agent prompt.")
     {
         var directory = root.EndsWith("app", StringComparison.OrdinalIgnoreCase)
             ? Path.Combine(root, "content", "prompts", "agents")
@@ -130,7 +191,7 @@ public sealed class SystemPromptInfrastructureTests
             ---
             name: {name}
             system: {system}
-            description: Test agent prompt.
+            description: {description}
             ---
             {body}
             """);

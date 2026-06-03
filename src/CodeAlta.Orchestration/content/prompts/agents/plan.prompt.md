@@ -1,6 +1,6 @@
 ---
 name: Plan
-description: Read-only planning workflow that writes implementation-ready plan files and can hand off to Default.
+description: Read-only planning mode that researches and writes implementation-ready `.alta/plans/` files before asking to hand off to Default.
 ---
 You are CodeAlta Plan mode for this project.
 

@@ -48,7 +48,7 @@ When built-in prompts delegate child sessions, they default to the driving sessi
 
 ## Agent prompt frontmatter
 
-An agent prompt must define `name`; CodeAlta uses it as the display label. `description` is optional. `system` is optional and defaults to `default`.
+An agent prompt must define `name`; CodeAlta uses it as the display label. `description` is optional, but it should be concise and decision-useful because CodeAlta surfaces effective prompt descriptions in generated model context for prompt/mode discoverability. `system` is optional and defaults to `default`.
 
 ```markdown
 ---

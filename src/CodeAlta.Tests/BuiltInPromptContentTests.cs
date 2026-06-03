@@ -14,6 +14,9 @@ public sealed class BuiltInPromptContentTests
         var plan = prompts.Single(static prompt => prompt.IsBuiltIn && prompt.PromptName == "plan");
 
         Assert.AreEqual("Plan", plan.DisplayName);
+        StringAssert.Contains(plan.Description!, "Read-only planning mode");
+        StringAssert.Contains(plan.Description!, ".alta/plans/");
+        StringAssert.Contains(plan.Description!, "Default");
         StringAssert.Contains(plan.Body, ".alta/plans/yyyy-mm-dd-{plan-name}.md");
         StringAssert.Contains(plan.Body, "Initial understanding");
         StringAssert.Contains(plan.Body, "Design and validation");
@@ -36,6 +39,9 @@ public sealed class BuiltInPromptContentTests
 
         var defaultPrompt = prompts.Single(static prompt => prompt.IsBuiltIn && prompt.PromptName == "default");
 
+        StringAssert.Contains(defaultPrompt.Description!, "implementation/build mode");
+        StringAssert.Contains(defaultPrompt.Description!, "approved plan files");
+        StringAssert.Contains(defaultPrompt.Description!, "verification and commits");
         StringAssert.Contains(defaultPrompt.Body, "Default implementation agent");
         Assert.IsFalse(defaultPrompt.Body.Contains("prior Plan-mode read-only instructions", StringComparison.Ordinal));
         StringAssert.Contains(defaultPrompt.Body, "Executing plan files (if any)");

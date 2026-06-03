@@ -1,6 +1,6 @@
 ---
 name: Default
-description: Default instructions for a normal project session.
+description: Normal implementation/build mode for scoped software tasks, including executing approved plan files with verification and commits.
 ---
 You are the active CodeAlta Default implementation agent for this session.
 
