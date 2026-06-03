@@ -1,5 +1,8 @@
+using System.Globalization;
 using System.Text;
 using CodeAlta.LiveTool;
+using CodeAlta.Models;
+using CodeAlta.Presentation.Styling;
 using XenoAtom.Ansi;
 using XenoAtom.Terminal;
 using XenoAtom.Terminal.UI;
@@ -294,7 +297,7 @@ internal sealed class AskFileReviewView
     {
         var commentDocument = new TextDocument(string.Empty);
         var textArea = new TextArea()
-            .Placeholder("Enter a comment... Enter newline · Esc done · Ctrl+D delete · Ctrl+N/P comments")
+            .Placeholder("Enter a user comment... Enter newline · Esc done · Ctrl+D delete · Ctrl+N/P comments")
             .AutoSizeMode(TextEditorAutoSizeMode.Height)
             .MinHeight(1)
             .HorizontalAlignment(Align.Stretch);
@@ -327,14 +330,15 @@ internal sealed class AskFileReviewView
         };
         helpText.SetStyle(TextBlockStyle.Key, TextBlockStyle.Default with { Foreground = Colors.TerminalBrightBlack });
 
-        var group = new Group(new Markup("[bold primary]Comment[/]"))
+        Group? group = null;
+        group = new Group(CreateUserCommentHeader(lineIndex))
         {
             TopRightText = deleteButton,
             BottomLeftText = helpText,
             Padding = new Thickness(1, 0, 1, 0),
             HorizontalAlignment = Align.Stretch,
             Content = textAreaScroller,
-        };
+        }.Style(() => UiPalette.GetChatGroupStyle(group!.GetTheme(), ChatTimelineTone.User));
         entry.Group = group;
 
         textArea.AddCommand(new Command
@@ -428,6 +432,9 @@ internal sealed class AskFileReviewView
         var lineCount = Math.Max(1, entry.TextArea.TextDocument.CurrentSnapshot.LineCount);
         entry.TextArea.MinHeight = Math.Min(8, lineCount);
     }
+
+    private static Markup CreateUserCommentHeader(int lineIndex)
+        => new($"[accent]{NerdFont.MdAccount}[/] [bold]User Comment[/] [dim]- line {(lineIndex + 1).ToString(CultureInfo.InvariantCulture)}[/]");
 
     private void FocusAdjacentComment(int lineIndex, bool forward)
     {
