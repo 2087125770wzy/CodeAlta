@@ -373,7 +373,7 @@ internal sealed class SidebarView
             _markdown = new MarkdownControl(ReadInitialNotesMarkdown(notesService))
             {
                 HorizontalAlignment = Align.Stretch,
-                VerticalAlignment = Align.Start,
+                VerticalAlignment = Align.Stretch,
                 Options = MarkdownRenderOptions.Default with
                 {
                     WrapCodeBlocks = true,
@@ -391,7 +391,8 @@ internal sealed class SidebarView
             var clearButtonHost = clearButton.Tooltip(new TextBlock("Clear notes"));
             var notesScroll = new ScrollViewer(_markdown)
                 .HorizontalScrollEnabled(false)
-                .VerticalScrollEnabled(true);
+                .VerticalScrollEnabled(true)
+                .Stretch();
 
             Group? notesGroup = null;
             notesGroup = new Group($"{NerdFont.MdNoteTextOutline} Notes", notesScroll)
