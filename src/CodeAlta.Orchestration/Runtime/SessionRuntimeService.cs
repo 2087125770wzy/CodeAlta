@@ -610,6 +610,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             ?? NormalizeOptionalText(session.AgentPromptId);
         session.AgentPromptId = effectiveAgentPromptId;
         var instructions = _instructionTemplateProvider.BuildCoordinatorInstructions(session, project, options.Model, session.AgentPromptId);
+        var agentPromptUsage = ResolveAgentPromptUsage(instructions.PromptBundle, project?.ProjectPath);
         var providerProviderId = new ModelProviderId(options.ProviderId.Value);
         var developerInstructions = instructions.DeveloperInstructions;
         var additionalDeveloperInstructions = AppendPromptPart(BuildParentNotificationGuidance(session), options.AdditionalDeveloperInstructions);
@@ -657,6 +658,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             SystemMessage = AppendPromptPart(instructions.SystemMessage, options.AdditionalSystemMessage),
             DeveloperInstructions = AppendPromptPart(developerInstructions, additionalDeveloperInstructions),
             AgentPromptId = NormalizeOptionalText(session.AgentPromptId) ?? AgentPromptCatalog.DefaultPromptName,
+            AgentPromptUsage = agentPromptUsage,
             Tools = tools,
             OnPermissionRequest = options.OnPermissionRequest,
             OnUserInputRequest = options.OnUserInputRequest,
@@ -2168,6 +2170,65 @@ public sealed class SessionRuntimeService : IAsyncDisposable
             .Any(prompt => string.Equals(prompt.PromptName, normalized, StringComparison.OrdinalIgnoreCase))
             ? normalized
             : AgentPromptCatalog.DefaultPromptName;
+    }
+
+    private AgentPromptUsageInfo? ResolveAgentPromptUsage(SystemPromptBundle? promptBundle, string? projectRoot)
+    {
+        var promptName = NormalizeOptionalText(promptBundle?.Manifest.Template.InstructionName);
+        if (promptName is null)
+        {
+            return null;
+        }
+
+        var query = new AgentPromptCatalogQuery
+        {
+            ProjectRoot = projectRoot,
+            ProjectPromptResourcesTrusted = !string.IsNullOrWhiteSpace(projectRoot),
+            UserCodeAltaRoot = _catalogOptions.GlobalRoot,
+            UserProfileRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        };
+        var descriptor = new AgentPromptCatalog().ResolvePrompt(query, promptName);
+        if (descriptor is null)
+        {
+            return new AgentPromptUsageInfo(promptName, null, null);
+        }
+
+        return new AgentPromptUsageInfo(
+            descriptor.PromptName,
+            NormalizeOptionalText(descriptor.DisplayName),
+            FormatAgentPromptSourcePathForTimeline(descriptor.SourcePath, projectRoot));
+    }
+
+    internal static string? FormatAgentPromptSourcePathForTimeline(string? sourcePath, string? projectRoot)
+    {
+        var normalizedSourcePath = NormalizeOptionalText(sourcePath);
+        if (normalizedSourcePath is null)
+        {
+            return null;
+        }
+
+        var sourceFullPath = NormalizePath(normalizedSourcePath);
+        var normalizedProjectRoot = NormalizeOptionalText(projectRoot);
+        if (normalizedProjectRoot is null)
+        {
+            return sourceFullPath;
+        }
+
+        var projectFullPath = NormalizePath(normalizedProjectRoot);
+        var relativePath = Path.GetRelativePath(projectFullPath, sourceFullPath);
+        return IsProjectRelativePath(relativePath) ? relativePath : sourceFullPath;
+    }
+
+    private static bool IsProjectRelativePath(string relativePath)
+    {
+        if (Path.IsPathRooted(relativePath))
+        {
+            return false;
+        }
+
+        return !string.Equals(relativePath, "..", StringComparison.Ordinal) &&
+            !relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) &&
+            !relativePath.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
     }
 
     private static string BuildSessionTitle(AgentSessionMetadata session, string fallback)

@@ -89,7 +89,7 @@ Use `F6` or the **Full Prompt** action to open a larger prompt editor. `Enter`, 
 
 <figure class="my-4">
   <img class="img-fluid rounded-4 shadow" src="{{site.basepath}}/img/alta-system-prompt-and-user-prompt.png" alt="CodeAlta timeline showing system prompt details and an agent prompt" loading="lazy">
-  <figcaption class="small text-secondary mt-2">Prompt and system-prompt details are visible in the timeline so you can review what context was sent.</figcaption>
+  <figcaption class="small text-secondary mt-2">Prompt and system-prompt details are visible in the timeline, including the selected agent prompt and source path, so you can review what context was sent.</figcaption>
 </figure>
 
 ## Open Project dialog

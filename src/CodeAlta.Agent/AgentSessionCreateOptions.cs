@@ -76,6 +76,11 @@ public class AgentSessionCreateOptions
     public string? AgentPromptId { get; init; }
 
     /// <summary>
+    /// Gets or initializes agent prompt selection details used for prompt audit events.
+    /// </summary>
+    public AgentPromptUsageInfo? AgentPromptUsage { get; init; }
+
+    /// <summary>
     /// Gets or initializes custom tools available to this session.
     /// </summary>
     public IReadOnlyList<AgentToolDefinition>? Tools { get; init; }

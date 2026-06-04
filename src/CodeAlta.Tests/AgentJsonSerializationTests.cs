@@ -52,7 +52,8 @@ public sealed class AgentJsonSerializationTests
             new AgentSystemPromptProviderPayloadSummary("native-system-and-developer", true, false),
             null,
             new AgentSystemPromptStatistics(3, 4, 7, 11, 14),
-            new AgentSystemPromptChangeSummary("initial", ["system"], [], []));
+            new AgentSystemPromptChangeSummary("initial", ["system"], [], []),
+            new AgentPromptUsageInfo("default", "Default", @"C:\repo\.alta\prompts\agents\default.prompt.md"));
 
         using var document = JsonDocument.Parse(@event.ToJson());
         var root = document.RootElement;
@@ -61,6 +62,8 @@ public sealed class AgentJsonSerializationTests
         Assert.AreEqual("sha256:abc", root.GetProperty("effectivePromptHash").GetString());
         Assert.AreEqual("default", root.GetProperty("agentPromptId").GetString());
         Assert.AreEqual("System text", root.GetProperty("systemMessage").GetString());
+        Assert.AreEqual("Default", root.GetProperty("agentPromptUsage").GetProperty("displayName").GetString());
+        Assert.AreEqual(@"C:\repo\.alta\prompts\agents\default.prompt.md", root.GetProperty("agentPromptUsage").GetProperty("sourcePath").GetString());
         Assert.AreEqual("native-system-and-developer", root.GetProperty("providerPayloadSummary").GetProperty("channelMapping").GetString());
         Assert.AreEqual(7, root.GetProperty("statistics").GetProperty("totalApproxTokens").GetInt32());
     }

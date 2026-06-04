@@ -1239,6 +1239,7 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
         }
 
         var statistics = CreateSystemPromptStatistics(systemMessage, developerInstructions);
+        var agentPromptUsage = ResolveAgentPromptUsage(NormalizeOptionalText(_options.AgentPromptId));
         var promptEvent = new AgentSystemPromptEvent(
             ProviderId,
             SessionId,
@@ -1250,14 +1251,27 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
             systemMessage,
             developerInstructions,
             new AgentSystemPromptProviderPayloadSummary("native-system-and-developer", AppliedToProvider: true, Lossy: false),
-            CreateSystemPromptManifest(effectivePromptHash, NormalizeOptionalText(_options.AgentPromptId), statistics),
+            CreateSystemPromptManifest(effectivePromptHash, agentPromptUsage, statistics),
             statistics,
             new AgentSystemPromptChangeSummary(
                 previousHash is null ? "initial" : "changed",
                 previousHash is null ? ["system", "developer"] : [],
                 [],
-                previousHash is null ? [] : ["effective_prompt"]));
+                previousHash is null ? [] : ["effective_prompt"]),
+            agentPromptUsage);
         await AppendEventsAsync([promptEvent], cancellationToken).ConfigureAwait(false);
+    }
+
+    private AgentPromptUsageInfo? ResolveAgentPromptUsage(string? agentPromptId)
+    {
+        if (_options.AgentPromptUsage is { } usage)
+        {
+            return usage;
+        }
+
+        return string.IsNullOrWhiteSpace(agentPromptId)
+            ? null
+            : new AgentPromptUsageInfo(agentPromptId, null, null);
     }
 
     private static AgentSystemPromptStatistics CreateSystemPromptStatistics(string? systemMessage, string? developerInstructions)
@@ -1272,7 +1286,7 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
     private static int EstimatePromptTokens(string? text)
         => checked((int)TokenEstimator.Estimate(text));
 
-    private static JsonElement CreateSystemPromptManifest(string effectivePromptHash, string? agentPromptId, AgentSystemPromptStatistics statistics)
+    private static JsonElement CreateSystemPromptManifest(string effectivePromptHash, AgentPromptUsageInfo? agentPromptUsage, AgentSystemPromptStatistics statistics)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
@@ -1280,13 +1294,26 @@ public sealed class AgentSession : IAgentSession, IAgentCompactionOutcomeProvide
             writer.WriteStartObject();
             writer.WriteNumber("version", 1);
             writer.WriteString("effectivePromptHash", effectivePromptHash);
-            if (string.IsNullOrWhiteSpace(agentPromptId))
+            if (agentPromptUsage is null || string.IsNullOrWhiteSpace(agentPromptUsage.PromptName))
             {
                 writer.WriteNull("agentPromptId");
             }
             else
             {
-                writer.WriteString("agentPromptId", agentPromptId);
+                writer.WriteString("agentPromptId", agentPromptUsage.PromptName);
+                writer.WriteStartObject("agentPrompt");
+                writer.WriteString("promptName", agentPromptUsage.PromptName);
+                if (!string.IsNullOrWhiteSpace(agentPromptUsage.DisplayName))
+                {
+                    writer.WriteString("displayName", agentPromptUsage.DisplayName);
+                }
+
+                if (!string.IsNullOrWhiteSpace(agentPromptUsage.SourcePath))
+                {
+                    writer.WriteString("sourcePath", agentPromptUsage.SourcePath);
+                }
+
+                writer.WriteEndObject();
             }
 
             writer.WriteStartObject("provider");

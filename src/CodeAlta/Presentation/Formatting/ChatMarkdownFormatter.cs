@@ -196,6 +196,7 @@ internal static class ChatMarkdownFormatter
             .Append(promptEvent.EffectivePromptHash)
             .AppendLine("`");
         builder.Append("- Mapping: ").AppendLine(promptEvent.ProviderPayloadSummary.ChannelMapping);
+        AppendAgentPromptLine(builder, promptEvent);
         builder.Append("- Tokens: ")
             .Append(promptEvent.Statistics.TotalApproxTokens)
             .Append(" approx total (`system` ")
@@ -210,6 +211,47 @@ internal static class ChatMarkdownFormatter
 
         return builder.ToString();
     }
+
+    private static void AppendAgentPromptLine(StringBuilder builder, AgentSystemPromptEvent promptEvent)
+    {
+        var promptName = NormalizeOptionalText(promptEvent.AgentPromptUsage?.PromptName)
+            ?? NormalizeOptionalText(promptEvent.AgentPromptId);
+        if (promptName is null)
+        {
+            return;
+        }
+
+        builder.Append("- Agent Prompt: ").Append(EscapeMarkdownInlineText(promptName));
+        var displayName = NormalizeOptionalText(promptEvent.AgentPromptUsage?.DisplayName);
+        var sourcePath = NormalizeOptionalText(promptEvent.AgentPromptUsage?.SourcePath);
+        if (displayName is not null || sourcePath is not null)
+        {
+            builder.Append(" (");
+            if (displayName is not null)
+            {
+                builder.Append(EscapeMarkdownInlineText(displayName));
+                if (sourcePath is not null)
+                {
+                    builder.Append(" - ");
+                }
+            }
+
+            if (sourcePath is not null)
+            {
+                builder.Append('`').Append(EscapeMarkdownInlineText(sourcePath)).Append('`');
+            }
+
+            builder.Append(')');
+        }
+
+        builder.AppendLine();
+    }
+
+    private static string? NormalizeOptionalText(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string EscapeMarkdownInlineText(string value)
+        => value.Replace("`", "'", StringComparison.Ordinal);
 
     public static string FormatSystemPromptVerbatimMarkdown(AgentSystemPromptEvent promptEvent)
     {

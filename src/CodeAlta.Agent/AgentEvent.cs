@@ -487,6 +487,7 @@ public sealed record AgentActivityEvent(
 /// <param name="Manifest">Prompt manifest.</param>
 /// <param name="Statistics">Prompt statistics.</param>
 /// <param name="Change">Change summary compared with the previous prompt event.</param>
+/// <param name="AgentPromptUsage">Agent prompt selection details, when known.</param>
 public sealed record AgentSystemPromptEvent(
     ModelProviderId ProviderId,
     string SessionId,
@@ -500,8 +501,17 @@ public sealed record AgentSystemPromptEvent(
     AgentSystemPromptProviderPayloadSummary ProviderPayloadSummary,
     JsonElement? Manifest,
     AgentSystemPromptStatistics Statistics,
-    AgentSystemPromptChangeSummary Change)
+    AgentSystemPromptChangeSummary Change,
+    AgentPromptUsageInfo? AgentPromptUsage = null)
     : AgentEvent(ProviderId, SessionId, Timestamp, RunId);
+
+/// <summary>
+/// Describes the agent prompt used to compose a system prompt event.
+/// </summary>
+/// <param name="PromptName">File-derived prompt identifier.</param>
+/// <param name="DisplayName">User-facing prompt name, when known.</param>
+/// <param name="SourcePath">Prompt source path, project-relative when it is under the project root.</param>
+public sealed record AgentPromptUsageInfo(string PromptName, string? DisplayName, string? SourcePath);
 
 /// <summary>
 /// Provider payload mapping summary for a system prompt event.

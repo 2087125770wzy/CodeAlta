@@ -12,6 +12,28 @@ namespace CodeAlta.Orchestration.Tests;
 public sealed class SessionRuntimeServiceTests
 {
     [TestMethod]
+    public void FormatAgentPromptSourcePathForTimeline_UsesProjectRelativePathWhenAvailable()
+    {
+        var projectRoot = Path.Combine(Path.GetTempPath(), "CodeAltaProject");
+        var sourcePath = Path.Combine(projectRoot, ".alta", "prompts", "agents", "plan.prompt.md");
+
+        var formatted = SessionRuntimeService.FormatAgentPromptSourcePathForTimeline(sourcePath, projectRoot);
+
+        Assert.AreEqual(Path.Combine(".alta", "prompts", "agents", "plan.prompt.md"), formatted);
+    }
+
+    [TestMethod]
+    public void FormatAgentPromptSourcePathForTimeline_KeepsExternalSourcePathAbsolute()
+    {
+        var projectRoot = Path.Combine(Path.GetTempPath(), "CodeAltaProject");
+        var sourcePath = Path.Combine(Path.GetTempPath(), "CodeAltaBuiltIn", "prompts", "agents", "default.prompt.md");
+
+        var formatted = SessionRuntimeService.FormatAgentPromptSourcePathForTimeline(sourcePath, projectRoot);
+
+        Assert.AreEqual(Path.GetFullPath(sourcePath), formatted);
+    }
+
+    [TestMethod]
     public async Task ListRecoverableSessionsAsync_IncludesAgentRuntimeSessionsForUnregisteredProviders()
     {
         using var temp = new TempDirectory();

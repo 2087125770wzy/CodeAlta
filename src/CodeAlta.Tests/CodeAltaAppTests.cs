@@ -339,6 +339,33 @@ public sealed class CodeAltaAppTests
     }
 
     [TestMethod]
+    public void FormatSystemPromptSummaryMarkdown_IncludesAgentPromptUsage()
+    {
+        var promptEvent = new AgentSystemPromptEvent(
+            new ModelProviderId("local"),
+            "session-1",
+            DateTimeOffset.Parse("2026-04-28T12:34:56+00:00"),
+            new AgentRunId("run-1"),
+            "session_start",
+            "781BB1A413420FBED84FE5F685ECB8931819D7D8B343740715D961AC39C084B2",
+            "default",
+            "System text",
+            "Developer text",
+            new AgentSystemPromptProviderPayloadSummary("native-system-and-developer", true, false),
+            null,
+            new AgentSystemPromptStatistics(1414, 3397, 4811, 5656, 13588),
+            new AgentSystemPromptChangeSummary("initial", ["system"], [], []),
+            new AgentPromptUsageInfo("default", "Default", @"C:\code\CodeAlta\src\CodeAlta.Orchestration\content\prompts\agents\default.prompt.md"));
+
+        var markdown = ChatMarkdownFormatter.FormatSystemPromptSummaryMarkdown(promptEvent);
+
+        StringAssert.Contains(markdown, "System Prompt recorded: `781BB1A413420FBED84FE5F685ECB8931819D7D8B343740715D961AC39C084B2`");
+        StringAssert.Contains(markdown, "- Mapping: native-system-and-developer");
+        StringAssert.Contains(markdown, @"- Agent Prompt: default (Default - `C:\code\CodeAlta\src\CodeAlta.Orchestration\content\prompts\agents\default.prompt.md`)");
+        StringAssert.Contains(markdown, "- Tokens: 4811 approx total (`system` 1414, `developer` 3397)");
+    }
+
+    [TestMethod]
     public async Task BuildUserPromptTimelineItems_CanBeCalledFromWorkerSession()
     {
         var pending = ChatTimelineVisualFactory.CreatePendingChatMessage("hello");
