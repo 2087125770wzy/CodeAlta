@@ -2174,7 +2174,7 @@ public sealed class SessionRuntimeService : IAsyncDisposable
 
     private AgentPromptUsageInfo? ResolveAgentPromptUsage(SystemPromptBundle? promptBundle, string? projectRoot)
     {
-        var promptName = NormalizeOptionalText(promptBundle?.Manifest.Template.InstructionName);
+        var promptName = NormalizeOptionalText(promptBundle?.Manifest.Composition.AgentPromptName);
         if (promptName is null)
         {
             return null;

@@ -13,7 +13,7 @@ namespace CodeAlta.Orchestration.Runtime.SystemPrompts;
 public sealed class SystemPromptBuilder
 {
     private const string DefaultName = "default";
-    private static readonly string[] KnownTopLevelEntries = ["system", "agents", "template.yml"];
+    private static readonly string[] KnownTopLevelEntries = ["system", "agents"];
     private readonly ISystemPromptContentLocator _contentLocator;
 
     /// <summary>
@@ -51,27 +51,29 @@ public sealed class SystemPromptBuilder
         ValidateRoots(roots, diagnostics);
         WarnForIgnoredFiles(roots, diagnostics);
 
-        var template = ResolveTemplate(roots, request, diagnostics);
-        var promptResolution = ResolveResource(roots, "agents", ".prompt.md", template.InstructionName, diagnostics, SystemPromptResourceKind.AgentPrompt);
-        if (promptResolution.Selected is null && !string.Equals(template.InstructionName, DefaultName, StringComparison.OrdinalIgnoreCase))
+        var composition = ResolveCompositionRequest(request);
+        var promptResolution = ResolveResource(roots, "agents", ".prompt.md", composition.AgentPromptName, diagnostics, SystemPromptResourceKind.AgentPrompt);
+        if (promptResolution.Selected is null && !string.Equals(composition.AgentPromptName, DefaultName, StringComparison.OrdinalIgnoreCase))
         {
-            diagnostics.Add(SystemPromptDiagnostic.Warning("agent_prompt_fallback_default", $"Agent prompt 'agents/{template.InstructionName}.prompt.md' was not found; using the default agent prompt.", null));
+            diagnostics.Add(SystemPromptDiagnostic.Warning("agent_prompt_fallback_default", $"Agent prompt 'agents/{composition.AgentPromptName}.prompt.md' was not found; using the default agent prompt.", null));
             promptResolution = ResolveResource(roots, "agents", ".prompt.md", DefaultName, diagnostics, SystemPromptResourceKind.AgentPrompt);
-            template = template with { InstructionName = DefaultName, InstructionReason = "fallback-default" };
+            composition = composition with { AgentPromptName = DefaultName, AgentPromptReason = "fallback-default" };
         }
 
         if (promptResolution.Selected is null)
         {
-            throw new InvalidOperationException($"Missing required agent prompt 'agents/{template.InstructionName}.prompt.md'.");
+            throw new InvalidOperationException($"Missing required agent prompt 'agents/{composition.AgentPromptName}.prompt.md'.");
         }
 
         var selectedSystemOverride = NormalizeName(request.SelectedBaseName);
-        var selectedSystemName = selectedSystemOverride ?? promptResolution.Selected.SystemPromptName ?? template.BaseName;
+        var selectedSystemName = selectedSystemOverride ?? promptResolution.Selected.SystemPromptName ?? DefaultName;
         var selectedSystemReason = selectedSystemOverride is not null
             ? "runtime"
             : promptResolution.Selected.SystemPromptName is not null
-                ? $"agent:{template.InstructionName}"
-                : template.BaseReason;
+                ? $"agent:{composition.AgentPromptName}"
+                : "default-name";
+        var effectivePartOptions = promptResolution.Selected.PartOptions.MergeOver(SystemPromptPartOptions.Default);
+        effectivePartOptions = request.PartOptionsOverride?.MergeOver(effectivePartOptions) ?? effectivePartOptions;
         var systemResolution = ResolveResource(roots, "system", ".system-prompt.md", selectedSystemName, diagnostics, SystemPromptResourceKind.SystemPrompt);
 
         if (systemResolution.Selected is null)
@@ -88,40 +90,40 @@ public sealed class SystemPromptBuilder
         }
 
         var developerParts = new List<RenderedPromptPart>();
-        AddDeveloperPart(developerParts, parts, CreateResourcePart(promptResolution.Selected, "agent_prompt", template.InstructionName, "developer", 300, "selected", promptResolution.ReplacedPath), "Agent Prompt", promptResolution.Selected.Body);
+        AddDeveloperPart(developerParts, parts, CreateResourcePart(promptResolution.Selected, "agent_prompt", composition.AgentPromptName, "developer", 300, "selected", promptResolution.ReplacedPath), "Agent Prompt", promptResolution.Selected.Body);
         foreach (var skipped in promptResolution.Skipped)
         {
-            parts.Add(CreateResourcePart(skipped.Resource, "agent_prompt", template.InstructionName, "developer", 300, skipped.Status, null));
+            parts.Add(CreateResourcePart(skipped.Resource, "agent_prompt", composition.AgentPromptName, "developer", 300, skipped.Status, null));
         }
 
-        template = template with { BaseName = selectedSystemName, BaseReason = selectedSystemReason };
+        composition = composition with { SystemPromptName = selectedSystemName, SystemPromptReason = selectedSystemReason, PartOptions = effectivePartOptions };
 
-        if (template.PartOptions.RuntimeContext)
+        if (composition.PartOptions.RuntimeContext)
         {
             AddGeneratedPart(developerParts, parts, "runtime.context", "runtime_context", "Runtime Context", 400, BuildRuntimeContext(request, projectRoot));
         }
 
-        if (template.PartOptions.ToolGuidance)
+        if (composition.PartOptions.ToolGuidance)
         {
             AddGeneratedPart(developerParts, parts, "tool.guidance", "tool_guidance", "Tool Guidance", 500, BuildToolGuidance(request));
-            var agentPromptGuidance = BuildAgentPromptGuidance(request, projectRoot, template.InstructionName);
+            var agentPromptGuidance = BuildAgentPromptGuidance(request, projectRoot, composition.AgentPromptName);
             if (!string.IsNullOrWhiteSpace(agentPromptGuidance))
             {
                 AddGeneratedPart(developerParts, parts, "prompt.discovery", "agent_prompts", "Agent Prompts", 525, agentPromptGuidance);
             }
         }
 
-        if (template.PartOptions.Skills && !string.IsNullOrWhiteSpace(request.AvailableSkillsMarkdown))
+        if (composition.PartOptions.Skills && !string.IsNullOrWhiteSpace(request.AvailableSkillsMarkdown))
         {
             AddGeneratedPart(developerParts, parts, "skills.available", "available_skills", "Available Skills", 550, request.AvailableSkillsMarkdown!);
         }
 
-        if (template.PartOptions.Skills && !string.IsNullOrWhiteSpace(request.ActiveSkillsMarkdown))
+        if (composition.PartOptions.Skills && !string.IsNullOrWhiteSpace(request.ActiveSkillsMarkdown))
         {
             AddGeneratedPart(developerParts, parts, "skills.active", "active_skills", "Active Skills", 575, request.ActiveSkillsMarkdown!);
         }
 
-        if (template.PartOptions.ProjectContext)
+        if (composition.PartOptions.ProjectContext)
         {
             var projectContext = BuildProjectContext(request, projectRoot, diagnostics, out var projectContextFiles);
             if (!string.IsNullOrWhiteSpace(projectContext))
@@ -150,7 +152,7 @@ public sealed class SystemPromptBuilder
             Version: 1,
             PromptId: CreatePromptId(effectiveHash),
             EffectivePromptHash: effectiveHash,
-            Template: template.ToManifest(),
+            Composition: composition.ToManifest(),
             Provider: provider,
             Parts: parts,
             Statistics: statistics,
@@ -238,113 +240,25 @@ public sealed class SystemPromptBuilder
         }
     }
 
-    private static SystemPromptResolvedTemplate ResolveTemplate(SystemPromptContentRoots roots, SystemPromptBuildRequest request, List<SystemPromptDiagnostic> diagnostics)
+    private static SystemPromptResolvedComposition ResolveCompositionRequest(SystemPromptBuildRequest request)
     {
-        var result = new SystemPromptResolvedTemplate(DefaultName, "default-name", DefaultName, "default-name", SystemPromptPartOptions.Default, []);
-        foreach (var templateSource in EnumerateTemplateSources(roots))
-        {
-            if (!File.Exists(templateSource.Path))
-            {
-                continue;
-            }
-
-            var parsed = ParseTemplateFile(templateSource.Path, diagnostics);
-            var files = result.TemplateFiles.Concat([new SystemPromptTemplateFileManifest(templateSource.SourceKind, templateSource.Path, HashFile(templateSource.Path), parsed.HasErrors ? "error" : "loaded")]).ToArray();
-            if (parsed.HasErrors)
-            {
-                result = result with { TemplateFiles = files };
-                continue;
-            }
-
-            result = new SystemPromptResolvedTemplate(
-                parsed.BaseName ?? result.BaseName,
-                parsed.BaseName is null ? result.BaseReason : $"template:{templateSource.SourceKind}",
-                parsed.InstructionName ?? result.InstructionName,
-                parsed.InstructionName is null ? result.InstructionReason : $"template:{templateSource.SourceKind}",
-                parsed.Options.MergeOver(result.PartOptions),
-                files);
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.SelectedBaseName))
-        {
-            result = result with { BaseName = request.SelectedBaseName.Trim(), BaseReason = "runtime" };
-        }
-
         var selectedPromptName = NormalizeName(request.SelectedPromptName) ?? NormalizeName(request.SelectedInstructionName);
-        if (selectedPromptName is not null)
-        {
-            result = result with { InstructionName = selectedPromptName, InstructionReason = "runtime" };
-        }
-
-        result = result with { PartOptions = request.PartOptionsOverride?.MergeOver(result.PartOptions) ?? result.PartOptions };
-        return result;
+        return new SystemPromptResolvedComposition(
+            SystemPromptName: DefaultName,
+            SystemPromptReason: "default-name",
+            AgentPromptName: selectedPromptName ?? DefaultName,
+            AgentPromptReason: selectedPromptName is null ? "default-name" : "runtime",
+            PartOptions: SystemPromptPartOptions.Default);
     }
 
-    private static ParsedTemplate ParseTemplateFile(string path, List<SystemPromptDiagnostic> diagnostics)
-    {
-        string text;
-        try
-        {
-            text = File.ReadAllText(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            diagnostics.Add(SystemPromptDiagnostic.Error("unreadable_prompt_template", $"Prompt template '{path}' could not be read: {ex.Message}", path));
-            return ParsedTemplate.Error;
-        }
-
-        var values = ParseFlatKeyValueFile(text, diagnostics, path, allowFrontmatterDelimiters: false);
-        var hasErrors = diagnostics.Any(d => d.Severity == SystemPromptDiagnosticSeverity.Error && string.Equals(d.Path, path, StringComparison.OrdinalIgnoreCase));
-        var options = PartialSystemPromptPartOptions.Empty;
-        foreach (var key in values.Keys)
-        {
-            switch (key)
-            {
-                case "version":
-                    if (!int.TryParse(values[key], NumberStyles.Integer, CultureInfo.InvariantCulture, out var version) || version != 1)
-                    {
-                        diagnostics.Add(SystemPromptDiagnostic.Error("invalid_prompt_template", $"Prompt template '{path}' has unsupported version '{values[key]}'.", path));
-                        hasErrors = true;
-                    }
-
-                    break;
-                case "system":
-                case "agent":
-                case "developer":
-                    break;
-                case "skills":
-                    options = options with { Skills = ParseBool(values[key], key, path, diagnostics, ref hasErrors) };
-                    break;
-                case "project_context":
-                    options = options with { ProjectContext = ParseBool(values[key], key, path, diagnostics, ref hasErrors) };
-                    break;
-                case "runtime_context":
-                    options = options with { RuntimeContext = ParseBool(values[key], key, path, diagnostics, ref hasErrors) };
-                    break;
-                case "tool_guidance":
-                    options = options with { ToolGuidance = ParseBool(values[key], key, path, diagnostics, ref hasErrors) };
-                    break;
-                default:
-                    diagnostics.Add(SystemPromptDiagnostic.Warning("unknown_prompt_template_field", $"Prompt template '{path}' contains unknown field '{key}'.", path));
-                    break;
-            }
-        }
-
-        return new ParsedTemplate(
-            NormalizeName(values.GetValueOrDefault("system")),
-            NormalizeName(values.GetValueOrDefault("agent")) ?? NormalizeName(values.GetValueOrDefault("developer")),
-            options,
-            hasErrors);
-    }
-
-    private static bool? ParseBool(string value, string field, string path, List<SystemPromptDiagnostic> diagnostics, ref bool hasErrors)
+    private static bool? ParseFrontmatterBool(string value, string field, string path, List<SystemPromptDiagnostic> diagnostics, ref bool hasErrors)
     {
         if (bool.TryParse(value, out var parsed))
         {
             return parsed;
         }
 
-        diagnostics.Add(SystemPromptDiagnostic.Error("invalid_prompt_template", $"Prompt template '{path}' field '{field}' must be true or false.", path));
+        diagnostics.Add(SystemPromptDiagnostic.Error("invalid_agent_prompt_frontmatter", $"Agent prompt '{path}' frontmatter field '{field}' must be true or false.", path));
         hasErrors = true;
         return null;
     }
@@ -397,8 +311,10 @@ public sealed class SystemPromptBuilder
 
         var (frontmatter, body) = SplitFrontmatter(text, path, diagnostics);
         var allowedFields = resourceKind == SystemPromptResourceKind.AgentPrompt
-            ? new HashSet<string>(["name", "description", "system", "version", "max_tokens", "id", "kind", "path"], StringComparer.OrdinalIgnoreCase)
+            ? new HashSet<string>(["name", "description", "system", "skills", "project_context", "runtime_context", "tool_guidance", "version", "max_tokens", "id", "kind", "path"], StringComparer.OrdinalIgnoreCase)
             : new HashSet<string>(["description", "version", "max_tokens", "id", "kind", "path"], StringComparer.OrdinalIgnoreCase);
+        var partOptions = PartialSystemPromptPartOptions.Empty;
+        var hasErrors = false;
         foreach (var key in frontmatter.Keys)
         {
             if (!allowedFields.Contains(key))
@@ -409,6 +325,29 @@ public sealed class SystemPromptBuilder
             {
                 diagnostics.Add(SystemPromptDiagnostic.Warning("derived_frontmatter_field", $"Prompt resource '{path}' frontmatter field '{key}' is ignored because kind/name/path are derived from the file location.", path));
             }
+            else if (resourceKind == SystemPromptResourceKind.AgentPrompt)
+            {
+                switch (key.ToLowerInvariant())
+                {
+                    case "skills":
+                        partOptions = partOptions with { Skills = ParseFrontmatterBool(frontmatter[key], key, path, diagnostics, ref hasErrors) };
+                        break;
+                    case "project_context":
+                        partOptions = partOptions with { ProjectContext = ParseFrontmatterBool(frontmatter[key], key, path, diagnostics, ref hasErrors) };
+                        break;
+                    case "runtime_context":
+                        partOptions = partOptions with { RuntimeContext = ParseFrontmatterBool(frontmatter[key], key, path, diagnostics, ref hasErrors) };
+                        break;
+                    case "tool_guidance":
+                        partOptions = partOptions with { ToolGuidance = ParseFrontmatterBool(frontmatter[key], key, path, diagnostics, ref hasErrors) };
+                        break;
+                }
+            }
+        }
+
+        if (hasErrors)
+        {
+            return null;
         }
 
         if (string.IsNullOrWhiteSpace(body))
@@ -425,10 +364,10 @@ public sealed class SystemPromptBuilder
         }
 
         var systemPromptName = resourceKind == SystemPromptResourceKind.AgentPrompt
-            ? NormalizeName(frontmatter.GetValueOrDefault("system")) ?? DefaultName
+            ? NormalizeName(frontmatter.GetValueOrDefault("system"))
             : null;
         var trimmed = body.Trim();
-        return new PromptResource(root.SourceKind, root.Precedence, path, trimmed, frontmatter.GetValueOrDefault("description"), displayName, systemPromptName, HashText(trimmed));
+        return new PromptResource(root.SourceKind, root.Precedence, path, trimmed, frontmatter.GetValueOrDefault("description"), displayName, systemPromptName, partOptions, HashText(trimmed));
     }
 
     private static Dictionary<string, string> ParseFlatKeyValueFile(string text, List<SystemPromptDiagnostic> diagnostics, string path, bool allowFrontmatterDelimiters)
@@ -733,24 +672,8 @@ public sealed class SystemPromptBuilder
         }
     }
 
-    private static IEnumerable<TemplateSource> EnumerateTemplateSources(SystemPromptContentRoots roots)
-    {
-        if (File.Exists(Path.Combine(roots.GlobalPromptRoot, "template.yml")))
-        {
-            yield return new TemplateSource("user-global", Path.Combine(roots.GlobalPromptRoot, "template.yml"));
-        }
-
-        if (roots.ProjectPromptResourcesTrusted && roots.ProjectPromptRoot is not null && File.Exists(Path.Combine(roots.ProjectPromptRoot, "template.yml")))
-        {
-            yield return new TemplateSource("project", Path.Combine(roots.ProjectPromptRoot, "template.yml"));
-        }
-    }
-
     private static string RenderSection(string title, string body)
         => $"# {title}{Environment.NewLine}{Environment.NewLine}{body.Trim()}";
-
-    private static string HashFile(string path)
-        => HashText(File.ReadAllText(path));
 
     private static string HashText(string value)
     {
@@ -856,21 +779,16 @@ public sealed class SystemPromptBuilder
     }
 
     private sealed record PromptRoot(string SourceKind, int Precedence, string Path);
-    private sealed record TemplateSource(string SourceKind, string Path);
-    private sealed record PromptResource(string SourceKind, int Precedence, string Path, string Body, string? Description, string? DisplayName, string? SystemPromptName, string Hash);
+    private sealed record PromptResource(string SourceKind, int Precedence, string Path, string Body, string? Description, string? DisplayName, string? SystemPromptName, PartialSystemPromptPartOptions PartOptions, string Hash);
     private sealed record ResourceResolution(PromptResource? Selected, string? ReplacedPath, IReadOnlyList<SkippedResource> Skipped);
     private sealed record SkippedResource(PromptResource Resource, string Status);
     private sealed record RenderedPromptPart(string Key, string Markdown);
     private enum SystemPromptResourceKind { SystemPrompt, AgentPrompt }
-    private sealed record ParsedTemplate(string? BaseName, string? InstructionName, PartialSystemPromptPartOptions Options, bool HasErrors)
-    {
-        public static ParsedTemplate Error { get; } = new(null, null, PartialSystemPromptPartOptions.Empty, true);
-    }
 
-    private sealed record SystemPromptResolvedTemplate(string BaseName, string BaseReason, string InstructionName, string InstructionReason, SystemPromptPartOptions PartOptions, IReadOnlyList<SystemPromptTemplateFileManifest> TemplateFiles)
+    private sealed record SystemPromptResolvedComposition(string SystemPromptName, string SystemPromptReason, string AgentPromptName, string AgentPromptReason, SystemPromptPartOptions PartOptions)
     {
-        public SystemPromptTemplateManifest ToManifest()
-            => new(BaseName, BaseReason, InstructionName, InstructionReason, PartOptions, TemplateFiles);
+        public SystemPromptCompositionManifest ToManifest()
+            => new(SystemPromptName, SystemPromptReason, AgentPromptName, AgentPromptReason, PartOptions);
     }
 }
 
@@ -1002,27 +920,26 @@ public sealed record SystemPromptManifest(
     int Version,
     string PromptId,
     string EffectivePromptHash,
-    SystemPromptTemplateManifest Template,
+    SystemPromptCompositionManifest Composition,
     SystemPromptProviderMapping Provider,
     IReadOnlyList<SystemPromptManifestPart> Parts,
     SystemPromptStatistics Statistics,
     IReadOnlyList<SystemPromptDiagnostic> Diagnostics);
 
 /// <summary>
-/// Prompt template selection metadata.
+/// Prompt composition metadata.
 /// </summary>
-public sealed record SystemPromptTemplateManifest(
-    string BaseName,
-    string BaseReason,
-    string InstructionName,
-    string InstructionReason,
-    SystemPromptPartOptions PartOptions,
-    IReadOnlyList<SystemPromptTemplateFileManifest> TemplateFiles);
-
-/// <summary>
-/// A template file used during prompt composition.
-/// </summary>
-public sealed record SystemPromptTemplateFileManifest(string SourceKind, string Path, string Hash, string Status);
+/// <param name="SystemPromptName">The selected system prompt id.</param>
+/// <param name="SystemPromptReason">The reason/source for the selected system prompt id.</param>
+/// <param name="AgentPromptName">The selected agent prompt id.</param>
+/// <param name="AgentPromptReason">The reason/source for the selected agent prompt id.</param>
+/// <param name="PartOptions">The effective generated prompt-part options.</param>
+public sealed record SystemPromptCompositionManifest(
+    string SystemPromptName,
+    string SystemPromptReason,
+    string AgentPromptName,
+    string AgentPromptReason,
+    SystemPromptPartOptions PartOptions);
 
 /// <summary>
 /// Provider mapping metadata for prompt audit.

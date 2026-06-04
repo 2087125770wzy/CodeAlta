@@ -137,9 +137,9 @@ Prompt resources are file-backed under `prompts/` roots:
 - user-global content: `~/.alta/prompts/`;
 - project-local content: `<project>/.alta/prompts/`.
 
-Each root can contain `system/<id>.system-prompt.md`, `agents/<id>.prompt.md`, and an optional `template.yml`. Source precedence is deterministic: built-in < global < project. A later source with the same id overrides the earlier source.
+Each root can contain `system/<id>.system-prompt.md` and `agents/<id>.prompt.md`. Source precedence is deterministic: built-in < global < project. A later source with the same id overrides the earlier source.
 
-System prompts carry the invariant host/agent behavior. Agent prompts are selectable session profiles with required `name` frontmatter for UI display, optional `description`, optional `system` (default `default`), and a Markdown body that is included in the composed developer instructions. Prompt descriptions are also surfaced in generated model context for prompt/mode discoverability, so custom descriptions should be concise and decision-useful. Built-in resources are read-only; global and project prompt/system-prompt files can be edited through the prompt manager or `alta prompt` live-tool commands. The selected agent prompt determines the system prompt id unless a runtime/template system override is supplied.
+System prompts carry the invariant host/agent behavior. Agent prompts are selectable session profiles with required `name` frontmatter for UI display, optional `description`, optional `system` (default `default`), optional generated-part overrides (`skills`, `project_context`, `runtime_context`, `tool_guidance`), and a Markdown body that is included in the composed developer instructions. Prompt descriptions are also surfaced in generated model context for prompt/mode discoverability, so custom descriptions should be concise and decision-useful. Built-in resources are read-only; global and project prompt/system-prompt files can be edited through the prompt manager or `alta prompt` live-tool commands. The selected agent prompt determines the system prompt id unless a runtime system override is supplied.
 
 `SystemPromptBuilder` composes:
 

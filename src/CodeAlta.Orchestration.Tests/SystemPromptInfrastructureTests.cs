@@ -65,7 +65,6 @@ public sealed class SystemPromptInfrastructureTests
         WritePrompt(appBase, "default", "Default", "default", "Built-in default prompt.");
         WriteSystem(projectRoot, "custom-system", "Project custom system.");
         WritePrompt(projectRoot, "review", "Review", "custom-system", "Review the current change set.");
-        WriteTemplate(projectRoot, "default", "review");
 
         var builder = new SystemPromptBuilder(new FileSystemPromptContentLocator(appBase));
         var bundle = builder.Build(new SystemPromptBuildRequest
@@ -89,6 +88,7 @@ public sealed class SystemPromptInfrastructureTests
                 ProjectPath = projectRoot,
             },
             UserCodeAltaRoot = globalRoot,
+            SelectedPromptName = "review",
             PartOptionsOverride = new PartialSystemPromptPartOptions(
                 Skills: false,
                 ProjectContext: false,
@@ -99,9 +99,73 @@ public sealed class SystemPromptInfrastructureTests
         Assert.AreEqual("Project custom system.", bundle.SystemMessage);
         StringAssert.Contains(bundle.DeveloperInstructions!, "# Agent Prompt");
         StringAssert.Contains(bundle.DeveloperInstructions!, "Review the current change set.");
-        Assert.AreEqual("custom-system", bundle.Manifest.Template.BaseName);
-        Assert.AreEqual("review", bundle.Manifest.Template.InstructionName);
+        Assert.AreEqual("custom-system", bundle.Manifest.Composition.SystemPromptName);
+        Assert.AreEqual("review", bundle.Manifest.Composition.AgentPromptName);
         Assert.IsTrue(bundle.Manifest.Parts.Any(static part => part.Key == "agents/review" && part.Status == "selected"));
+    }
+
+    [TestMethod]
+    public void SystemPromptBuilder_UsesAgentPromptFrontmatterCompositionOverrides()
+    {
+        using var temp = TempDirectory.Create();
+        var appBase = Path.Combine(temp.Path, "app");
+        var globalRoot = Path.Combine(temp.Path, "global");
+        var projectRoot = Path.Combine(temp.Path, "project");
+        Directory.CreateDirectory(projectRoot);
+        WriteSystem(appBase, "default", "Built-in default system.");
+        WritePrompt(appBase, "default", "Default", "default", "Built-in default prompt.");
+        WritePrompt(
+            projectRoot,
+            "minimal",
+            "Minimal",
+            "default",
+            "Minimal prompt body.",
+            frontmatterLines:
+            [
+                "skills: false",
+                "project_context: false",
+                "runtime_context: false",
+                "tool_guidance: false",
+            ]);
+
+        var builder = new SystemPromptBuilder(new FileSystemPromptContentLocator(appBase));
+        var bundle = builder.Build(new SystemPromptBuildRequest
+        {
+            ProviderKey = "codex",
+            ProviderType = "codex",
+            ProtocolFamily = "codex",
+            Session = new SessionViewDescriptor
+            {
+                SessionId = "session-1",
+                ProviderId = "codex",
+                ProviderKey = "codex",
+                WorkingDirectory = projectRoot,
+                Kind = SessionViewKind.ProjectSession,
+            },
+            Project = new ProjectDescriptor
+            {
+                Id = "project-1",
+                Slug = "project-1",
+                DisplayName = "Project 1",
+                ProjectPath = projectRoot,
+            },
+            UserCodeAltaRoot = globalRoot,
+            SelectedPromptName = "minimal",
+            AvailableSkillsMarkdown = "Available skill guidance.",
+        });
+
+        var developerInstructions = bundle.DeveloperInstructions!;
+        StringAssert.Contains(developerInstructions, "Minimal prompt body.");
+        Assert.IsFalse(developerInstructions.Contains("# Runtime Context", StringComparison.Ordinal));
+        Assert.IsFalse(developerInstructions.Contains("# Tool Guidance", StringComparison.Ordinal));
+        Assert.IsFalse(developerInstructions.Contains("# Agent Prompts", StringComparison.Ordinal));
+        Assert.IsFalse(developerInstructions.Contains("# Available Skills", StringComparison.Ordinal));
+        Assert.IsFalse(bundle.Manifest.Parts.Any(static part => part.Kind is "runtime_context" or "tool_guidance" or "agent_prompts" or "available_skills"));
+        Assert.AreEqual("minimal", bundle.Manifest.Composition.AgentPromptName);
+        Assert.IsFalse(bundle.Manifest.Composition.PartOptions.Skills);
+        Assert.IsFalse(bundle.Manifest.Composition.PartOptions.ProjectContext);
+        Assert.IsFalse(bundle.Manifest.Composition.PartOptions.RuntimeContext);
+        Assert.IsFalse(bundle.Manifest.Composition.PartOptions.ToolGuidance);
     }
 
     [TestMethod]
@@ -179,7 +243,7 @@ public sealed class SystemPromptInfrastructureTests
             """);
     }
 
-    private static void WritePrompt(string root, string id, string name, string system, string body, string description = "Test agent prompt.")
+    private static void WritePrompt(string root, string id, string name, string system, string body, string description = "Test agent prompt.", IReadOnlyList<string>? frontmatterLines = null)
     {
         var directory = root.EndsWith("app", StringComparison.OrdinalIgnoreCase)
             ? Path.Combine(root, "content", "prompts", "agents")
@@ -187,25 +251,26 @@ public sealed class SystemPromptInfrastructureTests
                 ? Path.Combine(root, ".alta", "prompts", "agents")
                 : Path.Combine(root, "prompts", "agents");
         Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, id + ".prompt.md"), $"""
-            ---
-            name: {name}
-            system: {system}
-            description: {description}
-            ---
-            {body}
-            """);
-    }
+        var builder = new StringWriter();
+        builder.WriteLine("---");
+        builder.WriteLine("name: " + name);
+        if (!string.Equals(system, "default", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.WriteLine("system: " + system);
+        }
 
-    private static void WriteTemplate(string root, string system, string agent)
-    {
-        var directory = Path.Combine(root, ".alta", "prompts");
-        Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, "template.yml"), $"""
-            version: 1
-            system: {system}
-            agent: {agent}
-            """);
+        builder.WriteLine("description: " + description);
+        if (frontmatterLines is not null)
+        {
+            foreach (var line in frontmatterLines)
+            {
+                builder.WriteLine(line);
+            }
+        }
+
+        builder.WriteLine("---");
+        builder.WriteLine(body);
+        File.WriteAllText(Path.Combine(directory, id + ".prompt.md"), builder.ToString());
     }
 
     private sealed class TempDirectory : IDisposable

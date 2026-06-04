@@ -43,13 +43,13 @@
 
 ## Risks and challenges
 - Discoverability may increase prompt tokens if many custom prompts exist; compact formatting and one-line descriptions mitigate this.
-- The final current prompt can fall back to `default` if the requested prompt is missing; the current marker must use `bundle.Manifest.Template.InstructionName`/post-fallback template value, not the raw requested id.
+- The final current prompt can fall back to `default` if the requested prompt is missing; the current marker must use `bundle.Manifest.Composition.AgentPromptName`/post-fallback composition value, not the raw requested id.
 - The section must not expose paths/hashes/custom prompt bodies, which may be sensitive.
 - Source precedence tests need temporary built-in/global/project roots that mirror `FileSystemPromptContentLocator` layout.
-- If `ToolGuidance` is disabled by a prompt template, prompt-switch guidance will also be disabled by design; document this if surprising.
+- If `ToolGuidance` is disabled by an agent prompt composition override, prompt-switch guidance will also be disabled by design; document this if surprising.
 
 ## Implementation checklist
-- [x] In `SystemPromptBuilder.Build`, add a generated `Agent Prompts` developer part after tool guidance and before skills, gated by `template.PartOptions.ToolGuidance` and non-empty prompt discovery output.
+- [x] In `SystemPromptBuilder.Build`, add a generated `Agent Prompts` developer part after tool guidance and before skills, gated by `composition.PartOptions.ToolGuidance` and non-empty prompt discovery output.
 - [x] Add private helper(s) in `SystemPromptBuilder` to query `AgentPromptCatalog.ListEffectivePrompts` with the same built-in/global/project roots and format compact multiline Markdown prompt profile lists.
 - [x] Ensure the current marker uses the final selected/fallback agent prompt id after `ResolveResource` fallback logic.
 - [x] Keep the generated section free of prompt bodies, source paths, hashes, and shadowed prompt details.

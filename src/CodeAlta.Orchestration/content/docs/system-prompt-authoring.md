@@ -20,7 +20,6 @@ prompts/
   agents/
     default.prompt.md
     reviewer.prompt.md
-  template.yml
 ```
 
 ## System prompts
@@ -32,7 +31,8 @@ System prompts define host-level behavior and use the suffix `.system-prompt.md`
 description: Team default system prompt.
 version: 1
 ---
-You are CodeAlta, helping this team complete software tasks safely and efficiently.
+You are CodeAlta, helping this team complete software tasks safely and
+efficiently.
 ```
 
 ## Agent prompts
@@ -45,23 +45,28 @@ name: Team Reviewer
 system: team-default
 description: Review-oriented project prompt.
 ---
-Review the requested changes for correctness, regressions, test coverage, and actionable risks before summarizing.
+Review the requested changes for correctness, regressions, test coverage,
+and actionable risks before summarizing.
 ```
 
 The file name supplies the prompt id. For example, `team-reviewer.prompt.md` creates the prompt id `team-reviewer`. A global or project file with the same id overrides the lower-precedence prompt.
 
-## Template defaults
+## Composition overrides
 
-`template.yml` can choose default prompt ids and generated parts:
+Prompt composition overrides live in agent prompt frontmatter. Omit these fields to use CodeAlta defaults; add them only when a workflow intentionally needs to include or exclude generated context sections.
 
-```yaml
-version: 1
+```markdown
+---
+name: Minimal Reviewer
+description: Review-oriented project prompt with smaller generated context.
 system: team-default
-agent: team-reviewer
-skills: true
+skills: false
 project_context: true
 runtime_context: true
-tool_guidance: true
+tool_guidance: false
+---
+Review the requested changes for correctness, regressions, test coverage,
+and actionable risks before summarizing.
 ```
 
-The template accepts `system` for the system prompt id and `agent` for the selectable agent prompt id. The older `developer` key is still accepted for compatibility.
+Supported composition fields are `skills`, `project_context`, `runtime_context`, and `tool_guidance`. Each value must be `true` or `false`.

@@ -51,7 +51,7 @@ public sealed class AgentInstructionTemplateProvider
     {
         ArgumentNullException.ThrowIfNull(session);
         var bundle = BuildPromptBundle(session, project, model, selectedPromptName);
-        session.AgentPromptId = bundle.Manifest.Template.InstructionName;
+        session.AgentPromptId = bundle.Manifest.Composition.AgentPromptName;
         return new AgentInstructionBundle
         {
             SystemMessage = bundle.SystemMessage,
@@ -76,7 +76,7 @@ public sealed class AgentInstructionTemplateProvider
     {
         ArgumentNullException.ThrowIfNull(session);
         var bundle = BuildPromptBundle(session, project, model, selectedPromptName);
-        session.AgentPromptId = bundle.Manifest.Template.InstructionName;
+        session.AgentPromptId = bundle.Manifest.Composition.AgentPromptName;
         return new AgentInstructionBundle
         {
             SystemMessage = bundle.SystemMessage,
