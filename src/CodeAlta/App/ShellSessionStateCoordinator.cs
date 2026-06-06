@@ -178,7 +178,11 @@ internal sealed partial class ShellSessionStateCoordinator
         ArgumentNullException.ThrowIfNull(session);
 
         RememberLocallyRegisteredSession(session);
-        _viewStateCoordinator.ApplySessionLocalState([session], ViewState, readJournal: false);
+        if (!Sessions.Any(existingSession => ReferenceEquals(existingSession, session)))
+        {
+            _viewStateCoordinator.ApplySessionLocalState([session], ViewState, readJournal: false);
+        }
+
         var localState = _viewStateCoordinator.RememberSessionLocalState(ViewState, session);
         global::CodeAlta.CodeAltaTaskMonitor.Observe(
             _viewStateCoordinator.PersistSessionLocalStateSnapshotAsync(session, localState),

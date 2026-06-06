@@ -248,7 +248,6 @@ internal sealed class CodeAltaFrontendComposition
                 RefreshProjection = frontend.RefreshSidebarProjection,
             });
         var sessionProviderSwitchCoordinator = new SessionProviderSwitchCoordinator(
-            configStore,
             modelProviderStates,
             tab =>
             {

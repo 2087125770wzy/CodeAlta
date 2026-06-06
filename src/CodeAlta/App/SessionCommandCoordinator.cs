@@ -156,23 +156,23 @@ internal sealed class SessionCommandCoordinator
 
             _commandContext.ClearDraftInput();
         }
-        else if (!IsModelProviderReady(new ModelProviderId(session.ProviderId)))
+        var tab = _sessionSelection.EnsureSessionTab(session);
+        if (!IsModelProviderReady(tab.ProviderId))
         {
             _commandContext.SetReadyStatusForCurrentSelection();
             return;
         }
+
         if (!prompt.HasContent)
         {
             if (steer && session is not null)
             {
-                var queuedTab = _sessionSelection.EnsureSessionTab(session);
-                await _queueCoordinator.ConvertNextQueuedPromptToSteerAsync(queuedTab, cancellationToken);
+                await _queueCoordinator.ConvertNextQueuedPromptToSteerAsync(tab, cancellationToken);
             }
 
             return;
         }
 
-        var tab = _sessionSelection.EnsureSessionTab(session);
         if (prompt.Images.Count > 0 && !CurrentPromptModelSupportsImages(session, tab))
         {
             _commandContext.SetShellStatus("The selected model does not support image input; remove the prompt images or choose a vision-capable model.", false, StatusTone.Warning);

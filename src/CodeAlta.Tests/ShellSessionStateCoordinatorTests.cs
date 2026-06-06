@@ -354,6 +354,41 @@ public sealed class ShellSessionStateCoordinatorTests
     }
 
     [TestMethod]
+    public void UpsertRuntimeSession_PreservesInMemoryProviderSelectionOverStaleLocalState()
+    {
+        using var temp = TempDirectory.Create();
+        var options = new CatalogOptions { GlobalRoot = temp.Path };
+        var coordinator = CreateCoordinator(options);
+        var project = CreateProject("project-1", "CodeAlta");
+        var session = CreateSession("session-1", project.Id);
+        session.ProviderId = "disabled-provider";
+        session.ProviderKey = "disabled-provider";
+        coordinator.ApplyRecoveredCatalogState([project], [session]);
+        coordinator.ViewState.SessionStates[session.SessionId] = new SessionViewLocalState
+        {
+            ProviderKey = "openai",
+            ModelId = "old-model",
+            ReasoningEffort = AgentReasoningEffort.Low,
+        };
+        session.ProviderId = "anthropic";
+        session.ProviderKey = "anthropic";
+        session.ModelId = "claude-sonnet-4";
+        session.ReasoningEffort = AgentReasoningEffort.High;
+
+        coordinator.UpsertRuntimeSession(session);
+
+        var updated = coordinator.Sessions.Single(candidate => candidate.SessionId == session.SessionId);
+        Assert.AreSame(session, updated);
+        Assert.AreEqual("anthropic", updated.ProviderId);
+        Assert.AreEqual("anthropic", updated.ProviderKey);
+        Assert.AreEqual("claude-sonnet-4", updated.ModelId);
+        Assert.AreEqual(AgentReasoningEffort.High, updated.ReasoningEffort);
+        Assert.AreEqual("anthropic", coordinator.ViewState.SessionStates[session.SessionId].ProviderKey);
+        Assert.AreEqual("claude-sonnet-4", coordinator.ViewState.SessionStates[session.SessionId].ModelId);
+        Assert.AreEqual(AgentReasoningEffort.High, coordinator.ViewState.SessionStates[session.SessionId].ReasoningEffort);
+    }
+
+    [TestMethod]
     public async Task ClosingSessionTab_DoesNotStopSession()
     {
         using var temp = TempDirectory.Create();

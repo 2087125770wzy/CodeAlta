@@ -126,6 +126,47 @@ public sealed class SessionExecutionOptionsFactoryTests
     }
 
     [TestMethod]
+    public void BuildExecutionOptions_UsesOpenTabProviderSelection()
+    {
+        using var temp = TestTempDirectory.Create();
+        var catalogOptions = new CatalogOptions { GlobalRoot = temp.Path };
+        var uiDispatcher = new InlineUiDispatcher();
+        var sessionState = TestSessionStateServices.CreateCoordinator(
+            new ProjectCatalog(catalogOptions),
+            new SessionViewCatalog(catalogOptions),
+            uiDispatcher,
+            new ShellStateStore(uiDispatcher));
+        var session = CreateSession("session-1", "openai", temp.Path);
+        sessionState.ApplyInitialCatalogState(new ShellSessionStateCoordinator.InitialCatalogState([], [session], new SessionViewViewState()));
+        sessionState.OpenSession(session.SessionId);
+        var tab = sessionState.FindOpenSession(session.SessionId);
+        Assert.IsNotNull(tab);
+        tab.ProviderId = new ModelProviderId("anthropic");
+        tab.ModelId = "claude-sonnet-4";
+        tab.ReasoningEffort = AgentReasoningEffort.High;
+        session.ProviderId = "openai";
+        session.ProviderKey = "openai";
+        var selection = new SessionSelectionContext(
+            sessionState,
+            static (_, _) => Task.CompletedTask,
+            static _ => false);
+        var commandContext = CreateCommandContext(uiDispatcher);
+        var factory = new SessionExecutionOptionsFactory(
+            catalogOptions,
+            new Dictionary<string, ModelProviderState>(StringComparer.OrdinalIgnoreCase),
+            selection,
+            new SessionPermissionRequestCoordinator(selection, commandContext),
+            new SessionUserInputRequestCoordinator(selection, commandContext));
+
+        var options = factory.BuildExecutionOptions(session, tab);
+
+        Assert.AreEqual("anthropic", options.ProviderId.Value);
+        Assert.AreEqual("anthropic", options.ProviderKey);
+        Assert.AreEqual("claude-sonnet-4", options.Model);
+        Assert.AreEqual(AgentReasoningEffort.High, options.ReasoningEffort);
+    }
+
+    [TestMethod]
     public async Task BuildPreferredExecutionOptions_AddsAltaToolForAnyProviderWhenServicesAreAvailable()
     {
         using var temp = TestTempDirectory.Create();
@@ -241,6 +282,20 @@ public sealed class SessionExecutionOptionsFactoryTests
             DisplayName = id,
             ProjectPath = path,
             DefaultBranch = "main",
+        };
+
+    private static SessionViewDescriptor CreateSession(string sessionId, string providerKey, string workingDirectory)
+        => new()
+        {
+            SessionId = sessionId,
+            Kind = SessionViewKind.GlobalSession,
+            ProviderId = providerKey,
+            ProviderKey = providerKey,
+            WorkingDirectory = workingDirectory,
+            Title = sessionId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            LastActiveAt = DateTimeOffset.UtcNow,
         };
 
     private sealed class InlineUiDispatcher : IUiDispatcher

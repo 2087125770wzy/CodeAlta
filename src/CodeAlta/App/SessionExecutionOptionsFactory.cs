@@ -83,11 +83,14 @@ internal sealed class SessionExecutionOptionsFactory
 
         var workingDirectory = ResolveWorkingDirectory(session);
         var projectRoots = ResolveProjectRoots(session);
-        var providerId = new ModelProviderId(session.ResolvedProviderKey);
+        var providerKey = tab.ProviderId.IsEmpty
+            ? session.ResolvedProviderKey
+            : tab.ProviderId.Value;
+        var providerId = new ModelProviderId(providerKey);
         return new SessionExecutionOptions
         {
             ProviderId = providerId,
-            ProviderKey = session.ResolvedProviderKey,
+            ProviderKey = providerKey,
             WorkingDirectory = workingDirectory,
             ProjectRoots = projectRoots,
             Model = tab.ModelId,

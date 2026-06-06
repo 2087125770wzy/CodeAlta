@@ -13,15 +13,11 @@ public sealed class SessionProviderSwitchCoordinatorTests
     [TestMethod]
     public async Task SwitchSessionProviderAsync_UpdatesProviderWithoutRekeyingSessionOrTouchingSessionStore()
     {
-        using var temp = TempDirectory.Create();
-        WriteProviderConfig(temp.Path);
-        var options = new CatalogOptions { GlobalRoot = temp.Path };
         var providerStates = CreateProviderStates();
         var updatedSessions = new List<SessionViewDescriptor>();
         var detachedSessionIds = new List<string>();
         var persisted = false;
         var coordinator = new SessionProviderSwitchCoordinator(
-            new CodeAltaConfigStore(options),
             providerStates,
             tab =>
             {
@@ -65,11 +61,7 @@ public sealed class SessionProviderSwitchCoordinatorTests
     [TestMethod]
     public async Task SwitchSessionProviderAsync_AllowsNativeSourceWithoutReadingHistory()
     {
-        using var temp = TempDirectory.Create();
-        WriteProviderConfig(temp.Path);
-        var options = new CatalogOptions { GlobalRoot = temp.Path };
         var coordinator = new SessionProviderSwitchCoordinator(
-            new CodeAltaConfigStore(options),
             CreateProviderStates(includeNative: true),
             static tab =>
             {
@@ -95,17 +87,77 @@ public sealed class SessionProviderSwitchCoordinatorTests
     }
 
     [TestMethod]
+    public async Task SwitchSessionProviderAsync_AllowsUnavailableSourceProvider()
+    {
+        var coordinator = new SessionProviderSwitchCoordinator(
+            CreateProviderStates(),
+            static tab =>
+            {
+                tab.ModelId = "claude-sonnet-4";
+                return Task.CompletedTask;
+            },
+            static _ => Task.FromResult(true),
+            static _ => { },
+            static () => Task.CompletedTask);
+        var createdAt = DateTimeOffset.Parse("2026-04-19T10:00:00+00:00");
+        var session = CreateSession("session-1", "disabled-provider", createdAt);
+        var tabState = CreateTabState(session, "disabled-provider", "old-model");
+
+        Assert.IsTrue(coordinator.CanSelectSessionProvider(session, tabState));
+
+        var switched = await coordinator.SwitchSessionProviderAsync(
+            session,
+            tabState,
+            new ModelProviderId("anthropic")).ConfigureAwait(false);
+
+        Assert.IsTrue(switched);
+        Assert.AreEqual("anthropic", session.ProviderId);
+        Assert.AreEqual("anthropic", session.ProviderKey);
+        Assert.AreEqual("anthropic", tabState.ProviderId.Value);
+        Assert.AreEqual("claude-sonnet-4", tabState.ModelId);
+    }
+
+    [TestMethod]
+    public async Task SwitchSessionProviderAsync_DropsPreviousProviderModelWhenTargetHasNoModels()
+    {
+        var coordinator = new SessionProviderSwitchCoordinator(
+            CreateProviderStates(includeNative: true),
+            static tab =>
+            {
+                tab.ModelId = "old-provider-model";
+                tab.ReasoningEffort = AgentReasoningEffort.High;
+                return Task.CompletedTask;
+            },
+            static _ => Task.FromResult(true),
+            static _ => { },
+            static () => Task.CompletedTask);
+        var createdAt = DateTimeOffset.Parse("2026-04-19T10:00:00+00:00");
+        var session = CreateSession("session-1", "openai", createdAt);
+        session.ModelId = "old-provider-model";
+        session.ReasoningEffort = AgentReasoningEffort.High;
+        var tabState = CreateTabState(session, "openai", "old-provider-model");
+
+        var switched = await coordinator.SwitchSessionProviderAsync(
+            session,
+            tabState,
+            ModelProviderIds.Codex).ConfigureAwait(false);
+
+        Assert.IsTrue(switched);
+        Assert.AreEqual(ModelProviderIds.Codex.Value, session.ProviderId);
+        Assert.IsNull(tabState.ModelId);
+        Assert.IsNull(session.ModelId);
+        Assert.IsNull(tabState.ReasoningEffort);
+        Assert.IsNull(session.ReasoningEffort);
+    }
+
+    [TestMethod]
     public async Task SwitchSessionProviderAsync_UpdatesVisibleProviderBeforeDetachingSession()
     {
-        using var temp = TempDirectory.Create();
-        WriteProviderConfig(temp.Path);
-        var options = new CatalogOptions { GlobalRoot = temp.Path };
         var createdAt = DateTimeOffset.Parse("2026-04-19T10:00:00+00:00");
         var session = CreateSession("session-1", "openai", createdAt);
         var tabState = CreateTabState(session, "openai", "gpt-4.1");
         var observedTargetDuringDetach = false;
         var coordinator = new SessionProviderSwitchCoordinator(
-            new CodeAltaConfigStore(options),
             CreateProviderStates(),
             static _ => Task.CompletedTask,
             _ =>
@@ -130,15 +182,11 @@ public sealed class SessionProviderSwitchCoordinatorTests
     [TestMethod]
     public async Task SwitchSessionProviderAsync_DropsPreviousProviderModelSelection()
     {
-        using var temp = TempDirectory.Create();
-        WriteProviderConfig(temp.Path);
-        var options = new CatalogOptions { GlobalRoot = temp.Path };
         var createdAt = DateTimeOffset.Parse("2026-04-19T10:00:00+00:00");
         var session = CreateSession("session-1", "openai", createdAt);
         session.ModelId = "gpt-4.1";
         var tabState = CreateTabState(session, "openai", "gpt-4.1");
         var coordinator = new SessionProviderSwitchCoordinator(
-            new CodeAltaConfigStore(options),
             CreateProviderStates(),
             tab =>
             {
@@ -165,10 +213,7 @@ public sealed class SessionProviderSwitchCoordinatorTests
     [TestMethod]
     public void CanSwitchSessionProvider_AllowsDirectCodexTarget()
     {
-        using var temp = TempDirectory.Create();
-        WriteProviderConfig(temp.Path);
         var coordinator = new SessionProviderSwitchCoordinator(
-            new CodeAltaConfigStore(new CatalogOptions { GlobalRoot = temp.Path }),
             CreateProviderStates(includeNative: true),
             static _ => Task.CompletedTask,
             static _ => Task.FromResult(true),
@@ -179,24 +224,6 @@ public sealed class SessionProviderSwitchCoordinatorTests
 
         Assert.IsTrue(coordinator.CanSelectSessionProvider(session, tabState));
         Assert.IsTrue(coordinator.CanSwitchSessionProvider(session, tabState, ModelProviderIds.Codex));
-    }
-
-    private static void WriteProviderConfig(string root)
-    {
-        File.WriteAllText(
-            Path.Combine(root, "config.toml"),
-            """
-            [providers.openai]
-            type = "openai-chat"
-            api_key_env = "OPENAI_API_KEY"
-
-            [providers.codex]
-            type = "codex"
-            model = "gpt-5.5"
-            [providers.anthropic]
-            type = "anthropic"
-            api_key_env = "ANTHROPIC_API_KEY"
-            """);
     }
 
     private static Dictionary<string, ModelProviderState> CreateProviderStates(bool includeNative = false)
@@ -293,40 +320,6 @@ public sealed class SessionProviderSwitchCoordinatorTests
         {
             ArgumentNullException.ThrowIfNull(action);
             return Task.FromResult(action());
-        }
-    }
-
-    private sealed class TempDirectory : IDisposable
-    {
-        private TempDirectory(string path)
-        {
-            Path = path;
-        }
-
-        public string Path { get; }
-
-        public static TempDirectory Create()
-        {
-            var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "CodeAltaTests", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(path);
-            return new TempDirectory(path);
-        }
-
-        public void Dispose()
-        {
-            try
-            {
-                if (Directory.Exists(Path))
-                {
-                    Directory.Delete(Path, recursive: true);
-                }
-            }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
         }
     }
 }

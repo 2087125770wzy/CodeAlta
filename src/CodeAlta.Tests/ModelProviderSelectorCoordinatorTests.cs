@@ -366,6 +366,72 @@ public sealed class ModelProviderSelectorCoordinatorTests
     }
 
     [TestMethod]
+    public async Task OnModelProviderSelectionChangedAsync_SwitchesAwayFromUnavailableProviderAndEnablesPrompt()
+    {
+        using var temp = TempDirectory.Create();
+        var sessionStateCoordinator = CreateSessionStateCoordinator(temp.Path, out var session);
+        session.ProviderId = "disabled-provider";
+        session.ProviderKey = "disabled-provider";
+        var sessionSelection = new SessionSelectionContext(
+            sessionStateCoordinator,
+            static (_, _) => Task.CompletedTask,
+            static _ => true);
+        var tab = sessionStateCoordinator.EnsureSessionTab(session);
+        tab.ProviderId = new ModelProviderId("disabled-provider");
+        tab.ModelId = "old-model";
+
+        var workspaceViewModel = new SessionWorkspaceViewModel();
+        var promptComposerViewModel = new PromptComposerViewModel();
+        ModelProviderDescriptor[] providerDescriptors =
+        [
+            new(new ModelProviderId("openai"), "OpenAI"),
+        ];
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates["openai"].Models.Add(new AgentModelInfo("gpt-5.4", DisplayName: "GPT-5.4"));
+
+        var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
+        var preferences = new FrontendModelProviderPreferencePort(
+            ApplyDraftModelProviderPreference,
+            static _ => { },
+            static (_, _, _) => { },
+            static (_, _, _, _) => { });
+        var coordinator = new ModelProviderSelectorCoordinator(
+            providerDescriptors,
+            workspaceViewModel,
+            promptComposerViewModel,
+            providerStates,
+            selectorState,
+            sessionSelection,
+            preferences,
+            new WorkspaceRefreshContext(static _ => { }),
+            static _ => null,
+            static () => { },
+            static (_, _) => true,
+            (_, selectedTab, targetProviderId) =>
+            {
+                session.ProviderId = targetProviderId.Value;
+                session.ProviderKey = targetProviderId.Value;
+                selectedTab.ProviderId = targetProviderId;
+                selectedTab.ModelId = "gpt-5.4";
+                return Task.FromResult(true);
+            });
+
+        coordinator.RefreshForSession(tab);
+        coordinator.ApplyPromptAvailabilityProjection();
+        Assert.IsFalse(promptComposerViewModel.CanSend);
+
+        await coordinator.OnModelProviderSelectionChangedAsync(newIndex: 1);
+        coordinator.RefreshForSession(tab);
+        coordinator.ApplyPromptAvailabilityProjection();
+
+        Assert.AreEqual(0, workspaceViewModel.SelectedModelProviderIndex);
+        Assert.IsTrue(promptComposerViewModel.IsEnabled);
+        Assert.IsTrue(promptComposerViewModel.CanSend);
+        StringAssert.Contains(promptComposerViewModel.Placeholder, "Continue the selected session");
+    }
+
+    [TestMethod]
     public void ApplyPromptAvailabilityProjection_RefreshesSessionModelProviderSelectionCapability()
     {
         using var temp = TempDirectory.Create();
@@ -538,6 +604,73 @@ public sealed class ModelProviderSelectorCoordinatorTests
 
         switchCompletion.SetResult(true);
         await selectionChanged;
+    }
+
+    [TestMethod]
+    public async Task OnModelProviderSelectionChangedAsync_DoesNotResetWhenPassingUnavailableProvider()
+    {
+        using var temp = TempDirectory.Create();
+        var sessionStateCoordinator = CreateSessionStateCoordinator(temp.Path, out var session);
+        var sessionSelection = new SessionSelectionContext(
+            sessionStateCoordinator,
+            static (_, _) => Task.CompletedTask,
+            static _ => true);
+        var tab = sessionStateCoordinator.EnsureSessionTab(session);
+
+        var workspaceViewModel = new SessionWorkspaceViewModel();
+        var promptComposerViewModel = new PromptComposerViewModel();
+        ModelProviderDescriptor[] providerDescriptors =
+        [
+            new(new ModelProviderId("openai"), "OpenAI"),
+            new(ModelProviderIds.Codex, "Codex"),
+            new(new ModelProviderId("anthropic"), "Anthropic"),
+        ];
+        var providerStates = ModelProviderPresentation.CreateProviderStates(providerDescriptors);
+        providerStates["openai"].Availability = ModelProviderAvailability.Ready;
+        providerStates[ModelProviderIds.Codex.Value].Availability = ModelProviderAvailability.Failed;
+        providerStates["anthropic"].Availability = ModelProviderAvailability.Ready;
+
+        var selectorState = new ModelProviderSelectorStateStore(workspaceViewModel, new InlineUiDispatcher());
+        var preferences = new FrontendModelProviderPreferencePort(
+            ApplyDraftModelProviderPreference,
+            static _ => { },
+            static (_, _, _) => { },
+            static (_, _, _, _) => { });
+        var switchCallCount = 0;
+        var coordinator = new ModelProviderSelectorCoordinator(
+            providerDescriptors,
+            workspaceViewModel,
+            promptComposerViewModel,
+            providerStates,
+            selectorState,
+            sessionSelection,
+            preferences,
+            new WorkspaceRefreshContext(static _ => { }),
+            static _ => null,
+            static () => { },
+            static (_, _) => true,
+            (_, selectedTab, targetProviderId) =>
+            {
+                switchCallCount++;
+                session.ProviderId = targetProviderId.Value;
+                session.ProviderKey = targetProviderId.Value;
+                selectedTab.ProviderId = targetProviderId;
+                return Task.FromResult(true);
+            });
+
+        coordinator.RefreshForSession(tab);
+        await coordinator.OnModelProviderSelectionChangedAsync(newIndex: 1);
+
+        Assert.AreEqual(1, workspaceViewModel.SelectedModelProviderIndex, "Unavailable providers should not force the selector back while the user is navigating the dropdown.");
+        Assert.AreEqual("openai", session.ProviderId);
+        Assert.AreEqual(0, switchCallCount);
+
+        await coordinator.OnModelProviderSelectionChangedAsync(newIndex: 2);
+
+        Assert.AreEqual(2, workspaceViewModel.SelectedModelProviderIndex);
+        Assert.AreEqual("anthropic", session.ProviderId);
+        Assert.AreEqual("anthropic", tab.ProviderId.Value);
+        Assert.AreEqual(1, switchCallCount);
     }
 
     [TestMethod]

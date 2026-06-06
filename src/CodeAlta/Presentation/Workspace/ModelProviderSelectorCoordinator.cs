@@ -296,15 +296,19 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             return;
         }
 
-        if (!_modelProviderStates.ContainsKey(targetProviderId.Value))
+        if (!_modelProviderStates.TryGetValue(targetProviderId.Value, out var targetProviderState))
         {
-            RefreshForSession(tab);
             return;
         }
 
         if (!_canSelectSessionProvider(session, tab))
         {
             RefreshForSession(tab);
+            return;
+        }
+
+        if (targetProviderState.Availability != ModelProviderAvailability.Ready)
+        {
             return;
         }
 
@@ -703,7 +707,9 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
     {
         var selection = _sessionSelection.Selection;
         var selectedSession = selection.Target is WorkspaceTarget.Session ? _sessionSelection.GetSelectedSession() : null;
-        var providerId = selectedSession is not null ? new ModelProviderId(selectedSession.ProviderId) : GetPreferredModelProviderId();
+        var selectedTab = selectedSession is null ? null : _sessionSelection.FindOpenSession(selectedSession.SessionId);
+        var providerId = selectedTab?.ProviderId ??
+            (selectedSession is not null ? new ModelProviderId(selectedSession.ProviderId) : GetPreferredModelProviderId());
         if (!_modelProviderStates.TryGetValue(providerId.Value, out var providerState) && selectedSession is not null)
         {
             providerState = new ModelProviderState(providerId, BuildUnavailableSessionProviderLabel(selectedSession, providerId))
@@ -728,16 +734,15 @@ internal sealed class ModelProviderSelectorCoordinator : IPromptAvailabilityProj
             _sessionSelection.HasOpenDraftTab(),
             _sessionSelection.OpenSessionIds.Count + (_sessionSelection.HasOpenDraftTab() ? 1 : 0),
             selectedSession?.SessionId,
-            selectedSession is not null &&
-            _sessionSelection.FindOpenSession(selectedSession.SessionId) is { } selectedTab &&
+            selectedTab is not null &&
             selectedTab.QueuedPrompts.Count > 0,
             selectedSession is not null,
             selectedSession is not null &&
-            _sessionSelection.FindOpenSession(selectedSession.SessionId) is { } selectedSessionTab &&
+            selectedTab is { } selectedSessionTab &&
             selectedSession.StartedAt is not null &&
             !selectedSessionTab.StatusBusy,
             selectedSession is not null &&
-            _sessionSelection.FindOpenSession(selectedSession.SessionId) is { } selectedAbortTab &&
+            selectedTab is { } selectedAbortTab &&
             selectedAbortTab.StatusBusy,
             _getPromptPlaceholderContributions());
     }
