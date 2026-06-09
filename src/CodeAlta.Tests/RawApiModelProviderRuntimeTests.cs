@@ -301,6 +301,7 @@ public sealed class RawApiModelProviderRuntimeTests
     [TestMethod]
     [DataRow("claude-fable-5", "Claude Fable 5")]
     [DataRow("claude-mythos-5", "Claude Mythos 5")]
+    [DataRow("claude-mythos-preview", "Claude Mythos Preview")]
     public async Task AnthropicModelProviderRuntime_UsesAdaptiveThinkingForClaude5Reasoning(string modelId, string displayName)
     {
         using var temp = TestTempDirectory.Create();
@@ -352,6 +353,53 @@ public sealed class RawApiModelProviderRuntimeTests
         Assert.IsNotNull(adaptive);
         Assert.AreEqual(AnthropicDisplay.Summarized, adaptive.Display?.Value());
         Assert.AreEqual(AnthropicEffort.High, createParams.OutputConfig?.Effort?.Value());
+    }
+
+    [TestMethod]
+    [DataRow("claude-opus-4-9")]
+    [DataRow("claude-sonnet-4-10")]
+    [DataRow("anthropic.claude-opus-4-10-20260701-v1:0")]
+    [DataRow("claude-fable-5")]
+    [DataRow("claude-mythos-preview")]
+    public async Task AnthropicAdaptiveThinkingChatClient_UsesAdaptiveThinkingForClaude46AndLater(string modelId)
+    {
+        var options = await CaptureAnthropicOptionsAsync(modelId, ReasoningEffort.High).ConfigureAwait(false);
+
+        Assert.IsNotNull(options.RawRepresentationFactory);
+        var createParams = Assert.IsInstanceOfType<AnthropicMessageCreateParams>(options.RawRepresentationFactory(new RecordingChatClient([])));
+        Assert.IsNotNull(createParams.Thinking);
+        Assert.IsTrue(createParams.Thinking.TryPickAdaptive(out var adaptive));
+        Assert.IsNotNull(adaptive);
+        Assert.AreEqual(AnthropicDisplay.Summarized, adaptive.Display?.Value());
+        Assert.AreEqual(AnthropicEffort.High, createParams.OutputConfig?.Effort?.Value());
+    }
+
+    [TestMethod]
+    [DataRow("claude-opus-4-20250514")]
+    [DataRow("claude-opus-4-5-20251101")]
+    [DataRow("claude-sonnet-4-5")]
+    [DataRow("claude-haiku-4-5")]
+    [DataRow("claude-3-7-sonnet-20250219")]
+    [DataRow("MiniMax-M2.7")]
+    public async Task AnthropicAdaptiveThinkingChatClient_KeepsLegacyThinkingForOlderOrNonClaudeModels(string modelId)
+    {
+        var options = await CaptureAnthropicOptionsAsync(modelId, ReasoningEffort.High).ConfigureAwait(false);
+
+        Assert.IsNull(options.RawRepresentationFactory);
+    }
+
+    [TestMethod]
+    [DataRow("claude-opus-4-7")]
+    [DataRow("claude-opus-4-8")]
+    [DataRow("claude-fable-5")]
+    [DataRow("claude-mythos-5")]
+    public async Task AnthropicAdaptiveThinkingChatClient_MapsXHighReasoningToXHighWhenSupported(string modelId)
+    {
+        var options = await CaptureAnthropicOptionsAsync(modelId, ReasoningEffort.ExtraHigh).ConfigureAwait(false);
+
+        Assert.IsNotNull(options.RawRepresentationFactory);
+        var createParams = Assert.IsInstanceOfType<AnthropicMessageCreateParams>(options.RawRepresentationFactory(new RecordingChatClient([])));
+        Assert.AreEqual(AnthropicEffort.Xhigh, createParams.OutputConfig?.Effort?.Value());
     }
 
     [TestMethod]
@@ -439,6 +487,37 @@ public sealed class RawApiModelProviderRuntimeTests
         Assert.IsNotNull(message);
         var reasoningPart = Assert.IsInstanceOfType<AgentMessagePart.Reasoning>(message.Parts[0]);
         Assert.AreEqual("google-signature", reasoningPart.ProtectedData);
+    }
+
+    private static async Task<ChatOptions> CaptureAnthropicOptionsAsync(string modelId, ReasoningEffort reasoningEffort)
+    {
+        var inner = new RecordingChatClient(
+        [
+            new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("Anthropic answer.")])
+            {
+                MessageId = "anthropic-message",
+                ResponseId = "anthropic-response",
+                ConversationId = "anthropic-conversation",
+                ModelId = modelId,
+            },
+        ]);
+        using var client = new AnthropicAdaptiveThinkingChatClient(inner);
+        await foreach (var _ in client.GetStreamingResponseAsync(
+            [new ChatMessage(ChatRole.User, [new TextContent("Hello")])],
+            new ChatOptions
+            {
+                ModelId = modelId,
+                Reasoning = new ReasoningOptions
+                {
+                    Effort = reasoningEffort,
+                    Output = ReasoningOutput.Full,
+                },
+            }).ConfigureAwait(false))
+        {
+        }
+
+        Assert.IsNotNull(inner.LastOptions);
+        return inner.LastOptions;
     }
 
     private sealed class RecordingChatClient(IReadOnlyList<ChatResponseUpdate> updates) : IChatClient
