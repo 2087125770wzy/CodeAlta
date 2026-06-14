@@ -118,9 +118,9 @@ internal sealed class SessionUsagePresenter
             Spacing = 1,
         };
 
-        var copyButton = new Button(new TextBlock($"{TerminalIcons.MdContentCopy}"))
+        var copyButton = new Button(new TextBlock($"{NerdFont.MdContentCopy}"))
             .Click(CopyMarkdown);
-        var closeButton = new Button(new TextBlock($"{TerminalIcons.MdClose}"))
+        var closeButton = new Button(new TextBlock($"{NerdFont.MdClose}"))
             .Click(ClosePopup);
         closeButton.Tone = ControlTone.Error;
 

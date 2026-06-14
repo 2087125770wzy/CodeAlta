@@ -194,7 +194,7 @@ public sealed class AboutDialogInteractionTests
     }
 
     private static bool IsCopyButton(Button button)
-        => button.Content is TextBlock textBlock && textBlock.Text == $"{TerminalIcons.MdContentCopy}";
+        => button.Content is TextBlock textBlock && textBlock.Text == $"{NerdFont.MdContentCopy}";
 
     private static IEnumerable<Visual> EnumerateChildren(Visual visual)
     {

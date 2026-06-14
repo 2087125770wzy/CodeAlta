@@ -186,7 +186,7 @@ public sealed class DirectoryPathCompletionProviderTests
             var output = backend.GetOutText();
             StringAssert.Contains(output, "CodeAlta");
             StringAssert.Contains(output, projectPath);
-            StringAssert.Contains(output, TerminalIcons.MdFolderOutline.ToString());
+            StringAssert.Contains(output, NerdFont.MdFolderOutline.ToString());
             StringAssert.Contains(output, "╭");
             StringAssert.Contains(output, "Ctrl+I hidden");
         }

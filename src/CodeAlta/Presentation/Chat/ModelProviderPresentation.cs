@@ -126,11 +126,11 @@ internal static class ModelProviderPresentation
                 };
                 var icon = state.Availability switch
                 {
-                    ModelProviderAvailability.Ready => $"{TerminalIcons.MdCheck}",
-                    ModelProviderAvailability.Unsupported => $"{TerminalIcons.CodWarning}",
-                    ModelProviderAvailability.Failed => $"{TerminalIcons.MdClose}",
-                    ModelProviderAvailability.Probing => $"{TerminalIcons.MdTimerOutline}",
-                    _ => $"{TerminalIcons.MdHelpBox}",
+                    ModelProviderAvailability.Ready => $"{NerdFont.MdCheck}",
+                    ModelProviderAvailability.Unsupported => $"{NerdFont.CodWarning}",
+                    ModelProviderAvailability.Failed => $"{NerdFont.MdClose}",
+                    ModelProviderAvailability.Probing => $"{NerdFont.MdTimerOutline}",
+                    _ => $"{NerdFont.MdHelpBox}",
                 };
                 var selected = string.Equals(state.ProviderId.Value, selectedProviderId.Value, StringComparison.OrdinalIgnoreCase)
                     ? "[bold]"
@@ -140,7 +140,7 @@ internal static class ModelProviderPresentation
             });
 
         var prefix = isInitializing
-            ? $"[primary]{TerminalIcons.MdTimerOutline} Detecting[/] "
+            ? $"[primary]{NerdFont.MdTimerOutline} Detecting[/] "
             : string.Empty;
         return prefix + string.Join("   ", items);
     }
@@ -156,7 +156,7 @@ internal static class ModelProviderPresentation
         var states = providerStates.ToArray();
         if (isInitializing)
         {
-            return $"[primary]{TerminalIcons.MdTimerOutline} Detecting providers[/]";
+            return $"[primary]{NerdFont.MdTimerOutline} Detecting providers[/]";
         }
 
         HashSet<string>? configuredKeySet = null;
@@ -178,8 +178,8 @@ internal static class ModelProviderPresentation
         var activeLabel = readyCount == 1 ? "active provider" : "active providers";
         var activeTone = readyCount > 0 ? "success" : "muted";
         var activeIcon = readyCount > 0
-            ? $"{TerminalIcons.MdCheckCircleOutline}"
-            : $"{TerminalIcons.MdTuneVariant}";
+            ? $"{NerdFont.MdCheckCircleOutline}"
+            : $"{NerdFont.MdTuneVariant}";
         var activeSegment = $"[{activeTone}]{activeIcon} {readyCount} {activeLabel}[/]";
         var errorSegment = errorCount > 0
             ? $" [warning]· {errorCount} error{(errorCount == 1 ? string.Empty : "s")}[/]"

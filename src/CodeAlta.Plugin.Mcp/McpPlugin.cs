@@ -211,7 +211,7 @@ public sealed class McpPlugin : PluginBase
         builder.Append('[')
             .Append(serverTone)
             .Append(']')
-            .Append(McpTerminalIcons.MdServerNetwork)
+            .Append(NerdFont.MdServerNetwork)
             .Append(" MCP[/] [")
             .Append(activeServerTone)
             .Append(']')

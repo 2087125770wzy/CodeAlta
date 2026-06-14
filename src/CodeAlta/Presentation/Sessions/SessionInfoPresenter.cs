@@ -141,10 +141,10 @@ internal sealed class SessionInfoPresenter
     {
         var _ = _refreshState.Value;
 
-        var copyButton = new Button(new TextBlock($"{TerminalIcons.MdContentCopy}"))
+        var copyButton = new Button(new TextBlock($"{NerdFont.MdContentCopy}"))
             .Click(CopyMarkdown);
         var copyButtonHost = copyButton.Tooltip(new TextBlock("Copy this report as markdown."));
-        var closeButton = new Button(new TextBlock($"{TerminalIcons.MdClose}"))
+        var closeButton = new Button(new TextBlock($"{NerdFont.MdClose}"))
         {
             Tone = ControlTone.Error,
         };

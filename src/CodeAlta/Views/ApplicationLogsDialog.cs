@@ -38,7 +38,7 @@ internal sealed class ApplicationLogsDialog
             VerticalAlignment = Align.Stretch,
         }.WrapText(_wrapText);
 
-        var closeButton = new Button(new TextBlock($"{TerminalIcons.MdClose} {SR.T("Close")}"))
+        var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} {SR.T("Close")}"))
         {
             HorizontalAlignment = Align.End,
             VerticalAlignment = Align.Start,
@@ -46,7 +46,7 @@ internal sealed class ApplicationLogsDialog
         };
         closeButton.Click(Close);
 
-        var clearButton = new Button($"{TerminalIcons.MdDeleteOutline} {SR.T("Clear Logs")}")
+        var clearButton = new Button($"{NerdFont.MdDeleteOutline} {SR.T("Clear Logs")}")
         {
             Tone = ControlTone.Default,
         };

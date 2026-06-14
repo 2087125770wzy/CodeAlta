@@ -36,7 +36,7 @@ internal sealed class ShellHelpDialog
 
         var markdown = ShellHelpContentBuilder.BuildMarkdown(commands, filterText);
 
-        var closeButton = new Button(new TextBlock($"{TerminalIcons.MdClose} {SR.T("Close")}"))
+        var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} {SR.T("Close")}"))
         {
             HorizontalAlignment = Align.End,
             VerticalAlignment = Align.Start,

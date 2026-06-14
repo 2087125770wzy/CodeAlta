@@ -1693,7 +1693,7 @@ public sealed class ArchitectureGuardrailTests
 
         Assert.IsTrue(workspaceSource.Contains("promptComposerView.SendButton", StringComparison.Ordinal));
         Assert.IsTrue(normalizedSource.Contains("usageIndicator,\n            reminderButton,\n            sessionInfoButton,\n            promptComposerView.ExpandButton,\n            promptComposerView.SendButton,", StringComparison.Ordinal));
-        Assert.IsTrue(promptComposerSource.Contains("var icon = isAbort ? $\"{TerminalIcons.MdSquare}\" : $\"{TerminalIcons.MdSend}\";", StringComparison.Ordinal));
+        Assert.IsTrue(promptComposerSource.Contains("var icon = isAbort ? $\"{NerdFont.MdSquare}\" : $\"{NerdFont.MdSend}\";", StringComparison.Ordinal));
         Assert.IsTrue(promptComposerSource.Contains("var tone = isAbort ? ControlTone.Error : ControlTone.Success;", StringComparison.Ordinal));
         Assert.IsTrue(promptComposerSource.Contains("var tooltipText = isAbort ? \"Abort the selected session run.\" : \"Send the current prompt.\";", StringComparison.Ordinal));
     }

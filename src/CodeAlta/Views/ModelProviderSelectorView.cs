@@ -48,7 +48,7 @@ internal sealed class ModelProviderSelectorView
         ModelsDialogButton = new Button(new TextBlock("Model->") { Wrap = false, IsSelectable = false })
             .Click(controller.OpenModels);
         var modelsDialogButtonHost = ModelsDialogButton.Tooltip(new TextBlock(SR.T("Open the models dialog.")));
-        var compactSessionButton = new Button(new TextBlock($"{TerminalIcons.MdSelectCompare}"))
+        var compactSessionButton = new Button(new TextBlock($"{NerdFont.MdSelectCompare}"))
             .Click(controller.CompactSession)
             .IsEnabled(promptComposerViewModel.Bind.CanCompact)
             .Tooltip(new TextBlock(SR.T("Compact the selected session when it is idle (Ctrl+F11).")));

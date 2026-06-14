@@ -74,7 +74,7 @@ internal static partial class QueuedPromptListView
         Action<string> copyQueuedPromptMarkdown,
         Action<string> deletePendingSteer)
     {
-        var icon = new TextBlock($"{TerminalIcons.MdArrowRightThinCircleOutline}")
+        var icon = new TextBlock($"{NerdFont.MdArrowRightThinCircleOutline}")
         {
             Wrap = false,
             IsSelectable = false,
@@ -97,13 +97,13 @@ internal static partial class QueuedPromptListView
         };
 
         var copyButton = CreateIconButton(
-            $"{TerminalIcons.MdContentCopy}",
+            $"{NerdFont.MdContentCopy}",
             "Copy pending steering prompt markdown to the clipboard",
             () => copyQueuedPromptMarkdown(pendingSteer.Text));
         copyButton.Margin = new Thickness(0, 0, 1, 0);
 
         var deleteButton = CreateIconButton(
-            $"{TerminalIcons.MdTrashCanOutline}",
+            $"{NerdFont.MdTrashCanOutline}",
             "Delete pending steering prompt",
             () => deletePendingSteer(pendingSteer.Id));
 
@@ -135,7 +135,7 @@ internal static partial class QueuedPromptListView
         Action<string, string> updateQueuedPromptText,
         Func<Action<string>, string?, ChatPromptEditor> createPromptEditor)
     {
-        var icon = new TextBlock($"{TerminalIcons.MdMessageTextOutline}")
+        var icon = new TextBlock($"{NerdFont.MdMessageTextOutline}")
         {
             Wrap = false,
             IsSelectable = false,
@@ -152,13 +152,13 @@ internal static partial class QueuedPromptListView
         };
 
         var copyButton = CreateIconButton(
-            $"{TerminalIcons.MdContentCopy}",
+            $"{NerdFont.MdContentCopy}",
             "Copy queued prompt markdown to the clipboard",
             () => copyQueuedPromptMarkdown(queuedPrompt.Text));
         copyButton.Margin = new Thickness(0, 0, 1, 0);
 
         var editButton = CreateIconButton(
-            $"{TerminalIcons.MdSquareEditOutline}",
+            $"{NerdFont.MdSquareEditOutline}",
             "Edit queued prompt",
             () => ShowEditorDialog(queuedPrompt, updateQueuedPromptText, createPromptEditor));
         editButton.Margin = new Thickness(0, 0, 1, 0);
@@ -167,13 +167,13 @@ internal static partial class QueuedPromptListView
         counter.Margin = new Thickness(0, 0, 1, 0);
 
         var steerButton = CreateIconButton(
-            $"{TerminalIcons.MdArrowRightThinCircleOutline}",
+            $"{NerdFont.MdArrowRightThinCircleOutline}",
             "Send immediately as a steering prompt",
             () => convertQueuedPromptToSteer(queuedPrompt.Id));
         steerButton.Margin = new Thickness(0, 0, 1, 0);
 
         var deleteButton = CreateIconButton(
-            $"{TerminalIcons.MdTrashCanOutline}",
+            $"{NerdFont.MdTrashCanOutline}",
             "Delete queued prompt",
             () => deleteQueuedPrompt(queuedPrompt.Id));
 
@@ -224,7 +224,7 @@ internal static partial class QueuedPromptListView
                 isEnabled: countState.Value > 1),
             countBox,
             CreateIconButton(
-                $"{TerminalIcons.MdPlus}",
+                $"{NerdFont.MdPlus}",
                 "Increase repeat count",
                 () => countState.Value++))
         {
@@ -267,7 +267,7 @@ internal static partial class QueuedPromptListView
         };
 
         dialog = new Dialog(
-            new TextBlock($"{TerminalIcons.MdSquareEditOutline} Edit Queued Prompt"),
+            new TextBlock($"{NerdFont.MdSquareEditOutline} Edit Queued Prompt"),
             new DockLayout(
                 top: null,
                 content: editor.Scrollable().IsTabStop(false).MinHeight(8),

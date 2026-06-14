@@ -152,7 +152,7 @@ internal sealed class PromptManagementDialog
 
     private Dialog BuildDialog()
     {
-        var closeButton = new Button(new TextBlock($"{TerminalIcons.MdClose} Close"))
+        var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"))
         {
             HorizontalAlignment = Align.End,
             VerticalAlignment = Align.Start,
@@ -166,11 +166,11 @@ internal sealed class PromptManagementDialog
             .Tone(ControlTone.Primary)
             .IsEnabled(() => _getSelectedProject() is not null)
             .Click(() => ShowNewPromptDialog(PromptStorageScope.Project));
-        var saveButton = new Button($"{TerminalIcons.MdContentSaveCheckOutline} Save")
+        var saveButton = new Button($"{NerdFont.MdContentSaveCheckOutline} Save")
             .Tone(ControlTone.Success)
             .IsEnabled(CanSaveSelectedPrompt)
             .Click(SaveSelectedPrompt);
-        var deleteButton = new Button($"{TerminalIcons.MdTrashCanOutline} Delete")
+        var deleteButton = new Button($"{NerdFont.MdTrashCanOutline} Delete")
             .Tone(ControlTone.Error)
             .IsEnabled(() => !IsSelectedReadOnly() && GetSelectedPath() is not null)
             .Click(DeleteSelectedPrompt);

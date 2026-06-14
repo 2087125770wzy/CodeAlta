@@ -38,7 +38,7 @@ internal sealed class ConfirmationDialog
         _onConfirmAsync = onConfirmAsync;
         _getFocusTarget = getFocusTarget;
 
-        var closeButton = new Button(new TextBlock($"{TerminalIcons.MdClose} Close"))
+        var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"))
         {
             HorizontalAlignment = Align.End,
             VerticalAlignment = Align.Start,

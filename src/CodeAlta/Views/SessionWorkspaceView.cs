@@ -280,7 +280,7 @@ internal sealed class SessionWorkspaceView
 
         Visual? sessionInfoButton = null;
         sessionInfoButton = CreateIconButton(
-                $"{TerminalIcons.MdInformationOutline}",
+                $"{NerdFont.MdInformationOutline}",
                 $"Show information about the selected session ({SessionInfoShortcutSequence}).",
                 () => _chromeController.ToggleSessionInfoPopup(sessionInfoButton!),
                 button => button.IsEnabled(workspaceViewModel.Bind.CanShowSessionInfo));
@@ -309,8 +309,8 @@ internal sealed class SessionWorkspaceView
             {
                 var count = _chromeController.GetActiveReminderCount();
                 return count > 0
-                    ? $"{TerminalIcons.MdTimerOutline} {count}"
-                    : $"{TerminalIcons.MdTimerOutline}";
+                    ? $"{NerdFont.MdTimerOutline} {count}"
+                    : $"{NerdFont.MdTimerOutline}";
             })
             {
                 Wrap = false,
