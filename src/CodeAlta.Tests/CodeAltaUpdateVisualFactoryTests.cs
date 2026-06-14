@@ -87,7 +87,7 @@ public sealed class CodeAltaUpdateVisualFactoryTests
         => Assert.IsTrue(FindButtons(visual).Any(IsCopyButton), "Expected a copy-to-clipboard button for the update command.");
 
     private static bool IsCopyButton(Button button)
-        => button.Content is TextBlock textBlock && textBlock.Text == $"{NerdFont.MdContentCopy}";
+        => button.Content is TextBlock textBlock && textBlock.Text == $"{TerminalIcons.MdContentCopy}";
 
     private static IEnumerable<Markup> FindMarkups(Visual? visual)
     {

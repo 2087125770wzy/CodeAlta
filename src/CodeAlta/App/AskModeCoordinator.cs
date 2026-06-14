@@ -277,7 +277,7 @@ internal sealed class AskModeCoordinator : IDisposable
         Action discardAndContinue)
     {
         Dialog? dialog = null;
-        var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"));
+        var closeButton = new Button(new TextBlock($"{TerminalIcons.MdClose} Close"));
         closeButton.Click(Close);
 
         var keepButton = new Button("Keep answering");

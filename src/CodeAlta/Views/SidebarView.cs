@@ -98,19 +98,19 @@ internal sealed class SidebarView
         var footer = new HStack(
         [
             CreateToolbarButton(
-                () => NerdFont.MdRefresh,
+                () => TerminalIcons.MdRefresh,
                 SR.T("Refresh projects and sessions"),
                 refreshCatalog),
             CreateToolbarButton(
                 () => viewModel.SortMode == NavigatorProjectSortMode.Name
-                    ? NerdFont.MdSortAlphabeticalAscending
-                    : NerdFont.MdSortCalendarDescending,
+                    ? TerminalIcons.MdSortAlphabeticalAscending
+                    : TerminalIcons.MdSortCalendarDescending,
                 () => viewModel.SortMode == NavigatorProjectSortMode.Name
                     ? SR.T("Sort projects by name")
                     : SR.T("Sort projects by last activity"),
                 cycleSortMode),
             CreateToolbarButton(
-                () => NerdFont.MdCogOutline,
+                () => TerminalIcons.MdCogOutline,
                 SR.T("Workspace settings"),
                 openNavigatorSettings),
         ])
@@ -121,7 +121,7 @@ internal sealed class SidebarView
         if (openLogs is not null)
         {
             footer.Children.Add(
-                new Button(new TextBlock($"{NerdFont.MdTextBoxSearchOutline} {SR.T("Show Logs")}"))
+                new Button(new TextBlock($"{TerminalIcons.MdTextBoxSearchOutline} {SR.T("Show Logs")}"))
                     .Style(ToolbarButtonStyle)
                     .Click(openLogs)
                     .Tooltip(new TextBlock(SR.T("Show application logs"))));
@@ -240,7 +240,7 @@ internal sealed class SidebarView
         => _notesView.SetMarkdown(markdown);
 
     private string BuildTitleMarkup() => _isCollapsed ? "" :
-        $"[bold]{NerdFont.FaFolderTree} {SR.T("Navigator")}[/]";
+        $"[bold]{TerminalIcons.FaFolderTree} {SR.T("Navigator")}[/]";
 
     private TreeNode CreateNode(SidebarTreeNodeProjection projection)
     {
@@ -381,11 +381,11 @@ internal sealed class SidebarView
                 },
             };
 
-            var copyButton = new Button(new TextBlock(NerdFont.MdContentCopy.ToString()) { Wrap = false, IsSelectable = false })
+            var copyButton = new Button(new TextBlock(TerminalIcons.MdContentCopy.ToString()) { Wrap = false, IsSelectable = false })
                 .Style(TitleButtonStyle);
             copyButton.Click(() => copyButton.App?.Terminal.Clipboard.TrySetText(_markdown.Markdown ?? string.Empty));
             var copyButtonHost = copyButton.Tooltip(new TextBlock(SR.T("Copy notes as Markdown")));
-            var clearButton = new Button(new TextBlock($"{NerdFont.MdTrashCanOutline} {SR.T("Clear")}") { Wrap = false, IsSelectable = false })
+            var clearButton = new Button(new TextBlock($"{TerminalIcons.MdTrashCanOutline} {SR.T("Clear")}") { Wrap = false, IsSelectable = false })
                 .Style(TitleButtonStyle);
             clearButton.Click(ClearNotes);
             var clearButtonHost = clearButton.Tooltip(new TextBlock(SR.T("Clear notes")));
@@ -395,7 +395,7 @@ internal sealed class SidebarView
                 .Stretch();
 
             Group? notesGroup = null;
-            notesGroup = new Group($"{NerdFont.MdNoteTextOutline} {SR.T("Notes")}", notesScroll)
+            notesGroup = new Group($"{TerminalIcons.MdNoteTextOutline} {SR.T("Notes")}", notesScroll)
             {
                 HorizontalAlignment = Align.Stretch,
                 VerticalAlignment = Align.Stretch,

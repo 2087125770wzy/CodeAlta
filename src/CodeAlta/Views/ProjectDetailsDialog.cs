@@ -42,7 +42,7 @@ internal sealed class ProjectDetailsDialog
             Archived = project.Archived,
         };
 
-        var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} Close"))
+        var closeButton = new Button(new TextBlock($"{TerminalIcons.MdClose} Close"))
         {
             HorizontalAlignment = Align.End,
             VerticalAlignment = Align.Start,

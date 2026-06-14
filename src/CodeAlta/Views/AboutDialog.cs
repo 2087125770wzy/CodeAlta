@@ -59,7 +59,7 @@ internal sealed class AboutDialog
     private Dialog BuildDialog()
     {
         var version = CodeAltaApplicationInfo.GetVersionInfo();
-        var closeButton = new Button(new TextBlock($"{NerdFont.MdClose} {SR.T("Close")}"))
+        var closeButton = new Button(new TextBlock($"{TerminalIcons.MdClose} {SR.T("Close")}"))
         {
             HorizontalAlignment = Align.End,
             VerticalAlignment = Align.Start,
@@ -143,8 +143,8 @@ internal sealed class AboutDialog
     private static Visual BuildLinksRow()
     {
         return new HStack(
-            CreateExternalLink(GitHubProjectUri, $"{NerdFont.FaGithub} {SR.T("GitHub")}"),
-            CreateExternalLink(WebsiteUri, $"{NerdFont.MdWeb} {SR.T("Website")}"))
+            CreateExternalLink(GitHubProjectUri, $"{TerminalIcons.FaGithub} {SR.T("GitHub")}"),
+            CreateExternalLink(WebsiteUri, $"{TerminalIcons.MdWeb} {SR.T("Website")}"))
         {
             HorizontalAlignment = Align.Center,
             Spacing = 4,

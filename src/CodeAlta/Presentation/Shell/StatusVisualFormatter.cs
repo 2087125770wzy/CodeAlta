@@ -33,15 +33,15 @@ internal static class StatusVisualFormatter
     {
         return tone switch
         {
-            StatusTone.Ready => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Ready)}]{NerdFont.MdCheckCircleOutline}[/]",
-            StatusTone.Warning => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Warning)}]{NerdFont.MdAlertOutline}[/]",
-            StatusTone.Error => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Error)}]{NerdFont.MdAlertCircleOutline}[/]",
-            _ => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Info)}]{NerdFont.OctInfo}[/]",
+            StatusTone.Ready => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Ready)}]{TerminalIcons.MdCheckCircleOutline}[/]",
+            StatusTone.Warning => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Warning)}]{TerminalIcons.MdAlertOutline}[/]",
+            StatusTone.Error => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Error)}]{TerminalIcons.MdAlertCircleOutline}[/]",
+            _ => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Info)}]{TerminalIcons.OctInfo}[/]",
         };
     }
 
     public static string BuildPromptEditedIconMarkup()
-        => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Info)}]{NerdFont.MdSquareEditOutline}[/]";
+        => $"[{UiPalette.GetStatusToneMarkup(StatusTone.Info)}]{TerminalIcons.MdSquareEditOutline}[/]";
 
     public static TextBlockStyle BuildStatusTextStyle(Theme theme, string message, bool busy, StatusTone tone, float thinkingAnimationPhase01)
     {

@@ -79,7 +79,7 @@ internal sealed class PermissionApprovalDialog
             _ => "Permission Request",
         };
 
-        var header = new Markup($"[bold]{NerdFont.MdShieldPlusOutline} {headerText}[/]");
+        var header = new Markup($"[bold]{TerminalIcons.MdShieldPlusOutline} {headerText}[/]");
 
         var content = new DockLayout()
             .Top(header)
